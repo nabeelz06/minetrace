@@ -1,0 +1,6 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+
+SET timezone = 'Asia/Jakarta';
+
+GRANT ALL PRIVILEGES ON DATABASE minetra_master TO minetra_user;
