@@ -23,3 +23,10 @@ docker/nginx/ssl/
 /.nova
 /.vscode
 /.zed
+.env.production
+.env.production
+.env.production
+.env.production
+.env.production
+.env.production
+.env.production

@@ -10,7 +10,6 @@ networks:
 
 services:
 
-  # ─── PHP-FPM Application ──────────────────────────────────────────────────
   app:
     build:
       context: .
@@ -33,14 +32,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "php-fpm -t 2>&1 | grep -q 'successful'"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
 
-  # ─── Nginx Web Server ─────────────────────────────────────────────────────
   nginx:
     image: nginx:1.25-alpine
     container_name: minetra_nginx
@@ -56,7 +48,6 @@ services:
     depends_on:
       - app
 
-  # ─── PostgreSQL Database ──────────────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
     container_name: minetra_postgres
@@ -79,7 +70,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── Redis Cache & Queue ──────────────────────────────────────────────────
   redis:
     image: redis:7.2-alpine
     container_name: minetra_redis
@@ -95,7 +85,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── Queue Worker ─────────────────────────────────────────────────────────
   queue:
     build:
       context: .
@@ -118,7 +107,6 @@ services:
       - app
       - redis
 
-  # ─── Scheduler (Laporan Bulanan Otomatis) ─────────────────────────────────
   scheduler:
     build:
       context: .
