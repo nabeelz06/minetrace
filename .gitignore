@@ -30,3 +30,4 @@ docker/nginx/ssl/
 .env.production
 .env.production
 .env.production
+.env.production

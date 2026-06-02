@@ -42,6 +42,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         ->middleware('throttle:120,1')  // 120 scans per menit
         ->name('hardware.rfid-scan');
 
+    // ─── ESP32 Boot Config (public, dipanggil ESP32 saat startup) ─────────────
+    Route::get('hardware/rfid/esp-config', [ApiRfidController::class, 'espBootConfig'])
+        ->name('hardware.rfid.esp-config');
+
     // ─── Authenticated ────────────────────────────────────────────────────
     Route::middleware(['auth:sanctum'])->group(function () {
 
@@ -76,6 +80,32 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('simulate-scan',  [ApiHardwareController::class, 'simulateScan'])->name('simulate-scan');
                 Route::post('weight',         [ApiHardwareController::class, 'weightInput'])->name('weight');
                 Route::get('events',          [ApiHardwareController::class, 'pollEvents'])->name('events');
+            });
+
+            // ─── RFID Web UI endpoints (dari RfidPanel.vue, Sanctum auth) ─────────────
+            // (Sesuai instruksi Anda, diletakkan di dalam company -> hardware/sejajar)
+            Route::prefix('rfid')->group(function () {
+                // Status dashboard RFID (batch ter-tag, aktivitas terbaru, pending)
+                Route::get('status',        [ApiRfidController::class, 'getStatus'])
+                    ->name('rfid.status');
+                
+                // Batch belum ter-tag (untuk dropdown register)
+                Route::get('batches',       [ApiRfidController::class, 'getUntaggedBatches'])
+                    ->name('rfid.batches');
+                
+                // Set/cancel pending batch
+                Route::post('pending-batch',   [ApiRfidController::class, 'setPendingBatch'])
+                    ->name('rfid.pending-batch.set');
+                Route::delete('pending-batch', [ApiRfidController::class, 'cancelPendingBatch'])
+                    ->name('rfid.pending-batch.cancel');
+                
+                // Hapus tag dari batch
+                Route::delete('batches/{batchId}/tag', [ApiRfidController::class, 'removeTag'])
+                    ->name('rfid.batches.remove-tag');
+                
+                // Simpan IP ESP32
+                Route::post('device', [ApiRfidController::class, 'saveDeviceIp'])
+                    ->name('rfid.device');
             });
         });
 
@@ -148,4 +178,28 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             ->name('api.rfid.users.unregister');
 
     });
+});
+
+
+/*
+|──────────────────────────────────────────────────────────────────────────
+| RFID ALIAS ROUTES (tanpa v1 prefix)
+|──────────────────────────────────────────────────────────────────────────
+| Untuk kompatibilitas dengan konfigurasi ESP32 yang menggunakan:
+|   ENDPOINT_REGISTER = "/api/rfid/register"
+|   ENDPOINT_LOGIN    = "/api/rfid/login"
+|   ENDPOINT_LOGOUT   = "/api/rfid/logout"
+|
+| Jika ESP32 sudah dikonfigurasi ulang ke /api/v1/rfid/..., routes ini bisa
+| dihapus. Untuk saat ini dibiarkan agar tidak perlu flash ulang ESP32.
+*/
+Route::prefix('rfid')->group(function () {
+    Route::options('{any}', [ApiRfidController::class, 'handleOptions'])
+        ->where('any', '.*');
+    Route::post('register', [ApiRfidController::class, 'registerCard'])
+        ->middleware('throttle:120,1');
+    Route::post('login',    [ApiRfidController::class, 'loginCard'])
+        ->middleware('throttle:120,1');
+    Route::post('logout',   [ApiRfidController::class, 'logoutCard'])
+        ->middleware('throttle:120,1');
 });

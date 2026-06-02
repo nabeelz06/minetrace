@@ -2,389 +2,534 @@
 
 namespace App\Services\Hardware;
 
-use App\Models\User;
+use App\Models\Batch;
+use App\Models\Checkpoint;
+use App\Models\Company;
+use App\Models\CompanySetting;
+use App\Models\MassBalanceThreshold;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
- * RfidService — Business logic untuk integrasi hardware RFID.
+ * RfidService — Business logic integrasi hardware RFID ESP32 untuk tracking batch mineral.
  *
- * ARSITEKTUR:
- *   ESP32 (Arduino) membaca kartu RFID → kirim UID ke endpoint MINETRA
- *   MINETRA melakukan lookup user by UID → return response ke ESP32
- *   ESP32 tampilkan hasil di LCD I2C
+ * ════════════════════════════════════════════════════════════════════════
+ * ARSITEKTUR SISTEM:
  *
- * FLOW REGISTER:
- *   1. Admin di web MINETRA klik "Daftarkan Kartu" → pilih user
- *   2. Sistem simpan pending_user_id ke Cache (TTL 60 detik)
- *   3. Operator tempelkan kartu ke ESP32 yang dalam mode REGISTER
- *   4. ESP32 kirim UID ke /api/rfid/register
- *   5. Service ambil pending_user_id dari cache, hubungkan UID ke user
+ *   Browser Operator (MINETRA Web)
+ *     │
+ *     ├─ Simpan ESP32 IP ke CompanySetting
+ *     ├─ Pilih Batch → POST /api/v1/rfid/pending-batch → Cache 90 detik
+ *     └─ Klik Mode → fetch langsung ke ESP32 IP /set-mode
  *
- * FLOW LOGIN:
- *   1. ESP32 dalam mode LOGIN, operator tempelkan kartu
- *   2. ESP32 kirim UID ke /api/rfid/login
- *   3. Service cari user by rfid_uid, update rfid_is_present = true
- *   4. Return nama user ke ESP32 → tampil di LCD
+ *   ESP32 Hardware (RC522 RFID + LCD I2C)
+ *     │
+ *     ├─ Boot: GET /api/v1/hardware/rfid/esp-config (ambil config dari MINETRA)
+ *     ├─ Mode REGISTER → LCD "Tempel Tag" → scan karung
+ *     │   └─ POST /api/rfid/register {uid} → MINETRA simpan batch.rfid_tag
+ *     ├─ Mode LOGIN → LCD "Tempel Tag" → scan karung masuk gudang
+ *     │   └─ POST /api/rfid/login {uid} → MINETRA catat checkpoint IN
+ *     └─ Mode LOGOUT → LCD "Tempel Tag" → scan karung keluar gudang
+ *         └─ POST /api/rfid/logout {uid} → MINETRA catat checkpoint OUT
  *
- * FLOW LOGOUT:
- *   1. ESP32 dalam mode LOGOUT, operator tempelkan kartu
- *   2. ESP32 kirim UID ke /api/rfid/logout
- *   3. Service cari user by rfid_uid, update rfid_is_present = false
+ * PENTING — ENUM RULE:
+ *   Semua nilai checkpoint_stage HARUS menggunakan match() PHP 8.
+ *   JANGAN string concatenation → SQLSTATE[23514] Check violation!
+ * ════════════════════════════════════════════════════════════════════════
  */
 class RfidService
 {
-    private const CACHE_PENDING_PREFIX = 'rfid_pending_user_';
-    private const CACHE_PENDING_TTL    = 90;  // detik — waktu window untuk tempel kartu
+    private const CACHE_PENDING_BATCH_PREFIX = 'rfid_pending_batch_';
+    private const CACHE_PENDING_TTL          = 90;  // detik
+    private const TZ                         = 'Asia/Jakarta';
 
-    // ═══════════════════════════════════════════════════════════════
-    // REGISTER — Daftarkan UID kartu ke user yang pending
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // REGISTER — Link RFID tag ke batch tertentu (dilakukan di Lab Kimia)
+    // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Daftarkan UID kartu RFID ke user yang sedang pending registration.
+     * Daftarkan UID RFID tag ke batch yang sedang pending registrasi.
      *
      * Dipanggil oleh ESP32 via POST /api/rfid/register
+     * Skenario: Operator Lab menempel tag RFID ke karung mineral baru.
      *
-     * @param  string   $uid        UID fisik kartu (hex string)
-     * @param  int      $companyId  Company ID (dari token atau default)
-     * @return array    Response untuk ESP32
+     * @param  string $uid       UID hex dari tag RFID (contoh: "A3B2C1D0")
+     * @param  int    $companyId Company ID
+     * @return array             Response untuk LCD ESP32 (max 16 karakter per field)
      */
-    public function registerCard(string $uid, int $companyId = 1): array
+    public function registerBatchTag(string $uid, int $companyId = 1): array
     {
         $uid = strtoupper(trim($uid));
 
-        // ─── Cek apakah UID sudah terdaftar di user lain ──────────
-        $existingUser = User::where('rfid_uid', $uid)->first();
-        if ($existingUser) {
-            Log::warning("RFID Register: UID {$uid} sudah terdaftar untuk user {$existingUser->name}");
+        // ─── Cek apakah UID sudah terdaftar ke batch lain ─────────────
+        $existingBatch = Batch::where('rfid_tag', $uid)
+            ->where('company_id', $companyId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if ($existingBatch) {
+            Log::warning("RFID Register: UID {$uid} sudah dipakai oleh batch {$existingBatch->batch_code}");
             return [
                 'status'  => 'failed',
-                'message' => 'Kartu sudah terdaftar',
-                'detail'  => "UID ini sudah dipakai oleh {$existingUser->name}",
+                'name'    => substr($existingBatch->batch_code, 0, 16),
+                'message' => 'Tag sudah dipakai',
+                'detail'  => "UID ini sudah digunakan oleh batch {$existingBatch->batch_code}.",
             ];
         }
 
-        // ─── Ambil pending user dari cache ─────────────────────────
-        $cacheKey  = self::CACHE_PENDING_PREFIX . $companyId;
+        // ─── Ambil pending batch dari cache ───────────────────────────
+        $cacheKey   = self::CACHE_PENDING_BATCH_PREFIX . $companyId;
         $pendingData = Cache::get($cacheKey);
 
         if (!$pendingData) {
-            Log::info("RFID Register: Tidak ada pending registration untuk company {$companyId}");
+            Log::info("RFID Register: Tidak ada pending batch untuk company {$companyId}");
             return [
                 'status'  => 'failed',
-                'message' => 'Tidak ada sesi registrasi aktif',
-                'detail'  => 'Mulai registrasi dari panel web MINETRA terlebih dahulu',
+                'name'    => 'Tidak Ada Sesi',
+                'message' => 'Tidak ada sesi',
+                'detail'  => 'Mulai sesi registrasi dari panel web MINETRA terlebih dahulu.',
             ];
         }
 
-        $userId = $pendingData['user_id'];
-        $user   = User::where('company_id', $companyId)->find($userId);
+        $batch = Batch::where('company_id', $companyId)->find($pendingData['batch_id']);
 
-        if (!$user) {
+        if (!$batch) {
             Cache::forget($cacheKey);
-            return [
-                'status'  => 'failed',
-                'message' => 'User tidak ditemukan',
-            ];
+            return ['status' => 'failed', 'name' => 'Error', 'message' => 'Batch tidak ada'];
         }
 
-        // ─── Daftarkan UID ke user ─────────────────────────────────
-        $user->update([
-            'rfid_uid'           => $uid,
-            'rfid_last_scan_at'  => now(),
+        // ─── Hubungkan tag UID ke batch ────────────────────────────────
+        $batch->update([
+            'rfid_tag'   => $uid,
+            'updated_by' => null, // sistem, bukan user
+            'metadata'   => array_merge($batch->metadata ?? [], [
+                'rfid_registered_at' => Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+                'rfid_registered_by' => $pendingData['initiated_by'] ?? 'System',
+            ]),
         ]);
 
-        // Hapus pending dari cache setelah berhasil
+        // ─── Catat checkpoint register di Lab Kimia ───────────────────
+        Checkpoint::create([
+            'batch_id'         => $batch->id,
+            'location_id'      => $batch->current_location_id,
+            'checkpoint_stage' => 'lab_kimia_create',     // ← ENUM valid
+            'weight_recorded'  => $batch->current_weight,
+            'weight_previous'  => $batch->current_weight,
+            'weight_loss'      => 0,
+            'weight_loss_pct'  => 0,
+            'has_discrepancy'  => false,
+            'is_verified'      => true,
+            'notes'            => "RFID Tag terdaftar: UID {$uid} — {$pendingData['initiated_by']}",
+            'checkpoint_data'  => [
+                'action'         => 'rfid_register',
+                'rfid_uid'       => $uid,
+                'initiated_by'   => $pendingData['initiated_by'] ?? 'System',
+                'timestamp_wib'  => Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+            ],
+            'rfid_scan_code'   => $uid,
+            'recorded_by'      => null,
+            'recorded_at'      => now(),
+        ]);
+
+        // ─── Hapus pending dari cache setelah berhasil ─────────────────
         Cache::forget($cacheKey);
 
-        Log::info("RFID Register: Berhasil. UID {$uid} → User {$user->name} (ID:{$user->id})");
+        Log::info("RFID Register: Berhasil. UID {$uid} → Batch {$batch->batch_code} (ID:{$batch->id})");
 
+        $displayCode = $this->truncate($batch->batch_code, 16);
         return [
             'status'  => 'success',
-            'name'    => $this->truncateName($user->name),
-            'message' => 'Kartu terdaftar',
-            'detail'  => "{$user->name} ({$user->rfid_uid})",
-            'user_id' => $user->id,
-            'role'    => $user->getRoleNames()->first() ?? 'user',
+            'name'    => $displayCode,
+            'message' => 'Tag terdaftar!',
+            'detail'  => "Batch {$batch->batch_code} ({$batch->productCode?->code}) berhasil ditag UID {$uid}.",
+            'batch_id'   => $batch->id,
+            'batch_code' => $batch->batch_code,
         ];
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // LOGIN — Autentikasi operator via kartu RFID
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // LOGIN (CHECKPOINT IN) — Scan karung saat MASUK area/gudang
+    // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Login operator via kartu RFID.
+     * Catat checkpoint MASUK ketika karung di-scan di pintu masuk gudang.
      *
      * Dipanggil oleh ESP32 via POST /api/rfid/login
+     * Skenario: Karung mineral tiba di depan gudang, operator scan RFID.
      *
-     * @param  string $uid  UID fisik kartu
-     * @return array        Response untuk ESP32 (ditampilkan di LCD)
+     * @param  string $uid       UID tag RFID yang discan
+     * @param  int    $companyId Company ID
+     * @return array             Response untuk LCD ESP32
      */
-    public function loginByCard(string $uid): array
+    public function checkpointIn(string $uid, int $companyId = 1): array
     {
-        $uid  = strtoupper(trim($uid));
-        $user = User::where('rfid_uid', $uid)->where('is_active', true)->first();
+        $uid   = strtoupper(trim($uid));
+        $batch = Batch::with('productCode')
+            ->where('rfid_tag', $uid)
+            ->where('company_id', $companyId)
+            ->whereNull('deleted_at')
+            ->first();
 
-        if (!$user) {
-            Log::warning("RFID Login: UID {$uid} tidak dikenal");
+        if (!$batch) {
+            Log::warning("RFID Login (IN): UID {$uid} tidak terdaftar pada batch manapun");
             return [
                 'status'  => 'failed',
-                'message' => 'Kartu tidak dikenal',
-                'detail'  => "UID {$uid} tidak terdaftar. Hubungi admin.",
+                'name'    => 'Tag Asing',
+                'message' => 'Tag tidak dikenal',
+                'detail'  => "UID {$uid} tidak terdaftar. Lakukan registrasi terlebih dahulu.",
             ];
         }
 
-        // ─── Update status kehadiran ───────────────────────────────
-        $user->update([
-            'rfid_is_present'   => true,
-            'rfid_last_scan_at' => now(),
+        // ─── Tentukan checkpoint_stage ENUM yang valid ─────────────────
+        // WAJIB menggunakan match() — JANGAN string concatenation
+        $checkpointStage = match($batch->process_stage) {
+            'lab_kimia'     => 'lab_kimia_create',
+            'receiving'     => 'receiving_verify',
+            'wet_process'   => 'wet_process_input',
+            'dry_process'   => 'dry_process_input',
+            'warehouse'     => 'warehouse_inbound',
+            'project_plant' => 'project_plant_receive',
+            default         => 'warehouse_inbound',
+        };
+
+        // ─── Cek threshold mass balance ────────────────────────────────
+        $threshold = MassBalanceThreshold::where('company_id', $companyId)
+            ->where('process_stage', $batch->process_stage)
+            ->first();
+
+        // ─── Catat checkpoint IN ───────────────────────────────────────
+        Checkpoint::create([
+            'batch_id'         => $batch->id,
+            'location_id'      => $batch->current_location_id,
+            'checkpoint_stage' => $checkpointStage,
+            'weight_recorded'  => $batch->current_weight,
+            'weight_previous'  => $batch->current_weight,
+            'weight_loss'      => 0,
+            'weight_loss_pct'  => 0,
+            'has_discrepancy'  => false,
+            'is_verified'      => true,
+            'notes'            => "RFID Scan MASUK — Stage: {$batch->process_stage} — " . Carbon::now(self::TZ)->format('H:i:s') . ' WIB',
+            'checkpoint_data'  => [
+                'action'          => 'rfid_checkpoint_in',
+                'rfid_uid'        => $uid,
+                'process_stage'   => $batch->process_stage,
+                'product_code'    => $batch->productCode?->code,
+                'weight_kg'       => $batch->current_weight,
+                'timestamp_wib'   => Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+            ],
+            'rfid_scan_code'   => $uid,
+            'recorded_by'      => null,
+            'recorded_at'      => now(),
         ]);
 
-        $roleLabel = $this->getRoleLabel($user->getRoleNames()->first());
+        Log::info("RFID IN: Batch {$batch->batch_code} (UID:{$uid}) checkpoint masuk. Stage: {$batch->process_stage}");
 
-        Log::info("RFID Login: {$user->name} (UID:{$uid}) berhasil masuk pukul " . now()->timezone('Asia/Jakarta')->format('H:i:s'));
+        $timeWib     = Carbon::now(self::TZ)->format('H:i:s');
+        $displayCode = $this->truncate($batch->batch_code, 16);
+        $displayProd = $this->truncate($batch->productCode?->code ?? 'BATCH', 8);
 
         return [
             'status'     => 'success',
-            'name'       => $this->truncateName($user->name),
-            'message'    => 'Login berhasil',
-            'detail'     => "{$user->name} \u2014 {$roleLabel}",
-            'user_id'    => $user->id,
-            'role'       => $user->getRoleNames()->first() ?? 'user',
-            'role_label' => $roleLabel,
-            'timestamp'  => now()->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
+            'name'       => $displayCode,
+            'message'    => 'Batch masuk OK',
+            'detail'     => "Batch {$batch->batch_code} ({$displayProd}) {$batch->current_weight}kg — Checkpoint IN dicatat pukul {$timeWib} WIB.",
+            'batch_id'   => $batch->id,
+            'batch_code' => $batch->batch_code,
+            'product'    => $batch->productCode?->code,
+            'weight_kg'  => $batch->current_weight,
+            'stage'      => $batch->process_stage,
+            'timestamp'  => Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
         ];
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // LOGOUT — Operator scan keluar
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // LOGOUT (CHECKPOINT OUT) — Scan karung saat KELUAR area/gudang
+    // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Logout operator via kartu RFID.
+     * Catat checkpoint KELUAR ketika karung di-scan di pintu keluar.
      *
      * Dipanggil oleh ESP32 via POST /api/rfid/logout
+     * Skenario: Karung mineral dipindahkan keluar dari gudang.
      *
-     * @param  string $uid  UID fisik kartu
-     * @return array        Response untuk ESP32
+     * @param  string $uid       UID tag RFID yang discan
+     * @param  int    $companyId Company ID
+     * @return array             Response untuk LCD ESP32
      */
-    public function logoutByCard(string $uid): array
+    public function checkpointOut(string $uid, int $companyId = 1): array
     {
-        $uid  = strtoupper(trim($uid));
-        $user = User::where('rfid_uid', $uid)->where('is_active', true)->first();
+        $uid   = strtoupper(trim($uid));
+        $batch = Batch::with('productCode')
+            ->where('rfid_tag', $uid)
+            ->where('company_id', $companyId)
+            ->whereNull('deleted_at')
+            ->first();
 
-        if (!$user) {
-            Log::warning("RFID Logout: UID {$uid} tidak dikenal");
+        if (!$batch) {
+            Log::warning("RFID Logout (OUT): UID {$uid} tidak terdaftar");
             return [
                 'status'  => 'failed',
-                'message' => 'Kartu tidak dikenal',
+                'name'    => 'Tag Asing',
+                'message' => 'Tag tidak dikenal',
                 'detail'  => "UID {$uid} tidak terdaftar.",
             ];
         }
 
-        // ─── Update status keluar ──────────────────────────────────
-        $user->update([
-            'rfid_is_present'   => false,
-            'rfid_last_scan_at' => now(),
+        // ─── Tentukan checkpoint_stage ENUM yang valid untuk OUT ───────
+        // WAJIB menggunakan match() — ENUM PostgreSQL constraint
+        $checkpointStage = match($batch->process_stage) {
+            'lab_kimia'     => 'in_transit',
+            'receiving'     => 'in_transit',
+            'wet_process'   => 'wet_process_output',
+            'dry_process'   => 'dry_process_output',
+            'warehouse'     => 'warehouse_transfer',
+            'project_plant' => 'in_transit',
+            default         => 'warehouse_transfer',
+        };
+
+        // ─── Catat checkpoint OUT ──────────────────────────────────────
+        Checkpoint::create([
+            'batch_id'         => $batch->id,
+            'location_id'      => $batch->current_location_id,
+            'checkpoint_stage' => $checkpointStage,
+            'weight_recorded'  => $batch->current_weight,
+            'weight_previous'  => $batch->current_weight,
+            'weight_loss'      => 0,
+            'weight_loss_pct'  => 0,
+            'has_discrepancy'  => false,
+            'is_verified'      => true,
+            'notes'            => "RFID Scan KELUAR — Stage: {$batch->process_stage} — " . Carbon::now(self::TZ)->format('H:i:s') . ' WIB',
+            'checkpoint_data'  => [
+                'action'         => 'rfid_checkpoint_out',
+                'rfid_uid'       => $uid,
+                'process_stage'  => $batch->process_stage,
+                'product_code'   => $batch->productCode?->code,
+                'weight_kg'      => $batch->current_weight,
+                'timestamp_wib'  => Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+            ],
+            'rfid_scan_code'   => $uid,
+            'recorded_by'      => null,
+            'recorded_at'      => now(),
         ]);
 
-        Log::info("RFID Logout: {$user->name} (UID:{$uid}) keluar pukul " . now()->timezone('Asia/Jakarta')->format('H:i:s'));
+        Log::info("RFID OUT: Batch {$batch->batch_code} (UID:{$uid}) checkpoint keluar. Stage: {$batch->process_stage}");
+
+        $timeWib     = Carbon::now(self::TZ)->format('H:i:s');
+        $displayCode = $this->truncate($batch->batch_code, 16);
 
         return [
-            'status'    => 'success',
-            'name'      => $this->truncateName($user->name),
-            'message'   => 'Logout berhasil',
-            'detail'    => "{$user->name} telah keluar",
-            'user_id'   => $user->id,
-            'timestamp' => now()->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
+            'status'     => 'success',
+            'name'       => $displayCode,
+            'message'    => 'Batch keluar OK',
+            'detail'     => "Batch {$batch->batch_code} keluar pukul {$timeWib} WIB. Checkpoint OUT dicatat.",
+            'batch_id'   => $batch->id,
+            'batch_code' => $batch->batch_code,
+            'product'    => $batch->productCode?->code,
+            'stage'      => $batch->process_stage,
+            'timestamp'  => Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
         ];
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // PENDING REGISTRATION — Manajemen antrian registrasi kartu
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // PENDING BATCH — Antrian registrasi tag ke batch
+    // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Set pending registration untuk user tertentu.
-     * Dipanggil dari web MINETRA sebelum operator tempel kartu.
-     *
-     * @param int    $userId     User yang akan menerima kartu
-     * @param int    $companyId  Company ID
-     * @param string $initiatedBy Nama admin yang memulai registrasi
+     * Set pending batch — batch mana yang akan menerima tag berikutnya.
+     * Dipanggil dari web MINETRA sebelum operator tempel tag.
      */
-    public function setPendingRegistration(int $userId, int $companyId, string $initiatedBy = 'System'): void
+    public function setPendingBatch(int $batchId, int $companyId, string $initiatedBy = 'System'): void
     {
-        $cacheKey = self::CACHE_PENDING_PREFIX . $companyId;
+        $batch    = Batch::where('company_id', $companyId)->findOrFail($batchId);
+        $cacheKey = self::CACHE_PENDING_BATCH_PREFIX . $companyId;
+
         Cache::put($cacheKey, [
-            'user_id'      => $userId,
+            'batch_id'     => $batchId,
+            'batch_code'   => $batch->batch_code,
+            'product_code' => $batch->productCode?->code,
             'initiated_by' => $initiatedBy,
             'started_at'   => now()->toISOString(),
         ], self::CACHE_PENDING_TTL);
 
-        Log::info("RFID Pending: Registrasi dimulai untuk user_id={$userId} oleh {$initiatedBy}");
+        Log::info("RFID Pending Batch: batch_id={$batchId} ({$batch->batch_code}) oleh {$initiatedBy}");
     }
 
     /**
-     * Ambil status pending registration saat ini.
-     *
-     * @param  int   $companyId
-     * @return array|null  Data pending atau null jika tidak ada
+     * Ambil status pending batch saat ini.
      */
-    public function getPendingRegistration(int $companyId): ?array
+    public function getPendingBatch(int $companyId): ?array
     {
-        $cacheKey = self::CACHE_PENDING_PREFIX . $companyId;
-        $data     = Cache::get($cacheKey);
+        $cacheKey = self::CACHE_PENDING_BATCH_PREFIX . $companyId;
+        return Cache::get($cacheKey);
+    }
 
-        if (!$data) return null;
+    /**
+     * Batalkan pending batch.
+     */
+    public function cancelPendingBatch(int $companyId): void
+    {
+        Cache::forget(self::CACHE_PENDING_BATCH_PREFIX . $companyId);
+    }
 
-        $user = User::find($data['user_id']);
-        if (!$user) {
-            Cache::forget($cacheKey);
-            return null;
+    // ═══════════════════════════════════════════════════════════════════
+    // ESP32 DEVICE MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Simpan IP address ESP32 ke company settings.
+     * IP ini digunakan web MINETRA untuk kirim perintah mode ke ESP32.
+     */
+    public function saveEsp32Ip(int $companyId, string $ip): void
+    {
+        $ip = rtrim(trim($ip), '/');
+        if (!str_starts_with($ip, 'http')) {
+            $ip = 'http://' . $ip;
         }
 
-        return array_merge($data, [
-            'user_name'     => $user->name,
-            'user_email'    => $user->email,
-            'user_role'     => $user->getRoleNames()->first(),
-            'expires_in_sec'=> self::CACHE_PENDING_TTL,
-            'ttl'           => Cache::getStore()->getPrefix(),
-        ]);
+        CompanySetting::updateOrCreate(
+            ['company_id' => $companyId, 'key' => 'esp32_ip'],
+            ['value' => $ip]
+        );
+
+        Log::info("ESP32 IP disimpan: {$ip} untuk company_id={$companyId}");
     }
 
     /**
-     * Batalkan pending registration.
+     * Ambil IP ESP32 dari company settings.
      */
-    public function cancelPendingRegistration(int $companyId): void
+    public function getEsp32Ip(int $companyId): ?string
     {
-        Cache::forget(self::CACHE_PENDING_PREFIX . $companyId);
+        return CompanySetting::where('company_id', $companyId)
+            ->where('key', 'esp32_ip')
+            ->value('value');
     }
 
     /**
-     * Hapus kartu RFID dari user (unregister).
+     * Konfigurasi yang dikirim ke ESP32 saat boot.
+     * ESP32 GET /api/v1/hardware/rfid/esp-config pada startup.
      */
-    public function unregisterCard(int $userId, int $companyId): array
+    public function getEspBootConfig(int $companyId): array
     {
-        $user = User::where('company_id', $companyId)->find($userId);
-
-        if (!$user) {
-            return ['status' => 'failed', 'message' => 'User tidak ditemukan'];
-        }
-
-        $oldUid = $user->rfid_uid;
-        $user->update([
-            'rfid_uid'        => null,
-            'rfid_is_present' => false,
-        ]);
-
-        Log::info("RFID Unregister: UID {$oldUid} dihapus dari user {$user->name}");
-
         return [
-            'status'  => 'success',
-            'message' => "Kartu RFID berhasil dihapus dari {$user->name}",
+            'api_base_url'      => config('app.url'),
+            'endpoint_register' => '/api/rfid/register',
+            'endpoint_login'    => '/api/rfid/login',
+            'endpoint_logout'   => '/api/rfid/logout',
+            'api_token'         => config('app.rfid_api_token', env('RFID_API_TOKEN', '')),
+            'company_id'        => $companyId,
+            'timeout_ms'        => 5000,
         ];
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // BATCH STATUS — Daftar batch dengan info RFID
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Daftar batch yang BELUM punya RFID tag (untuk dropdown register).
+     */
+    public function getUntaggedBatches(int $companyId): array
+    {
+        return Batch::with('productCode')
+            ->where('company_id', $companyId)
+            ->whereNull('rfid_tag')
+            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get()
+            ->map(fn($b) => [
+                'id'           => $b->id,
+                'batch_code'   => $b->batch_code,
+                'product_code' => $b->productCode?->code,
+                'product_name' => $b->productCode?->name,
+                'process_stage'=> $b->process_stage,
+                'status'       => $b->status,
+                'weight_kg'    => $b->current_weight,
+                'created_at'   => $b->created_at?->timezone(self::TZ)->format('d/m/Y'),
+            ])
+            ->toArray();
+    }
+
+    /**
+     * Daftar batch yang SUDAH punya RFID tag (untuk monitoring).
+     */
+    public function getTaggedBatches(int $companyId): array
+    {
+        return Batch::with(['productCode', 'checkpoints' => fn($q) => $q->latest('recorded_at')->limit(1)])
+            ->where('company_id', $companyId)
+            ->whereNotNull('rfid_tag')
+            ->whereNotIn('status', ['exported', 'terminated'])
+            ->orderBy('updated_at', 'desc')
+            ->limit(30)
+            ->get()
+            ->map(fn($b) => [
+                'id'              => $b->id,
+                'batch_code'      => $b->batch_code,
+                'rfid_tag'        => $b->rfid_tag,
+                'product_code'    => $b->productCode?->code,
+                'process_stage'   => $b->process_stage,
+                'status'          => $b->status,
+                'weight_kg'       => $b->current_weight,
+                'last_checkpoint' => $b->checkpoints->first() ? [
+                    'stage'       => $b->checkpoints->first()->checkpoint_stage,
+                    'recorded_at' => $b->checkpoints->first()->recorded_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+                    'recorded_at_diff' => $b->checkpoints->first()->recorded_at?->diffForHumans(),
+                ] : null,
+                'updated_at'      => $b->updated_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+                'updated_at_diff' => $b->updated_at?->diffForHumans(),
+            ])
+            ->toArray();
+    }
+
+    /**
+     * Riwayat aktivitas RFID terbaru (semua checkpoint yang via RFID scan).
+     */
+    public function getRecentRfidActivity(int $companyId): array
+    {
+        return \App\Models\Checkpoint::with(['batch.productCode'])
+            ->whereHas('batch', fn($q) => $q->where('company_id', $companyId))
+            ->whereNotNull('rfid_scan_code')
+            ->latest('recorded_at')
+            ->limit(20)
+            ->get()
+            ->map(fn($cp) => [
+                'id'            => $cp->id,
+                'batch_code'    => $cp->batch?->batch_code,
+                'product_code'  => $cp->batch?->productCode?->code,
+                'rfid_uid'      => $cp->rfid_scan_code,
+                'action'        => $cp->checkpoint_data['action'] ?? $cp->checkpoint_stage,
+                'stage'         => $cp->checkpoint_stage,
+                'weight_kg'     => $cp->weight_recorded,
+                'recorded_at'   => $cp->recorded_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+                'recorded_at_diff' => $cp->recorded_at?->diffForHumans(),
+            ])
+            ->toArray();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // TOKEN VALIDATION
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
 
     /**
      * Validasi API token dari ESP32.
-     * Token dikonfigurasi di .env sebagai RFID_API_TOKEN.
-     * Jika token kosong (tidak dikonfigurasi), semua request diterima.
+     * Jika RFID_API_TOKEN di .env kosong, semua request diterima (dev mode).
      */
     public function validateToken(?string $token): bool
     {
-        $configuredToken = config('app.rfid_api_token', env('RFID_API_TOKEN', ''));
-
-        // Jika token tidak dikonfigurasi, lewati validasi (development mode)
-        if (empty($configuredToken)) {
-            return true;
-        }
-
-        return $token === $configuredToken;
+        $configured = config('app.rfid_api_token', env('RFID_API_TOKEN', ''));
+        if (empty($configured)) return true;
+        return $token === $configured;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // PRESENCE REPORT — Laporan kehadiran operator
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * Daftar operator yang saat ini hadir (rfid_is_present = true).
-     */
-    public function getPresentOperators(int $companyId): array
-    {
-        return User::where('company_id', $companyId)
-            ->where('rfid_is_present', true)
-            ->whereNotNull('rfid_uid')
-            ->get(['id', 'name', 'rfid_uid', 'rfid_last_scan_at'])
-            ->map(fn($u) => [
-                'id'            => $u->id,
-                'name'          => $u->name,
-                'rfid_uid'      => $u->rfid_uid,
-                'role'          => $u->getRoleNames()->first(),
-                'last_scan_wib' => $u->rfid_last_scan_at?->timezone('Asia/Jakarta')->format('H:i:s') . ' WIB',
-            ])
-            ->toArray();
-    }
-
-    /**
-     * Daftar semua user dengan status kartu RFID untuk panel manajemen.
-     */
-    public function getUsersWithRfidStatus(int $companyId): array
-    {
-        return User::where('company_id', $companyId)
-            ->whereNotIn('name', ['Super Admin'])
-            ->orderBy('name')
-            ->get()
-            ->map(fn($u) => [
-                'id'              => $u->id,
-                'name'            => $u->name,
-                'email'           => $u->email,
-                'role'            => $u->getRoleNames()->first() ?? 'user',
-                'role_label'      => $this->getRoleLabel($u->getRoleNames()->first()),
-                'rfid_uid'        => $u->rfid_uid,
-                'has_card'        => !is_null($u->rfid_uid),
-                'is_present'      => $u->rfid_is_present,
-                'last_scan_at'    => $u->rfid_last_scan_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
-                'last_scan_diff'  => $u->rfid_last_scan_at?->diffForHumans(),
-            ])
-            ->toArray();
-    }
-
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
     // HELPERS
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
 
-    /** Potong nama agar muat di LCD 16 karakter */
-    private function truncateName(string $name): string
+    /** Truncate string untuk tampilan LCD (max 16 karakter) */
+    private function truncate(string $text, int $max = 16): string
     {
-        // Ambil nama depan saja jika terlalu panjang
-        $parts = explode(' ', $name);
-        if (mb_strlen($name) <= 16) return $name;
-        return mb_substr($parts[0], 0, 16);
-    }
-
-    /** Label role dalam Bahasa Indonesia */
-    private function getRoleLabel(?string $role): string
-    {
-        return match($role) {
-            'company_admin'       => 'Company Admin',
-            'operator_lab_station'=> 'Operator Lab Kimia',
-            'operator_lab_ltj'    => 'Operator Lab LTJ',
-            'operator_wet'        => 'Operator Wet Process',
-            'operator_dry'        => 'Operator Dry Process',
-            'operator_warehouse'  => 'Operator Gudang',
-            'company_auditor'     => 'Auditor',
-            'government_auditor'  => 'Auditor Pemerintah',
-            'bim_admin'           => 'BIM Admin',
-            'bim_viewer'          => 'BIM Viewer',
-            'super_admin'         => 'Super Admin',
-            default               => $role ?? 'User',
-        };
+        return mb_strlen($text) <= $max ? $text : mb_substr($text, 0, $max);
     }
 }

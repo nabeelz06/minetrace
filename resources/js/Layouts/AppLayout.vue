@@ -8,6 +8,8 @@
  * ✅ Toast + Confirmation dialog system
  * ✅ Sidebar collapse + mobile overlay
  * ✅ i18n: lang ref reaktif, semua UI text via t() KECUALI nav labels
+ * ✅ Emoji icon support untuk top-level nav items
+ * ✅ Hardware RFID menu tersedia untuk operator roles
  */
 import { ref, computed, watch, provide, onMounted } from 'vue'
 import { Link, usePage, router }                    from '@inertiajs/vue3'
@@ -44,7 +46,7 @@ const mobileOpen   = ref(false)
 const expandedMenu = ref(null)
 const userDropOpen = ref(false)
 
-// ─── Dark Mode — CSS only, no overlay/animation ───────────────────────────────
+// ─── Dark Mode ────────────────────────────────────────────────────────────────
 const isDark = ref(false)
 
 onMounted(() => {
@@ -70,11 +72,7 @@ function toggleDark() {
     })
 }
 
-// ─── Navigation — label langsung (tidak via t() lookup) ──────────────────────
-// Pendekatan ini lebih reliable: label ID dan EN ada di array,
-// computed memilih berdasarkan lang.value
-// Format: { key, href, icon, id, en, children? }
-
+// ─── Navigation ───────────────────────────────────────────────────────────────
 const processStages = computed(() => [
     { key: 'lab_kimia',     href: '/company/process/lab_kimia',     icon: '🧪', id: 'Lab Kimia',      en: 'Chemical Lab'   },
     { key: 'receiving',     href: '/company/process/receiving',     icon: '📥', id: 'Receiving Area', en: 'Receiving Area' },
@@ -84,82 +82,101 @@ const processStages = computed(() => [
     { key: 'warehouse',     href: '/company/process/warehouse',     icon: '🏭', id: 'LTJ Warehouse',  en: 'LTJ Warehouse'  },
 ])
 
-// Stages terbatas per operator
-const wetStages      = computed(() => processStages.value.filter(s => ['receiving','wet_process'].includes(s.key)))
-const dryStages      = computed(() => processStages.value.filter(s => s.key === 'dry_process'))
-const ltjStages      = computed(() => processStages.value.filter(s => s.key === 'project_plant'))
-const warehouseStages= computed(() => processStages.value.filter(s => s.key === 'warehouse'))
+const wetStages       = computed(() => processStages.value.filter(s => ['receiving','wet_process'].includes(s.key)))
+const dryStages       = computed(() => processStages.value.filter(s => s.key === 'dry_process'))
+const ltjStages       = computed(() => processStages.value.filter(s => s.key === 'project_plant'))
+const warehouseStages = computed(() => processStages.value.filter(s => s.key === 'warehouse'))
+
+// ─── Nav item RFID Hardware (reusable) ────────────────────────────────────────
+// Diakses oleh semua operator company — bukan BIM/SuperAdmin
+const navHardwareRfid = computed(() => ({
+    key:  'hardware',
+    href: '/company/hardware/rfid',
+    icon: '📡',
+    id:   'Hardware RFID',
+    en:   'Hardware RFID',
+}))
 
 const navigation = computed(() => {
-    const isEN = lang.value === 'en'
-
-    // ── SUPER ADMIN ────────────────────────────────────────────────────
+    // ── SUPER ADMIN ─────────────────────────────────────────────────
     if (isSuperAdmin.value) return [
         { key: 'dashboard', href: '/super-admin/dashboard', icon: 'grid',     id: 'Dashboard',         en: 'Dashboard' },
         { key: 'users',     href: '/super-admin/users',     icon: 'users',    id: 'Kelola User',        en: 'Manage Users' },
         { key: 'companies', href: '/super-admin/companies', icon: 'building', id: 'Kelola Perusahaan',  en: 'Companies' },
     ]
 
-    // ── BIM ────────────────────────────────────────────────────────────
+    // ── BIM ─────────────────────────────────────────────────────────
     if (isBIM.value) return [
         { key: 'bim_dashboard', href: '/bim/dashboard', icon: 'grid', id: 'Dashboard Monitoring', en: 'Monitoring Dashboard' },
     ]
 
-    // ── COMPANY ADMIN ──────────────────────────────────────────────────
+    // ── COMPANY ADMIN ────────────────────────────────────────────────
+    // Akses penuh: semua menu termasuk RFID Hardware
     if (isCompanyAdmin.value) return [
-        { key: 'dashboard',    href: '/company/dashboard', icon: 'grid',     id: 'Dashboard',        en: 'Dashboard' },
-        { key: 'batches',      href: '/company/batches',   icon: 'cube',     id: 'Manajemen Batch',  en: 'Batch Management' },
-        { key: 'process',      href: '/company/process',   icon: 'workflow', id: 'Proses Produksi',  en: 'Production Process',
+        { key: 'dashboard',  href: '/company/dashboard', icon: 'grid',     id: 'Dashboard',        en: 'Dashboard' },
+        { key: 'batches',    href: '/company/batches',   icon: 'cube',     id: 'Manajemen Batch',  en: 'Batch Management' },
+        { key: 'process',    href: '/company/process',   icon: 'workflow', id: 'Proses Produksi',  en: 'Production Process',
           children: processStages.value },
-        { key: 'lab',          href: '/company/lab',       icon: 'flask',    id: 'Lab Analisis LTJ', en: 'LTJ Lab Analysis' },
-        { key: 'exports',      href: '/company/exports',   icon: 'ship',     id: 'Ekspor',           en: 'Export' },
-        { key: 'reports',      href: '/company/reports',   icon: 'document', id: 'Laporan',          en: 'Reports' },
-        { key: 'settings',     href: '/company/settings',  icon: 'settings', id: 'Pengaturan',       en: 'Settings' },
+        { key: 'lab',        href: '/company/lab',       icon: 'flask',    id: 'Lab Analisis LTJ', en: 'LTJ Lab Analysis' },
+        { key: 'exports',    href: '/company/exports',   icon: 'ship',     id: 'Ekspor',           en: 'Export' },
+        { key: 'reports',    href: '/company/reports',   icon: 'document', id: 'Laporan',          en: 'Reports' },
+        navHardwareRfid.value, // 📡 Hardware RFID
+        { key: 'settings',   href: '/company/settings',  icon: 'settings', id: 'Pengaturan',       en: 'Settings' },
     ]
 
-    // ── OPERATOR LAB STATION — buat batch MIK ─────────────────────────
+    // ── OPERATOR LAB STATION ─────────────────────────────────────────
+    // Register tag RFID ke karung mineral di Lab Kimia
     if (isLabStation.value) return [
         { key: 'dashboard', href: '/company/dashboard', icon: 'grid',     id: 'Dashboard',        en: 'Dashboard' },
         { key: 'batches',   href: '/company/batches',   icon: 'cube',     id: 'Manajemen Batch',  en: 'Batch Management' },
         { key: 'process',   href: '/company/process',   icon: 'workflow', id: 'Proses Produksi',  en: 'Production Process',
           children: processStages.value.filter(s => s.key === 'lab_kimia') },
+        navHardwareRfid.value, // 📡 Hardware RFID — untuk register tag ke karung
     ]
 
-    // ── OPERATOR WET ───────────────────────────────────────────────────
+    // ── OPERATOR WET ─────────────────────────────────────────────────
+    // Receiving + Wet Process, bisa register tag & scan karung masuk
     if (isWet.value) return [
         { key: 'dashboard', href: '/company/dashboard', icon: 'grid',     id: 'Dashboard',        en: 'Dashboard' },
         { key: 'batches',   href: '/company/batches',   icon: 'cube',     id: 'Daftar Batch',     en: 'Batch List' },
         { key: 'process',   href: '/company/process',   icon: 'workflow', id: 'Proses Produksi',  en: 'Production Process',
           children: wetStages.value },
+        navHardwareRfid.value, // 📡 Hardware RFID
     ]
 
-    // ── OPERATOR DRY ───────────────────────────────────────────────────
+    // ── OPERATOR DRY ─────────────────────────────────────────────────
+    // Dry Process — scan karung masuk/keluar dry section
     if (isDry.value) return [
         { key: 'dashboard', href: '/company/dashboard', icon: 'grid',     id: 'Dashboard',        en: 'Dashboard' },
         { key: 'batches',   href: '/company/batches',   icon: 'cube',     id: 'Daftar Batch',     en: 'Batch List' },
         { key: 'process',   href: '/company/process',   icon: 'workflow', id: 'Proses Produksi',  en: 'Production Process',
           children: dryStages.value },
+        navHardwareRfid.value, // 📡 Hardware RFID
     ]
 
-    // ── OPERATOR LAB LTJ ───────────────────────────────────────────────
+    // ── OPERATOR LAB LTJ ─────────────────────────────────────────────
     if (isLabLtj.value) return [
         { key: 'dashboard', href: '/company/dashboard', icon: 'grid',  id: 'Dashboard',        en: 'Dashboard' },
         { key: 'batches',   href: '/company/batches',   icon: 'cube',  id: 'Daftar Batch',     en: 'Batch List' },
         { key: 'lab',       href: '/company/lab',       icon: 'flask', id: 'Lab Analisis LTJ', en: 'LTJ Lab Analysis' },
         { key: 'process',   href: '/company/process',   icon: 'workflow', id: 'Proses Produksi', en: 'Production Process',
           children: ltjStages.value },
+        navHardwareRfid.value, // 📡 Hardware RFID
     ]
 
-    // ── OPERATOR WAREHOUSE ─────────────────────────────────────────────
+    // ── OPERATOR WAREHOUSE ───────────────────────────────────────────
+    // Gudang — scan karung masuk/keluar warehouse (LOGIN/LOGOUT mode)
     if (isWarehouse.value) return [
-        { key: 'dashboard', href: '/company/dashboard', icon: 'grid',  id: 'Dashboard',       en: 'Dashboard' },
-        { key: 'batches',   href: '/company/batches',   icon: 'cube',  id: 'Daftar Batch',    en: 'Batch List' },
+        { key: 'dashboard', href: '/company/dashboard', icon: 'grid',     id: 'Dashboard',       en: 'Dashboard' },
+        { key: 'batches',   href: '/company/batches',   icon: 'cube',     id: 'Daftar Batch',    en: 'Batch List' },
         { key: 'process',   href: '/company/process',   icon: 'workflow', id: 'Proses Produksi', en: 'Production Process',
           children: warehouseStages.value },
-        { key: 'exports',   href: '/company/exports',   icon: 'ship',  id: 'Ekspor',          en: 'Export' },
+        { key: 'exports',   href: '/company/exports',   icon: 'ship',     id: 'Ekspor',          en: 'Export' },
+        navHardwareRfid.value, // 📡 Hardware RFID — scan karung masuk/keluar gudang
     ]
 
-    // ── COMPANY AUDITOR ────────────────────────────────────────────────
+    // ── COMPANY AUDITOR ──────────────────────────────────────────────
+    // Read-only view — bisa lihat aktivitas RFID tapi tidak bisa kontrol
     if (isAuditor.value) return [
         { key: 'dashboard', href: '/company/dashboard', icon: 'grid',     id: 'Dashboard',        en: 'Dashboard' },
         { key: 'batches',   href: '/company/batches',   icon: 'cube',     id: 'Daftar Batch',     en: 'Batch List' },
@@ -168,15 +185,22 @@ const navigation = computed(() => {
         { key: 'lab',       href: '/company/lab',       icon: 'flask',    id: 'Lab Analisis',     en: 'Lab Analysis' },
         { key: 'exports',   href: '/company/exports',   icon: 'ship',     id: 'Ekspor',           en: 'Export' },
         { key: 'reports',   href: '/company/reports',   icon: 'document', id: 'Laporan',          en: 'Reports' },
+        navHardwareRfid.value, // 📡 Hardware RFID — view-only log aktivitas
     ]
 
     return []
 })
 
-// ─── Helper: ambil label dari item (ID atau EN) ───────────────────────────────
-// Langsung akses .id atau .en — tidak perlu t() lookup
+// ─── Helper: label ID/EN ──────────────────────────────────────────────────────
 function label(item) {
     return lang.value === 'en' ? item.en : item.id
+}
+
+// ─── Helper: cek apakah icon adalah emoji atau nama NavIcon (string a-z) ──────
+// Jika icon hanya mengandung huruf lowercase + tanda strip → NavIcon component
+// Jika icon mengandung karakter lain (emoji, dll) → render sebagai teks langsung
+function isEmojiIcon(icon) {
+    return icon && !/^[a-z-]+$/.test(icon)
 }
 
 // ─── Active route ─────────────────────────────────────────────────────────────
@@ -203,7 +227,7 @@ const userInitials = computed(() =>
     (user.value?.name ?? 'U').split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
 )
 
-// ─── Role display label (human-readable) ─────────────────────────────────────
+// ─── Role display label ───────────────────────────────────────────────────────
 const roleLabel = computed(() => {
     const map = {
         id: {
@@ -237,8 +261,8 @@ const roleLabel = computed(() => {
 })
 
 // ─── TOAST SYSTEM ─────────────────────────────────────────────────────────────
-const toasts  = ref([])
-let toastId   = 0
+const toasts = ref([])
+let toastId  = 0
 
 function addToast(type, message, duration = 4500) {
     if (!message) return
@@ -306,9 +330,9 @@ function handleOutsideClick(e) {
 <template>
 <div class="flex h-screen overflow-hidden bg-background font-sans" @click="handleOutsideClick">
 
-    <!-- ════════════════════════════════════════════════════════════════
+    <!-- ════════════════════════════════════════════════════
          TOASTS
-    ════════════════════════════════════════════════════════════════ -->
+    ════════════════════════════════════════════════════ -->
     <div class="fixed top-4 right-4 z-[100] pointer-events-none w-[340px]">
         <TransitionGroup tag="div" name="toast" class="flex flex-col gap-2.5">
             <div
@@ -333,9 +357,9 @@ function handleOutsideClick(e) {
         </TransitionGroup>
     </div>
 
-    <!-- ════════════════════════════════════════════════════════════════
+    <!-- ════════════════════════════════════════════════════
          CONFIRMATION DIALOG
-    ════════════════════════════════════════════════════════════════ -->
+    ════════════════════════════════════════════════════ -->
     <Transition name="modal">
         <div v-if="confirmState.show"
              class="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-4 sm:p-6"
@@ -374,9 +398,9 @@ function handleOutsideClick(e) {
         </div>
     </Transition>
 
-    <!-- ════════════════════════════════════════════════════════════════
+    <!-- ════════════════════════════════════════════════════
          SIDEBAR
-    ════════════════════════════════════════════════════════════════ -->
+    ════════════════════════════════════════════════════ -->
     <aside
         :class="[
             'flex flex-col flex-shrink-0 z-30 border-r border-sidebar-border overflow-hidden',
@@ -457,7 +481,7 @@ function handleOutsideClick(e) {
              style="scrollbar-width:thin;scrollbar-color:hsl(var(--sidebar-border)) transparent;">
             <template v-for="item in navigation" :key="item.key">
 
-                <!-- Accordion parent -->
+                <!-- Accordion parent (dengan children) -->
                 <div v-if="item.children">
                     <button
                         @click="toggleMenu(item.key)"
@@ -469,9 +493,14 @@ function handleOutsideClick(e) {
                         @mouseenter="e=>{if(expandedMenu!==item.key){e.currentTarget.style.background='hsl(var(--sidebar-accent)/0.55)';e.currentTarget.style.color='hsl(var(--sidebar-foreground))'}}"
                         @mouseleave="e=>{if(expandedMenu!==item.key){e.currentTarget.style.background='';e.currentTarget.style.color='hsl(var(--sidebar-foreground)/0.5)'}}"
                     >
-                        <NavIcon :icon="item.icon" :active="expandedMenu===item.key" class="flex-shrink-0 w-4 h-4"/>
+                        <!-- Icon: emoji atau NavIcon -->
+                        <span v-if="isEmojiIcon(item.icon)"
+                              class="flex-shrink-0 w-4 h-4 flex items-center justify-center text-sm leading-none">
+                            {{ item.icon }}
+                        </span>
+                        <NavIcon v-else :icon="item.icon" :active="expandedMenu===item.key" class="flex-shrink-0 w-4 h-4"/>
+
                         <Transition name="st">
-                            <!-- ← label() langsung — tidak ada t() lookup -->
                             <span v-if="sidebarOpen" class="flex-1 text-left truncate">{{ label(item) }}</span>
                         </Transition>
                         <Transition name="st">
@@ -494,17 +523,16 @@ function handleOutsideClick(e) {
                                       ? 'background:hsl(var(--primary)/0.18);color:hsl(var(--primary))'
                                       : 'color:hsl(var(--sidebar-foreground)/0.45)'"
                                   @mouseenter="e=>{if(!isActiveChild(child.href)){e.currentTarget.style.background='hsl(var(--sidebar-accent)/0.5)';e.currentTarget.style.color='hsl(var(--sidebar-foreground))'}}"
-                                  @mouseleave="e=>{if(!isActiveChild(child.href)){e.currentTarget.style.background='';e.currentTarget.style.color='hsl(var(--sidebar-foreground)/0.45))'}}"
+                                  @mouseleave="e=>{if(!isActiveChild(child.href)){e.currentTarget.style.background='';e.currentTarget.style.color='hsl(var(--sidebar-foreground)/0.45)'}}"
                             >
                                 <span class="text-sm w-4 text-center flex-shrink-0">{{ child.icon }}</span>
-                                <!-- ← label() langsung -->
                                 <span class="truncate">{{ label(child) }}</span>
                             </Link>
                         </div>
                     </Transition>
                 </div>
 
-                <!-- Normal nav item -->
+                <!-- Normal nav item (tanpa children) -->
                 <Link v-else
                       :href="item.href"
                       :title="!sidebarOpen ? label(item) : ''"
@@ -515,11 +543,20 @@ function handleOutsideClick(e) {
                       @mouseenter="e=>{if(!isActive(item.href)){e.currentTarget.style.background='hsl(var(--sidebar-accent)/0.55)';e.currentTarget.style.color='hsl(var(--sidebar-foreground))'}}"
                       @mouseleave="e=>{if(!isActive(item.href)){e.currentTarget.style.background='';e.currentTarget.style.color='hsl(var(--sidebar-foreground)/0.5)'}}"
                 >
-                    <NavIcon :icon="item.icon" :active="isActive(item.href)" class="flex-shrink-0 w-4 h-4"/>
+                    <!-- ✅ Fix emoji icon support untuk top-level nav items -->
+                    <!-- Jika icon adalah emoji → render sebagai teks -->
+                    <!-- Jika icon adalah nama SVG (huruf kecil) → gunakan NavIcon -->
+                    <span v-if="isEmojiIcon(item.icon)"
+                          class="flex-shrink-0 w-4 h-4 flex items-center justify-center text-sm leading-none">
+                        {{ item.icon }}
+                    </span>
+                    <NavIcon v-else :icon="item.icon" :active="isActive(item.href)" class="flex-shrink-0 w-4 h-4"/>
+
                     <Transition name="st">
-                        <!-- ← label() langsung — tidak ada t() lookup -->
                         <span v-if="sidebarOpen" class="flex-1 truncate">{{ label(item) }}</span>
                     </Transition>
+
+                    <!-- Active indicator saat sidebar collapsed -->
                     <div v-if="!sidebarOpen && isActive(item.href)"
                          class="absolute right-1.5 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-primary"/>
                 </Link>
@@ -538,7 +575,6 @@ function handleOutsideClick(e) {
                 @mouseenter="e=>{e.currentTarget.style.background='hsl(var(--sidebar-accent)/0.55)';e.currentTarget.style.color='hsl(var(--sidebar-foreground))'}"
                 @mouseleave="e=>{e.currentTarget.style.background='';e.currentTarget.style.color='hsl(var(--sidebar-foreground)/0.5)'}"
             >
-                <!-- Toggle track -->
                 <div class="w-9 h-5 flex-shrink-0 rounded-full border-2 flex items-center px-0.5 overflow-hidden"
                      :style="isDark
                          ? 'border-color:hsl(var(--primary));background:hsl(var(--primary)/0.2)'
@@ -634,9 +670,9 @@ function handleOutsideClick(e) {
         </div>
     </aside>
 
-    <!-- ════════════════════════════════════════════════════════════════
+    <!-- ════════════════════════════════════════════════════
          MAIN CONTENT
-    ════════════════════════════════════════════════════════════════ -->
+    ════════════════════════════════════════════════════ -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         <!-- Mobile header -->
@@ -693,7 +729,7 @@ function handleOutsideClick(e) {
             </span>
         </div>
 
-        <!-- Page content — TANPA min-h-full (fix page duplication bug) -->
+        <!-- Page content -->
         <main class="flex-1 overflow-y-auto">
             <div class="p-5 lg:p-6">
                 <slot/>
@@ -704,13 +740,11 @@ function handleOutsideClick(e) {
 </template>
 
 <style scoped>
-/* Sidebar text fade+slide */
 .st-enter-active { transition: opacity 0.13s ease, transform 0.13s ease; }
 .st-leave-active { transition: opacity 0.08s ease; }
 .st-enter-from   { opacity: 0; transform: translateX(-4px); }
 .st-leave-to     { opacity: 0; }
 
-/* Accordion */
 .accord-enter-active,
 .accord-leave-active { transition: max-height 0.22s ease, opacity 0.18s ease; overflow: hidden; }
 .accord-enter-from,
@@ -718,14 +752,12 @@ function handleOutsideClick(e) {
 .accord-enter-to,
 .accord-leave-from   { max-height: 500px; opacity: 1; }
 
-/* Toast */
 .toast-enter-active { transition: all 0.3s cubic-bezier(0.175,0.885,0.32,1.275); }
 .toast-leave-active { transition: all 0.18s ease; }
 .toast-enter-from   { opacity: 0; transform: translateX(100%) scale(0.85); }
 .toast-leave-to     { opacity: 0; transform: translateX(50%) scale(0.9); }
 .toast-move         { transition: transform 0.2s ease; }
 
-/* Modal */
 .modal-enter-active { transition: opacity 0.2s ease; }
 .modal-leave-active { transition: opacity 0.15s ease; }
 .modal-enter-from,
@@ -737,13 +769,11 @@ function handleOutsideClick(e) {
 }
 .dialog-in { animation: dialog-in 0.22s cubic-bezier(0.175,0.885,0.32,1.275); }
 
-/* Dropdown up */
 .drop-up-enter-active { transition: all 0.18s cubic-bezier(0.175,0.885,0.32,1.275); }
 .drop-up-leave-active { transition: all 0.12s ease; }
 .drop-up-enter-from   { opacity: 0; transform: translateY(8px) scale(0.96); }
 .drop-up-leave-to     { opacity: 0; transform: translateY(4px); }
 
-/* Fade (mobile overlay) */
 .fade-enter-active { transition: opacity 0.2s ease; }
 .fade-leave-active { transition: opacity 0.15s ease; }
 .fade-enter-from,
