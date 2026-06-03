@@ -6,11 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Services\Hardware\RfidService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * HardwareController — Halaman manajemen hardware RFID di MINETRA.
+ * HardwareController — Panel manajemen hardware RFID.
  */
 class HardwareController extends Controller
 {
@@ -18,36 +19,39 @@ class HardwareController extends Controller
         private RfidService $rfid
     ) {}
 
-    /**
-     * Panel RFID — kontrol ESP32, registrasi tag ke batch, monitoring.
-     */
     public function rfidPanel(): Response
     {
-        $companyId = Auth::user()->company_id;
+        $user      = Auth::user();
+        $companyId = $user->company_id ?? 1;
         $tz        = 'Asia/Jakarta';
 
+        // ─── Load data batch ───────────────────────────────────────
+        $untaggedBatches = $this->rfid->getUntaggedBatches($companyId);
+        $taggedBatches   = $this->rfid->getTaggedBatches($companyId);
+        $pendingBatch    = $this->rfid->getPendingBatch($companyId);
+        $recentActivity  = $this->rfid->getRecentRfidActivity($companyId);
+
+        // ─── Debug log — untuk verify data yang dikirim ke Vue ─────
+        Log::info('HardwareController::rfidPanel', [
+            'user_id'         => $user->id,
+            'company_id'      => $companyId,
+            'untagged_count'  => count($untaggedBatches),
+            'tagged_count'    => count($taggedBatches),
+        ]);
+
         return Inertia::render('Company/Hardware/RfidPanel', [
-            // ESP32 device info
             'esp32_ip'         => $this->rfid->getEsp32Ip($companyId),
-
-            // Batch data
-            'untagged_batches' => $this->rfid->getUntaggedBatches($companyId),
-            'tagged_batches'   => $this->rfid->getTaggedBatches($companyId),
-
-            // Pending session
-            'pending_batch'    => $this->rfid->getPendingBatch($companyId),
-
-            // Aktivitas RFID terbaru
-            'recent_activity'  => $this->rfid->getRecentRfidActivity($companyId),
-
-            // Stats
+            'untagged_batches' => $untaggedBatches,
+            'tagged_batches'   => $taggedBatches,
+            'pending_batch'    => $pendingBatch,
+            'recent_activity'  => $recentActivity,
             'stats' => [
-                'untagged_count' => count($this->rfid->getUntaggedBatches($companyId)),
-                'tagged_count'   => count($this->rfid->getTaggedBatches($companyId)),
-                'activity_count' => count($this->rfid->getRecentRfidActivity($companyId)),
+                'untagged_count' => count($untaggedBatches),
+                'tagged_count'   => count($taggedBatches),
+                'activity_count' => count($recentActivity),
             ],
-
-            'user_role'    => Auth::user()->getRoleNames()->first(),
+            'user_role'    => $user->getRoleNames()->first() ?? 'company_admin',
+            'company_id'   => $companyId,   // ← kirim ke Vue untuk debug
             'current_time' => Carbon::now($tz)->format('d/m/Y H:i:s') . ' WIB',
         ]);
     }

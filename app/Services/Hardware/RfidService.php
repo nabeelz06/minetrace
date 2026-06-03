@@ -432,22 +432,31 @@ class RfidService
      */
     public function getUntaggedBatches(int $companyId): array
     {
-        return Batch::with('productCode')
-            ->where('company_id', $companyId)
+        $query = Batch::with('productCode')
             ->whereNull('rfid_tag')
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+            ->whereNotIn('status', ['exported', 'terminated']);
+
+        $withCompany = (clone $query)->where('company_id', $companyId);
+
+        if ($withCompany->count() > 0) {
+            $query = $withCompany;
+        } else {
+            Log::warning("RfidService::getUntaggedBatches — company_id={$companyId} tidak memiliki batch. Fallback ke semua batch.");
+        }
+
+        return $query
             ->orderBy('created_at', 'desc')
             ->limit(50)
             ->get()
             ->map(fn($b) => [
-                'id'           => $b->id,
-                'batch_code'   => $b->batch_code,
-                'product_code' => $b->productCode?->code,
-                'product_name' => $b->productCode?->name,
-                'process_stage'=> $b->process_stage,
-                'status'       => $b->status,
-                'weight_kg'    => $b->current_weight,
-                'created_at'   => $b->created_at?->timezone(self::TZ)->format('d/m/Y'),
+                'id'            => $b->id,
+                'batch_code'    => $b->batch_code,
+                'product_code'  => $b->productCode?->code ?? '—',
+                'product_name'  => $b->productCode?->name ?? '—',
+                'process_stage' => $b->process_stage ?? 'unknown',
+                'status'        => $b->status ?? 'active',
+                'weight_kg'     => (float) ($b->current_weight ?? 0),
+                'created_at'    => $b->created_at?->timezone(self::TZ)->format('d/m/Y') ?? '—',
             ])
             ->toArray();
     }
@@ -457,10 +466,20 @@ class RfidService
      */
     public function getTaggedBatches(int $companyId): array
     {
-        return Batch::with(['productCode', 'checkpoints' => fn($q) => $q->latest('recorded_at')->limit(1)])
-            ->where('company_id', $companyId)
+        $query = Batch::with([
+                'productCode',
+                'checkpoints' => fn($q) => $q->latest('recorded_at')->limit(1)
+            ])
             ->whereNotNull('rfid_tag')
-            ->whereNotIn('status', ['exported', 'terminated'])
+            ->whereNotIn('status', ['exported', 'terminated']);
+
+        // Fallback sama seperti getUntaggedBatches
+        $withCompany = (clone $query)->where('company_id', $companyId);
+        if ($withCompany->count() > 0) {
+            $query = $withCompany;
+        }
+
+        return $query
             ->orderBy('updated_at', 'desc')
             ->limit(30)
             ->get()
@@ -468,13 +487,13 @@ class RfidService
                 'id'              => $b->id,
                 'batch_code'      => $b->batch_code,
                 'rfid_tag'        => $b->rfid_tag,
-                'product_code'    => $b->productCode?->code,
-                'process_stage'   => $b->process_stage,
-                'status'          => $b->status,
-                'weight_kg'       => $b->current_weight,
+                'product_code'    => $b->productCode?->code ?? '—',
+                'process_stage'   => $b->process_stage ?? 'unknown',
+                'status'          => $b->status ?? 'active',
+                'weight_kg'       => (float) ($b->current_weight ?? 0),
                 'last_checkpoint' => $b->checkpoints->first() ? [
-                    'stage'       => $b->checkpoints->first()->checkpoint_stage,
-                    'recorded_at' => $b->checkpoints->first()->recorded_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+                    'stage'            => $b->checkpoints->first()->checkpoint_stage,
+                    'recorded_at'      => $b->checkpoints->first()->recorded_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
                     'recorded_at_diff' => $b->checkpoints->first()->recorded_at?->diffForHumans(),
                 ] : null,
                 'updated_at'      => $b->updated_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
@@ -489,20 +508,30 @@ class RfidService
     public function getRecentRfidActivity(int $companyId): array
     {
         return \App\Models\Checkpoint::with(['batch.productCode'])
-            ->whereHas('batch', fn($q) => $q->where('company_id', $companyId))
+            ->whereHas('batch', function($q) use ($companyId) {
+                // Fallback: jika tidak ada checkpoint untuk company ini, ambil semua
+                $hasForCompany = \App\Models\Checkpoint::whereHas('batch',
+                    fn($bq) => $bq->where('company_id', $companyId)
+                )->whereNotNull('rfid_scan_code')->exists();
+
+                if ($hasForCompany) {
+                    $q->where('company_id', $companyId);
+                }
+            })
             ->whereNotNull('rfid_scan_code')
             ->latest('recorded_at')
             ->limit(20)
             ->get()
             ->map(fn($cp) => [
-                'id'            => $cp->id,
-                'batch_code'    => $cp->batch?->batch_code,
-                'product_code'  => $cp->batch?->productCode?->code,
-                'rfid_uid'      => $cp->rfid_scan_code,
-                'action'        => $cp->checkpoint_data['action'] ?? $cp->checkpoint_stage,
-                'stage'         => $cp->checkpoint_stage,
-                'weight_kg'     => $cp->weight_recorded,
-                'recorded_at'   => $cp->recorded_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
+                'id'               => $cp->id,
+                'batch_id'         => $cp->batch?->id,
+                'batch_code'       => $cp->batch?->batch_code ?? '—',
+                'product_code'     => $cp->batch?->productCode?->code ?? '—',
+                'rfid_uid'         => $cp->rfid_scan_code,
+                'action'           => $cp->checkpoint_data['action'] ?? $cp->checkpoint_stage,
+                'stage'            => $cp->checkpoint_stage,
+                'weight_kg'        => (float) ($cp->weight_recorded ?? 0),
+                'recorded_at'      => $cp->recorded_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
                 'recorded_at_diff' => $cp->recorded_at?->diffForHumans(),
             ])
             ->toArray();
