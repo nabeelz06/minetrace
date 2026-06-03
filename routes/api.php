@@ -117,89 +117,70 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | RFID Hardware API Routes
-    |--------------------------------------------------------------------------
-    |
-    | Endpoints untuk integrasi hardware ESP32 + RFID RC522.
-    |
-    | HARDWARE ENDPOINTS (dipanggil ESP32 — tanpa session auth):
-    |   POST /api/rfid/register  → ESP32 dalam mode REGISTER, kartu baru dibaca
-    |   POST /api/rfid/login     → ESP32 dalam mode LOGIN, operator scan masuk
-    |   POST /api/rfid/logout    → ESP32 dalam mode LOGOUT, operator scan keluar
-    |
-    | WEB UI ENDPOINTS (dipanggil Vue via Sanctum):
-    |   GET    /api/rfid/status           → Status sistem + daftar user + operator hadir
-    |   GET    /api/rfid/users            → Daftar users untuk dropdown registrasi
-    |   POST   /api/rfid/pending          → Mulai sesi registrasi kartu ke user tertentu
-    |   DELETE /api/rfid/pending          → Batalkan sesi registrasi
-    |   DELETE /api/rfid/users/{id}/card  → Hapus kartu dari user
-    |
-    | CORS sudah ditangani di level controller untuk ESP32 compatibility.
-    */
+/*
+|──────────────────────────────────────────────────────────────────────────────
+| RFID HARDWARE ENDPOINTS — Dipanggil langsung oleh ESP32 Arduino
+|──────────────────────────────────────────────────────────────────────────────
+| NO AUTH — ESP32 tidak bisa kirim session cookie / Sanctum token
+| Token opsional via header X-Rfid-Token atau body api_token
+*/
+Route::options('rfid/{any}', [ApiRfidController::class, 'handleOptions'])
+    ->where('any', '.*');
 
-    // ─── Preflight OPTIONS (CORS untuk ESP32 & browser) ───────────────────────
-    Route::options('rfid/{any}', [ApiRfidController::class, 'handleOptions'])
-        ->where('any', '.*');
+Route::prefix('rfid')->group(function () {
+    Route::post('register', [ApiRfidController::class, 'registerCard'])
+        ->middleware('throttle:120,1')
+        ->name('api.rfid.register');
 
-    // ─── HARDWARE ENDPOINTS — No session auth, token via header/body ──────────
-    // Endpoint ini dipanggil langsung oleh ESP32 Arduino.
-    // Autentikasi via X-Rfid-Token header atau body.api_token
-    Route::prefix('rfid')->group(function () {
+    Route::post('login',    [ApiRfidController::class, 'loginCard'])
+        ->middleware('throttle:120,1')
+        ->name('api.rfid.login');
 
-        Route::post('register', [ApiRfidController::class, 'registerCard'])
-            ->name('api.rfid.register');
-
-        Route::post('login', [ApiRfidController::class, 'loginCard'])
-            ->name('api.rfid.login');
-
-        Route::post('logout', [ApiRfidController::class, 'logoutCard'])
-            ->name('api.rfid.logout');
-
-    });
-
-    // ─── WEB UI ENDPOINTS — Requires Sanctum session auth ────────────────────
-    Route::middleware(['auth:sanctum'])->prefix('rfid')->group(function () {
-
-        Route::get('status',                    [ApiRfidController::class, 'getStatus'])
-            ->name('api.rfid.status');
-
-        Route::get('users',                     [ApiRfidController::class, 'getUsers'])
-            ->name('api.rfid.users');
-
-        Route::post('pending',                  [ApiRfidController::class, 'setPending'])
-            ->name('api.rfid.pending.set');
-
-        Route::delete('pending',                [ApiRfidController::class, 'cancelPending'])
-            ->name('api.rfid.pending.cancel');
-
-        Route::delete('users/{userId}/card',    [ApiRfidController::class, 'unregisterCard'])
-            ->name('api.rfid.users.unregister');
-
-    });
+    Route::post('logout',   [ApiRfidController::class, 'logoutCard'])
+        ->middleware('throttle:120,1')
+        ->name('api.rfid.logout');
 });
 
-
 /*
-|──────────────────────────────────────────────────────────────────────────
-| RFID ALIAS ROUTES (tanpa v1 prefix)
-|──────────────────────────────────────────────────────────────────────────
-| Untuk kompatibilitas dengan konfigurasi ESP32 yang menggunakan:
-|   ENDPOINT_REGISTER = "/api/rfid/register"
-|   ENDPOINT_LOGIN    = "/api/rfid/login"
-|   ENDPOINT_LOGOUT   = "/api/rfid/logout"
-|
-| Jika ESP32 sudah dikonfigurasi ulang ke /api/v1/rfid/..., routes ini bisa
-| dihapus. Untuk saat ini dibiarkan agar tidak perlu flash ulang ESP32.
+|──────────────────────────────────────────────────────────────────────────────
+| RFID WEB UI ENDPOINTS — Dipanggil oleh RfidPanel.vue (session-based)
+|──────────────────────────────────────────────────────────────────────────────
+| PENTING: Gunakan middleware ['web', 'auth'] — BUKAN auth:sanctum
+| Inertia.js menggunakan session cookie browser, BUKAN Bearer token
+| Prefix: /api/v1/company/rfid/... (sudah sesuai fix bug #1)
 */
-Route::prefix('rfid')->group(function () {
-    Route::options('{any}', [ApiRfidController::class, 'handleOptions'])
-        ->where('any', '.*');
-    Route::post('register', [ApiRfidController::class, 'registerCard'])
-        ->middleware('throttle:120,1');
-    Route::post('login',    [ApiRfidController::class, 'loginCard'])
-        ->middleware('throttle:120,1');
-    Route::post('logout',   [ApiRfidController::class, 'logoutCard'])
-        ->middleware('throttle:120,1');
+Route::prefix('v1')->group(function () {
+
+    // ─── ESP32 Boot Config (public) ──────────────────────────────────────────
+    Route::get('hardware/rfid/esp-config', [ApiRfidController::class, 'espBootConfig'])
+        ->name('api.v1.hardware.rfid.esp-config');
+
+    // ─── Web UI RFID — session auth, bukan Sanctum ───────────────────────────
+    Route::middleware(['web', 'auth'])
+        ->prefix('company/rfid')
+        ->name('api.v1.company.rfid.')
+        ->group(function () {
+
+        // Status dashboard (tagged batches, activity, pending)
+        Route::get('status',        [ApiRfidController::class, 'getStatus'])
+            ->name('status');
+
+        // Daftar batch belum ter-tag (untuk dropdown simulasi & register)
+        Route::get('batches',       [ApiRfidController::class, 'getUntaggedBatches'])
+            ->name('batches');
+
+        // Set / cancel pending batch untuk registrasi
+        Route::post('pending-batch',   [ApiRfidController::class, 'setPendingBatch'])
+            ->name('pending-batch.set');
+        Route::delete('pending-batch', [ApiRfidController::class, 'cancelPendingBatch'])
+            ->name('pending-batch.cancel');
+
+        // Hapus tag dari batch
+        Route::delete('batches/{batchId}/tag', [ApiRfidController::class, 'removeTag'])
+            ->name('batches.remove-tag');
+
+        // Simpan IP ESP32
+        Route::post('device', [ApiRfidController::class, 'saveDeviceIp'])
+            ->name('device');
+    });
 });
