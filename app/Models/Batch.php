@@ -24,7 +24,7 @@ class Batch extends Model
     use HasFactory, SoftDeletes, LogsActivity;
 
     protected $fillable = [
-        'company_id', 'batch_code', 'lot_number',
+        'company_id', 'batch_code', 'rfid_tag', 'lot_number',
         'product_code_id', 'parent_batch_id',
         'initial_weight', 'current_weight', 'weight_unit',
         'process_stage', 'status', 'current_location_id',

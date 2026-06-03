@@ -172,7 +172,7 @@ async function cancelPendingSession() {
     isCancelling.value = true
     clearInterval(pendingTimer)
     try {
-        await apiFetch('/api/v1/rfid/pending-batch', 'DELETE')
+        await apiFetch('/api/v1/company/rfid/pending-batch', 'DELETE')
         isPending.value   = false
         pendingData.value = null
         pendingCountdown.value = 0
@@ -222,7 +222,7 @@ async function startRegisterSession() {
     if (!esp32IpInput.value)    { showToast('Simpan IP ESP32 terlebih dahulu.', 'error'); return }
     isSavingPending.value = true
     try {
-        const res = await apiFetch('/api/v1/rfid/pending-batch', 'POST', { batch_id: parseInt(selectedBatchId.value) })
+        const res = await apiFetch('/api/v1/company/rfid/pending-batch', 'POST', { batch_id: parseInt(selectedBatchId.value) })
         if (!res.success) { showToast(res.message ?? 'Gagal memulai sesi.', 'error'); return }
         startPendingCountdown(90, res.data)
         showToast(`Sesi aktif untuk ${res.data.batch_code}. Tempel tag sekarang!`, 'success')
@@ -265,7 +265,7 @@ async function simulateRegister() {
 
     try {
         // 1. Set pending batch di MINETRA
-        const pendingRes = await apiFetch('/api/v1/rfid/pending-batch', 'POST', {
+        const pendingRes = await apiFetch('/api/v1/company/rfid/pending-batch', 'POST', {
             batch_id: parseInt(simBatchId.value)
         })
         if (!pendingRes.success) {
