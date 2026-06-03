@@ -76,6 +76,11 @@ class ApiRfidController extends Controller
             return $this->errorResponse('Token tidak valid', 401);
         }
 
+        // ─── Sanitasi UID sebelum validasi (handle spasi dari RC522) ─────
+        $request->merge([
+            'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
+        ]);
+
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
         $companyId = $this->resolveCompanyId($request);
@@ -104,6 +109,11 @@ class ApiRfidController extends Controller
             return $this->errorResponse('Token tidak valid', 401);
         }
 
+        // ─── Sanitasi UID sebelum validasi (handle spasi dari RC522) ─────
+        $request->merge([
+            'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
+        ]);
+
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
         $companyId = $this->resolveCompanyId($request);
@@ -131,6 +141,11 @@ class ApiRfidController extends Controller
         )) {
             return $this->errorResponse('Token tidak valid', 401);
         }
+
+        // ─── Sanitasi UID sebelum validasi (handle spasi dari RC522) ─────
+        $request->merge([
+            'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
+        ]);
 
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 

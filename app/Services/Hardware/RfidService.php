@@ -61,7 +61,7 @@ class RfidService
      */
     public function registerBatchTag(string $uid, int $companyId = 1): array
     {
-        $uid = strtoupper(trim($uid));
+        $uid = $this->sanitizeUid($uid);
 
         // ─── Cek apakah UID sudah terdaftar ke batch lain ─────────────
         $existingBatch = Batch::where('rfid_tag', $uid)
@@ -165,7 +165,7 @@ class RfidService
      */
     public function checkpointIn(string $uid, int $companyId = 1): array
     {
-        $uid   = strtoupper(trim($uid));
+        $uid = $this->sanitizeUid($uid);
         $batch = Batch::with('productCode')
             ->where('rfid_tag', $uid)
             ->where('company_id', $companyId)
@@ -260,7 +260,7 @@ class RfidService
      */
     public function checkpointOut(string $uid, int $companyId = 1): array
     {
-        $uid   = strtoupper(trim($uid));
+        $uid = $this->sanitizeUid($uid);
         $batch = Batch::with('productCode')
             ->where('rfid_tag', $uid)
             ->where('company_id', $companyId)
@@ -340,8 +340,14 @@ class RfidService
      * Set pending batch — batch mana yang akan menerima tag berikutnya.
      * Dipanggil dari web MINETRA sebelum operator tempel tag.
      */
-    public function setPendingBatch(int $batchId, int $companyId, string $initiatedBy = 'System'): void
+   public function setPendingBatch(int $batchId, int $companyId, string $initiatedBy = 'System'): void
     {
+        // ─── Guard: company_id harus valid ────────────────────────────────
+        if ($companyId <= 0) {
+            $companyId = 1; // fallback ke PT Timah
+            Log::warning("RfidService::setPendingBatch — company_id invalid, fallback ke 1");
+        }
+
         $batch    = Batch::where('company_id', $companyId)->findOrFail($batchId);
         $cacheKey = self::CACHE_PENDING_BATCH_PREFIX . $companyId;
 
@@ -350,10 +356,11 @@ class RfidService
             'batch_code'   => $batch->batch_code,
             'product_code' => $batch->productCode?->code,
             'initiated_by' => $initiatedBy,
+            'company_id'   => $companyId,    // ← simpan untuk debug
             'started_at'   => now()->toISOString(),
         ], self::CACHE_PENDING_TTL);
 
-        Log::info("RFID Pending Batch: batch_id={$batchId} ({$batch->batch_code}) oleh {$initiatedBy}");
+        Log::info("RFID Pending Batch SET: batch={$batch->batch_code} company_id={$companyId} oleh={$initiatedBy}");
     }
 
     /**
@@ -560,5 +567,26 @@ class RfidService
     private function truncate(string $text, int $max = 16): string
     {
         return mb_strlen($text) <= $max ? $text : mb_substr($text, 0, $max);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UID SANITIZATION — Handle berbagai format output RC522
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Sanitasi UID dari ESP32/RC522 — handle semua format yang mungkin.
+     *
+     * RC522 bisa kirim berbagai format:
+     *   "A3B2C1D0"      → OK, uppercase hex tanpa spasi
+     *   "a3b2c1d0"      → lowercase → uppercase
+     *   "A3 B2 C1 D0"   → dengan spasi → hapus spasi
+     *   "A3:B2:C1:D0"   → dengan colon → hapus colon
+     *   " A3B2C1D0 "    → dengan whitespace → trim
+     */
+    private function sanitizeUid(string $uid): string
+    {
+        return strtoupper(
+            str_replace([' ', ':', '-', '.'], '', trim($uid))
+        );
     }
 }
