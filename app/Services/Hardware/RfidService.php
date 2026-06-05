@@ -567,8 +567,10 @@ class RfidService
      */
     public function validateToken(?string $token): bool
     {
-        $configured = trim((string) (config('app.rfid_api_token', '') ?? ''));
+        // getenv() bypass config cache — paling reliable di production Docker
+        $configured = trim((string) (getenv('RFID_API_TOKEN') ?: ''));
 
+        // Open mode: jika token tidak dikonfigurasi → terima semua
         if ($configured === '') {
             return true;
         }
