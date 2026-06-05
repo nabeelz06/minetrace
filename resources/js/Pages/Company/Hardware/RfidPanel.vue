@@ -406,6 +406,16 @@ function getSimActionStyle(action) {
     return m[action] ?? { bg:'bg-muted', text:'text-muted-foreground', label:action }
 }
 
+// ─── Static arrays — dipindahkan dari template untuk menghindari
+// Vue parser error akibat quotes di dalam HTML attribute ─────────
+const chromeSteps = [
+    { num: '1', text: 'Klik ikon kunci (🔒) di address bar sebelah kiri URL' },
+    { num: '2', text: 'Klik Pengaturan situs (Site settings)' },
+    { num: '3', text: 'Gulir ke bagian Konten tidak aman (Insecure content)' },
+    { num: '4', text: 'Ubah dari Blokir menjadi Izinkan (Allow)' },
+    { num: '5', text: 'Refresh halaman Ctrl+R lalu coba kembali' },
+]
+
 // ─── Cleanup ──────────────────────────────────────────────────────────────
 onUnmounted(() => {
     clearInterval(espPollTimer); clearInterval(lcdAnimTimer)
@@ -487,13 +497,7 @@ if (props.esp32_ip) { esp32IpInput.value = props.esp32_ip; startEspPolling() }
                                 Langkah Aktifkan di Chrome / Edge:
                             </p>
                             <div class="space-y-1.5">
-                                <div v-for="(step, i) in [
-                                    { num:'1', text:'Klik ikon 🔒 Kunci di address bar (kiri URL)' },
-                                    { num:'2', text:'Klik \"Pengaturan situs\" (Site settings)' },
-                                    { num:'3', text:'Gulir ke \"Konten tidak aman\" (Insecure content)' },
-                                    { num:'4', text:'Ubah dari \"Blokir\" → \"Izinkan\" (Allow)' },
-                                    { num:'5', text:'Refresh halaman (Ctrl+R) → coba kembali' },
-                                ]" :key="step.num" class="flex items-start gap-2.5">
+                                <div v-for="step in chromeSteps" :key="step.num" class="flex items-start gap-2.5">
                                     <span class="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{{ step.num }}</span>
                                     <p class="text-xs text-foreground">{{ step.text }}</p>
                                 </div>

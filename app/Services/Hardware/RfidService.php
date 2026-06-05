@@ -554,9 +554,15 @@ class RfidService
      */
     public function validateToken(?string $token): bool
     {
-        $configured = config('app.rfid_api_token', env('RFID_API_TOKEN', ''));
-        if (empty($configured)) return true;
-        return $token === $configured;
+        $configured = config('app.rfid_api_token', '');
+
+        $configured = trim((string) ($configured ?? ''));
+
+        if ($configured === '') {
+            return true;
+        }
+
+        return trim((string) ($token ?? '')) === $configured;
     }
 
     // ═══════════════════════════════════════════════════════════════════
