@@ -221,7 +221,6 @@ const countdownPct = computed(() => Math.round((pendingCountdown.value / 90) * 1
 
 async function startRegisterSession() {
     if (!selectedBatchId.value) { showToast('Pilih batch terlebih dahulu.', 'error'); return }
-    if (!esp32IpInput.value)    { showToast('Simpan IP ESP32 terlebih dahulu.', 'error'); return }
     isSavingPending.value = true
     try {
         const res = await apiFetch('/api/v1/company/rfid/pending-batch', 'POST', {
@@ -896,7 +895,7 @@ if (props.esp32_ip) { esp32IpInput.value = props.esp32_ip; startEspPolling() }
                                 </option>
                             </select>
                             <button @click="startRegisterSession"
-                                    :disabled="!selectedBatchId||isSavingPending||isPending||espStatus!=='online'"
+                                    :disabled="!selectedBatchId||isSavingPending||isPending"
                                     class="px-3 h-9 rounded-xl text-xs font-bold text-white disabled:opacity-50 active:scale-[0.97]"
                                     style="background:linear-gradient(135deg,#7c3aed,#5b21b6)">
                                 🪪 Register
