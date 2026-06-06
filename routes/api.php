@@ -186,6 +186,18 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('device', [ApiRfidController::class, 'saveDeviceIp'])
             ->name('device');
 
-    }); // end middleware(['web', 'auth'])
+        // Set mode aktif ESP32 (mode + stage → di-cache untuk hardware)
+        Route::post('set-mode',   [ApiRfidController::class, 'setActiveMode'])
+            ->name('set-mode');
+
+        // Cek mode aktif saat ini
+        Route::get('active-mode', [ApiRfidController::class, 'getActiveModeStatus'])
+            ->name('active-mode');
+
+        // Daftar stage yang tersedia (untuk dropdown Vue)
+        Route::get('stages',      [ApiRfidController::class, 'getAvailableStages'])
+            ->name('stages');
+
+    });
 
 }); 

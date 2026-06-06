@@ -11,38 +11,35 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 /**
- * ApiRfidController — API endpoint untuk hardware RFID ESP32.
+ * ApiRfidController — API endpoint RFID ESP32 + Web UI.
  *
  * ════════════════════════════════════════════════════════════════════
- * ENDPOINT ESP32 (hardware langsung, tanpa session auth):
- *   POST /api/rfid/register   → Link UID tag ke batch (di Lab Kimia)
- *   POST /api/rfid/login      → Checkpoint IN (batch masuk gudang)
- *   POST /api/rfid/logout     → Checkpoint OUT (batch keluar gudang)
+ * HARDWARE ENDPOINTS (POST body: { uid, stage?, api_token? }):
+ *   POST /api/rfid/register   → Link UID ke batch pending (Lab Kimia)
+ *   POST /api/rfid/login      → Auto-terima batch di stage (MASUK)
+ *   POST /api/rfid/logout     → Catat batch keluar stage (KELUAR)
  *
- * ENDPOINT WEB UI (Sanctum session auth dari Vue):
- *   GET  /api/v1/rfid/status          → Status sistem + batch ter-tag + aktivitas
- *   GET  /api/v1/rfid/batches         → Daftar batch belum di-tag (untuk dropdown)
- *   POST /api/v1/rfid/pending-batch   → Set batch mana yang akan menerima tag
- *   DELETE /api/v1/rfid/pending-batch → Batalkan sesi pending
- *   POST /api/v1/rfid/device          → Simpan IP ESP32 ke sistem
- *   GET  /api/v1/hardware/rfid/esp-config → Konfigurasi untuk ESP32 saat boot
- *
- * FORMAT REQUEST ESP32:
- *   Header: Content-Type: application/json
- *   Header: X-Rfid-Token: {token} (opsional)
- *   Body:   { "uid": "A3B2C1D0" }
+ * WEB UI ENDPOINTS (session auth Inertia):
+ *   GET    /api/v1/company/rfid/status         → Dashboard status
+ *   GET    /api/v1/company/rfid/batches        → Batch belum ter-tag
+ *   POST   /api/v1/company/rfid/pending-batch  → Set pending register
+ *   DELETE /api/v1/company/rfid/pending-batch  → Cancel pending
+ *   POST   /api/v1/company/rfid/set-mode       → Set active mode+stage
+ *   GET    /api/v1/company/rfid/active-mode    → Cek mode aktif
+ *   GET    /api/v1/company/rfid/stages         → Daftar stage tersedia
+ *   DELETE /api/v1/company/rfid/batches/{id}/tag → Hapus RFID tag
+ *   POST   /api/v1/company/rfid/device         → Simpan IP ESP32
  *
  * FORMAT RESPONSE untuk LCD 16×2 ESP32:
- *   { "status": "success|failed", "name": "BatchCode", "message": "Keterangan" }
- *   └─ "name"    → ditampilkan di LCD baris 1 (max 16 char)
- *   └─ "message" → ditampilkan di LCD baris 2 (max 16 char)
+ *   name    → LCD baris 1 (max 16 char)
+ *   message → LCD baris 2 (max 16 char)
+ *   status  → "success" | "failed"
  * ════════════════════════════════════════════════════════════════════
  */
 class ApiRfidController extends Controller
 {
     private const DEFAULT_COMPANY_ID = 1;
 
-    // ─── CORS Headers standar untuk ESP32 compatibility ───────────────
     private const CORS_HEADERS = [
         'Access-Control-Allow-Origin'  => '*',
         'Access-Control-Allow-Methods' => 'GET, POST, DELETE, OPTIONS',
@@ -54,19 +51,14 @@ class ApiRfidController extends Controller
     ) {}
 
     // ═══════════════════════════════════════════════════════════════════
-    // HARDWARE ENDPOINTS — Dipanggil langsung oleh ESP32
+    // HARDWARE ENDPOINTS — Dipanggil ESP32 Arduino
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * REGISTER: Tempelkan RFID tag ke karung → link ke batch pending.
-     *
-     * Skenario: Operator Lab tempel tag ke karung mineral baru.
-     * Sebelumnya: Web MINETRA sudah set pending batch via /pending-batch
+     * REGISTER: Tempel tag RFID ke karung → link ke batch pending.
      *
      * POST /api/rfid/register
-     * Body: { "uid": "A3B2C1D0", "api_token": "..." }
-     *
-     * Response LCD: name=BatchCode, message="Tag terdaftar!"
+     * Body: { "uid": "A3B2C1D0", "api_token": "" }
      */
     public function registerCard(Request $request): JsonResponse
     {
@@ -76,11 +68,10 @@ class ApiRfidController extends Controller
             return $this->errorResponse('Token tidak valid', 401);
         }
 
-        // ─── Sanitasi UID sebelum validasi (handle spasi dari RC522) ─────
+        // Sanitasi UID (handle spasi dari RC522)
         $request->merge([
             'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
         ]);
-
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
         $companyId = $this->resolveCompanyId($request);
@@ -92,14 +83,14 @@ class ApiRfidController extends Controller
     }
 
     /**
-     * LOGIN / CHECKPOINT IN: Scan karung saat masuk gudang/area.
+     * LOGIN / CHECKPOINT IN: Scan karung saat MASUK stage.
      *
-     * Skenario: Karung tiba di depan gudang, scan untuk catat kedatangan.
+     * PERUBAHAN UTAMA: Batch sekarang AUTO-DIPINDAH ke stage tujuan.
+     * Stage ditentukan dari: body.stage > cache active_mode > batch stage saat ini
      *
      * POST /api/rfid/login
-     * Body: { "uid": "A3B2C1D0", "api_token": "..." }
-     *
-     * Response LCD: name=BatchCode, message="Batch masuk OK"
+     * Body: { "uid": "A3B2C1D0", "stage": "wet_process", "api_token": "" }
+     *       stage opsional — jika tidak ada, dibaca dari cache
      */
     public function loginCard(Request $request): JsonResponse
     {
@@ -109,30 +100,29 @@ class ApiRfidController extends Controller
             return $this->errorResponse('Token tidak valid', 401);
         }
 
-        // ─── Sanitasi UID sebelum validasi (handle spasi dari RC522) ─────
         $request->merge([
             'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
         ]);
-
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
         $companyId = $this->resolveCompanyId($request);
-        $result    = $this->rfid->checkpointIn($request->uid, $companyId);
 
-        Log::info("RFID /login (CP-IN) → uid:{$request->uid} status:{$result['status']} ip:{$request->ip()}");
+        // Stage dari request body (ESP32 firmware baru)
+        // Jika tidak ada → RfidService akan baca dari cache active_mode
+        $scanStage = $request->input('stage');
+
+        $result = $this->rfid->checkpointIn($request->uid, $companyId, $scanStage);
+
+        Log::info("RFID /login (IN) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
 
         return $this->hardwareResponse($result);
     }
 
     /**
-     * LOGOUT / CHECKPOINT OUT: Scan karung saat keluar gudang.
-     *
-     * Skenario: Karung dipindahkan keluar gudang, scan di pintu keluar.
+     * LOGOUT / CHECKPOINT OUT: Scan karung saat KELUAR stage.
      *
      * POST /api/rfid/logout
-     * Body: { "uid": "A3B2C1D0", "api_token": "..." }
-     *
-     * Response LCD: name=BatchCode, message="Batch keluar OK"
+     * Body: { "uid": "A3B2C1D0", "stage": "wet_process", "api_token": "" }
      */
     public function logoutCard(Request $request): JsonResponse
     {
@@ -142,56 +132,42 @@ class ApiRfidController extends Controller
             return $this->errorResponse('Token tidak valid', 401);
         }
 
-        // ─── Sanitasi UID sebelum validasi (handle spasi dari RC522) ─────
         $request->merge([
             'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
         ]);
-
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
         $companyId = $this->resolveCompanyId($request);
-        $result    = $this->rfid->checkpointOut($request->uid, $companyId);
+        $scanStage = $request->input('stage');
 
-        Log::info("RFID /logout (CP-OUT) → uid:{$request->uid} status:{$result['status']} ip:{$request->ip()}");
+        $result = $this->rfid->checkpointOut($request->uid, $companyId, $scanStage);
+
+        Log::info("RFID /logout (OUT) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
 
         return $this->hardwareResponse($result);
     }
 
-    /**
-     * Konfigurasi untuk ESP32 saat boot pertama kali.
-     * ESP32 memanggil ini setelah connect WiFi untuk mendapatkan endpoint URLs.
-     *
-     * GET /api/v1/hardware/rfid/esp-config
-     */
+    /** ESP32 Boot Config — dipanggil saat ESP32 startup */
     public function espBootConfig(Request $request): JsonResponse
     {
         $companyId = $this->resolveCompanyId($request);
-        $config    = $this->rfid->getEspBootConfig($companyId);
-
         return response()->json([
             'success' => true,
-            'data'    => $config,
-            'message' => 'Config loaded.',
+            'data'    => $this->rfid->getEspBootConfig($companyId),
         ])->withHeaders(self::CORS_HEADERS);
     }
 
-    /**
-     * Handle CORS preflight OPTIONS.
-     */
+    /** CORS preflight */
     public function handleOptions(): JsonResponse
     {
         return response()->json(['ok' => true])->withHeaders(self::CORS_HEADERS);
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // WEB UI ENDPOINTS — Dipanggil oleh RfidPanel.vue (Sanctum auth)
+    // WEB UI ENDPOINTS — Session auth (Inertia.js)
     // ═══════════════════════════════════════════════════════════════════
 
-    /**
-     * Dashboard status RFID — dipakai untuk polling di RfidPanel.
-     *
-     * GET /api/v1/rfid/status
-     */
+    /** Status dashboard RFID */
     public function getStatus(Request $request): JsonResponse
     {
         $companyId = Auth::user()?->company_id ?? self::DEFAULT_COMPANY_ID;
@@ -200,44 +176,111 @@ class ApiRfidController extends Controller
             'success' => true,
             'data'    => [
                 'esp32_ip'       => $this->rfid->getEsp32Ip($companyId),
+                'active_mode'    => $this->rfid->getActiveMode($companyId),
                 'pending_batch'  => $this->rfid->getPendingBatch($companyId),
                 'tagged_batches' => $this->rfid->getTaggedBatches($companyId),
                 'recent_activity'=> $this->rfid->getRecentRfidActivity($companyId),
                 'timestamp_wib'  => now()->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
             ],
-            'message' => 'OK',
         ]);
     }
 
-    /**
-     * Daftar batch yang BELUM punya RFID tag — untuk dropdown registrasi.
-     *
-     * GET /api/v1/rfid/batches
-     */
+    /** Daftar batch belum ter-tag (dropdown register) */
     public function getUntaggedBatches(Request $request): JsonResponse
     {
         $companyId = Auth::user()?->company_id ?? self::DEFAULT_COMPANY_ID;
-
         return response()->json([
             'success' => true,
             'data'    => $this->rfid->getUntaggedBatches($companyId),
-            'message' => 'OK',
         ]);
     }
 
     /**
-     * Set batch yang akan menerima RFID tag berikutnya.
-     * Dipanggil sebelum operator menempel tag ke karung.
+     * SET ACTIVE MODE — operator klik Login/Logout mode di web panel.
      *
-     * POST /api/v1/rfid/pending-batch
-     * Body: { "batch_id": 42 }
+     * FIX: Mode + stage di-cache sehingga ESP32 tahu di stage mana scan terjadi.
+     *
+     * POST /api/v1/company/rfid/set-mode
+     * Body: { "mode": "login", "stage": "wet_process" }
      */
+    public function setActiveMode(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->hasAnyRole([
+            'company_admin', 'operator_lab_station', 'operator_wet',
+            'operator_dry', 'operator_warehouse', 'operator_lab_ltj',
+        ]), 403, 'Tidak memiliki akses.');
+
+        $validated = $request->validate([
+            'mode'  => 'required|string|in:login,logout,register,idle',
+            'stage' => 'required_unless:mode,idle|nullable|string|in:receiving,wet_process,dry_process,warehouse,project_plant',
+        ]);
+
+        $companyId = Auth::user()->company_id;
+
+        if ($validated['mode'] === 'idle') {
+            $this->rfid->clearActiveMode($companyId);
+            return response()->json([
+                'success' => true,
+                'message' => 'Mode direset ke idle.',
+                'data'    => ['mode' => 'idle', 'stage' => null],
+            ]);
+        }
+
+        $stage = $validated['stage'];
+        $this->rfid->setActiveMode($validated['mode'], $stage, $companyId);
+
+        $stageLabels = [
+            'receiving'     => 'Receiving Area',
+            'wet_process'   => 'Wet Process',
+            'dry_process'   => 'Dry Process',
+            'warehouse'     => 'LTJ Warehouse',
+            'project_plant' => 'Lab Analisis LTJ',
+        ];
+        $stageLabel = $stageLabels[$stage] ?? $stage;
+        $modeLabel  = match($validated['mode']) {
+            'login'  => 'LOGIN (Masuk)',
+            'logout' => 'LOGOUT (Keluar)',
+            default  => strtoupper($validated['mode']),
+        };
+
+        return response()->json([
+            'success' => true,
+            'message' => "Mode {$modeLabel} aktif untuk {$stageLabel}. ESP32 siap scan.",
+            'data'    => [
+                'mode'   => $validated['mode'],
+                'stage'  => $stage,
+                'label'  => $stageLabel,
+            ],
+        ]);
+    }
+
+    /** GET active mode untuk polling dari Vue */
+    public function getActiveModeStatus(Request $request): JsonResponse
+    {
+        $companyId  = Auth::user()?->company_id ?? self::DEFAULT_COMPANY_ID;
+        $activeMode = $this->rfid->getActiveMode($companyId);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $activeMode,
+        ]);
+    }
+
+    /** Daftar stage yang tersedia untuk dropdown di Vue */
+    public function getAvailableStages(Request $request): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data'    => $this->rfid->getAvailableStages(),
+        ]);
+    }
+
+    /** Set pending batch untuk register */
     public function setPendingBatch(Request $request): JsonResponse
     {
-        abort_unless(
-            Auth::user()->hasAnyRole(['company_admin', 'operator_lab_station', 'operator_wet']),
-            403, 'Tidak memiliki akses untuk mendaftarkan RFID tag.'
-        );
+        abort_unless(Auth::user()->hasAnyRole([
+            'company_admin', 'operator_lab_station', 'operator_wet',
+        ]), 403, 'Tidak memiliki akses untuk mendaftarkan RFID tag.');
 
         $validated = $request->validate([
             'batch_id' => 'required|integer|exists:batches,id',
@@ -246,7 +289,6 @@ class ApiRfidController extends Controller
         $companyId = Auth::user()->company_id;
         $batch     = Batch::where('company_id', $companyId)->findOrFail($validated['batch_id']);
 
-        // Guard: jika sudah punya tag
         if ($batch->rfid_tag) {
             return response()->json([
                 'success' => false,
@@ -257,9 +299,9 @@ class ApiRfidController extends Controller
         $this->rfid->setPendingBatch($validated['batch_id'], $companyId, Auth::user()->name);
 
         return response()->json([
-            'success'    => true,
-            'message'    => "Sesi registrasi aktif untuk batch {$batch->batch_code} ({$batch->productCode?->code}). Tempelkan RFID tag dalam 90 detik.",
-            'data'       => [
+            'success' => true,
+            'message' => "Sesi registrasi aktif untuk batch {$batch->batch_code} ({$batch->productCode?->code}). Tempelkan RFID tag dalam 90 detik.",
+            'data'    => [
                 'batch_id'   => $batch->id,
                 'batch_code' => $batch->batch_code,
                 'product'    => $batch->productCode?->code,
@@ -268,29 +310,20 @@ class ApiRfidController extends Controller
         ]);
     }
 
-    /**
-     * Batalkan sesi pending registrasi.
-     *
-     * DELETE /api/v1/rfid/pending-batch
-     */
+    /** Cancel pending batch */
     public function cancelPendingBatch(Request $request): JsonResponse
     {
         $companyId = Auth::user()?->company_id ?? self::DEFAULT_COMPANY_ID;
         $this->rfid->cancelPendingBatch($companyId);
-
         return response()->json(['success' => true, 'message' => 'Sesi registrasi dibatalkan.']);
     }
 
-    /**
-     * Hapus RFID tag dari batch (unregister).
-     *
-     * DELETE /api/v1/rfid/batches/{batchId}/tag
-     */
+    /** Hapus RFID tag dari batch */
     public function removeTag(Request $request, int $batchId): JsonResponse
     {
         abort_unless(Auth::user()->hasAnyRole(['company_admin']), 403);
 
-        $batch = Batch::where('company_id', Auth::user()->company_id)->findOrFail($batchId);
+        $batch  = Batch::where('company_id', Auth::user()->company_id)->findOrFail($batchId);
         $oldUid = $batch->rfid_tag;
         $batch->update(['rfid_tag' => null]);
 
@@ -302,27 +335,16 @@ class ApiRfidController extends Controller
         ]);
     }
 
-    /**
-     * Simpan IP address ESP32 ke CompanySetting.
-     *
-     * POST /api/v1/rfid/device
-     * Body: { "esp32_ip": "http://192.168.1.50" }
-     */
+    /** Simpan IP ESP32 */
     public function saveDeviceIp(Request $request): JsonResponse
     {
-        abort_unless(
-            Auth::user()->hasAnyRole(['company_admin', 'operator_lab_station']),
-            403
-        );
+        abort_unless(Auth::user()->hasAnyRole(['company_admin', 'operator_lab_station', 'operator_wet']), 403);
 
-        $validated = $request->validate([
-            'esp32_ip' => 'required|string|max:100',
-        ]);
+        $validated = $request->validate(['esp32_ip' => 'required|string|max:100']);
 
         $companyId = Auth::user()->company_id;
         $this->rfid->saveEsp32Ip($companyId, $validated['esp32_ip']);
-
-        $savedIp = $this->rfid->getEsp32Ip($companyId);
+        $savedIp   = $this->rfid->getEsp32Ip($companyId);
 
         return response()->json([
             'success' => true,
@@ -335,14 +357,12 @@ class ApiRfidController extends Controller
     // HELPERS
     // ═══════════════════════════════════════════════════════════════════
 
-    /** Response standar untuk ESP32 (selalu ada CORS headers) */
     private function hardwareResponse(array $result): JsonResponse
     {
         $httpStatus = $result['status'] === 'success' ? 200 : 422;
         return response()->json($result, $httpStatus)->withHeaders(self::CORS_HEADERS);
     }
 
-    /** Response error untuk hardware */
     private function errorResponse(string $message, int $status = 422): JsonResponse
     {
         return response()->json([
@@ -352,7 +372,6 @@ class ApiRfidController extends Controller
         ], $status)->withHeaders(self::CORS_HEADERS);
     }
 
-    /** Resolve company_id dari header atau default */
     private function resolveCompanyId(Request $request): int
     {
         if ($code = $request->header('X-Company-Code')) {
