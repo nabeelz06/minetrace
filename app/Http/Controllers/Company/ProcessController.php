@@ -18,75 +18,62 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * ProcessController — Pengelolaan seluruh tahap proses produksi.
+ * ProcessController — Pengelolaan seluruh tahap proses produksi mineral.
  *
- * ════════════════════════════════════════════════════════════════
- * TERMINOLOGI:
- *   Mineral Ikutan Timah (MIT/MIK):
- *     - Hasil samping penambangan timah (belum dipisahkan)
- *     - ZIR + ILM + MON masih tercampur dalam satu batch
- *     - Dibuat oleh operator_lab_station di Lab Kimia
- *
- *   Konsentrat Mineral Ikutan:
- *     - Hasil pemisahan Dry Process (Magnetic Separator)
- *     - 3 batch terpisah: MON (Monasit), ZIR (Zirkon), ILM (Ilmenit)
- *     - Dibuat oleh operator_dry, langsung masuk Warehouse
- *
- * ALUR PROSES LENGKAP:
- *   Lab Kimia (MIT) → Receiving → Wet Process → Dry Process
- *       → Warehouse [ZIR+ILM → Ekspor | MON → Project Plant]
- *       → Project Plant (Lab LTJ) → Warehouse [LTJ hasil] → Ekspor
- * ════════════════════════════════════════════════════════════════
+ * ALUR PROSES:
+ *   Lab Kimia → Receiving → Wet Process → Dry Process
+ *   → Warehouse [ZIR+ILM→Ekspor | MON→Project Plant]
+ *   → Project Plant (Lab LTJ) → Warehouse → Ekspor
  */
 class ProcessController extends Controller
 {
-    /** Konfigurasi stage: label, icon, color, prev/next stage, lokasi */
+    // ─── Konfigurasi stage ────────────────────────────────────────────────
     private const STAGES = [
         'lab_kimia'     => [
             'label' => 'Lab Kimia',      'label_en' => 'Chemical Lab',
             'icon'  => '🧪', 'color' => 'violet', 'location_type' => 'lab_kimia',
             'prev_stage' => null, 'next_stage' => 'receiving',
-            'desc'  => 'Pembuatan batch Mineral Ikutan Timah (MIT)',
+            'desc'    => 'Pembuatan batch Mineral Ikutan Timah (MIT)',
             'desc_en' => 'Creation of Tin Mineral By-product (MIT) batches',
         ],
         'receiving'     => [
             'label' => 'Receiving Area',  'label_en' => 'Receiving Area',
             'icon'  => '📥', 'color' => 'blue', 'location_type' => 'receiving',
             'prev_stage' => 'lab_kimia', 'next_stage' => 'wet_process',
-            'desc'  => 'Penerimaan batch MIT dari Lab Kimia',
+            'desc'    => 'Penerimaan batch MIT dari Lab Kimia',
             'desc_en' => 'Receiving MIT batches from Chemical Lab',
         ],
         'wet_process'   => [
             'label' => 'Wet Process',     'label_en' => 'Wet Process',
             'icon'  => '💧', 'color' => 'cyan', 'location_type' => 'wet_process',
             'prev_stage' => 'receiving', 'next_stage' => 'dry_process',
-            'desc'  => 'Shaking table — ekstraksi timah (Sn) dari MIT',
+            'desc'    => 'Shaking table — ekstraksi timah (Sn) dari MIT',
             'desc_en' => 'Shaking table — tin (Sn) extraction from MIT',
         ],
         'dry_process'   => [
             'label' => 'Dry Process',     'label_en' => 'Dry Process',
             'icon'  => '🔥', 'color' => 'amber', 'location_type' => 'dry_process',
             'prev_stage' => 'wet_process', 'next_stage' => 'warehouse',
-            'desc'  => 'Magnetic separator — pisahkan MIT menjadi MON + ZIR + ILM',
+            'desc'    => 'Magnetic separator — pisahkan MIT menjadi MON + ZIR + ILM',
             'desc_en' => 'Magnetic separator — split MIT into MON + ZIR + ILM',
         ],
         'project_plant' => [
             'label' => 'Project Plant',   'label_en' => 'Project Plant',
             'icon'  => '⚗️', 'color' => 'emerald', 'location_type' => 'project_plant',
             'prev_stage' => 'warehouse', 'next_stage' => 'warehouse',
-            'desc'  => 'Lab Analisis LTJ — analisis kandungan La, Ce, Pr, Nd, Y dari Monasit',
-            'desc_en' => 'LTJ Lab Analysis — La, Ce, Pr, Nd, Y content from Monazite',
+            'desc'    => 'Lab Analisis LTJ — analisis kandungan La, Ce, Pr, Nd, Y',
+            'desc_en' => 'LTJ Lab Analysis — La, Ce, Pr, Nd, Y content analysis',
         ],
         'warehouse'     => [
             'label' => 'LTJ Warehouse',   'label_en' => 'LTJ Warehouse',
             'icon'  => '🏭', 'color' => 'teal', 'location_type' => 'warehouse',
             'prev_stage' => 'dry_process', 'next_stage' => null,
-            'desc'  => 'Gudang konsentrat: ZIR, ILM, MON, dan hasil unsur LTJ',
+            'desc'    => 'Gudang konsentrat: ZIR, ILM, MON, dan hasil unsur LTJ',
             'desc_en' => 'Concentrate warehouse: ZIR, ILM, MON, and LTJ elements',
         ],
     ];
 
-    /** Role yang berwenang per stage */
+    // ─── Role per stage ───────────────────────────────────────────────────
     private const STAGE_ROLES = [
         'lab_kimia'     => ['company_admin', 'operator_lab_station'],
         'receiving'     => ['company_admin', 'operator_wet'],
@@ -96,37 +83,28 @@ class ProcessController extends Controller
         'warehouse'     => ['company_admin', 'operator_warehouse'],
     ];
 
-    /** Semua operator roles (untuk checkpoint) */
     private const ALL_OPERATOR_ROLES = [
-        'company_admin',
-        'operator_lab_station',
-        'operator_lab_ltj',
-        'operator_wet',
-        'operator_dry',
-        'operator_warehouse',
-        'company_auditor', // read-only, tapi bisa lihat
+        'company_admin', 'operator_lab_station', 'operator_lab_ltj',
+        'operator_wet', 'operator_dry', 'operator_warehouse', 'company_auditor',
     ];
 
     // ═══════════════════════════════════════════════════════════════════
     // OVERVIEW
     // ═══════════════════════════════════════════════════════════════════
 
-    /**
-     * Overview semua tahap proses — ringkasan lintas stage.
-     */
+    /** Ringkasan lintas stage */
     public function overview(): Response
     {
         $companyId = Auth::user()->company_id;
         $tz        = 'Asia/Jakarta';
 
-        // ─── Hitung metrics per stage ──────────────────────────────────────
+        // ─── Metrics per stage ─────────────────────────────────────────────
         $stageSummaries = collect(self::STAGES)->map(function ($config, $stage) use ($companyId) {
             $batches = Batch::where('company_id', $companyId)
                 ->where('process_stage', $stage)
                 ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
                 ->get(['id', 'current_weight', 'has_discrepancy', 'status']);
 
-            // Incoming count (batch dari stage sebelumnya yang siap diterima)
             $incomingCount = 0;
             if ($config['prev_stage']) {
                 $incomingCount = Batch::where('company_id', $companyId)
@@ -151,7 +129,7 @@ class ProcessController extends Controller
             ];
         })->values()->toArray();
 
-        // ─── Activity feed terbaru ─────────────────────────────────────────
+        // ─── Activity feed ─────────────────────────────────────────────────
         $recentCheckpoints = Checkpoint::with(['batch.productCode', 'location', 'recordedByUser'])
             ->whereHas('batch', fn($q) => $q->where('company_id', $companyId))
             ->latest('recorded_at')
@@ -172,17 +150,13 @@ class ProcessController extends Controller
                 'recorded_at_diff' => $cp->recorded_at?->diffForHumans(),
             ]);
 
-        // ─── Global stats ──────────────────────────────────────────────────
         $totalActive = Batch::where('company_id', $companyId)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
-            ->count();
+            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count();
         $totalAlerts = Batch::where('company_id', $companyId)
             ->where('has_discrepancy', true)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
-            ->count();
+            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count();
         $totalWeight = Batch::where('company_id', $companyId)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
-            ->sum('current_weight');
+            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->sum('current_weight');
 
         return Inertia::render('Company/Process/Overview', [
             'stage_summaries'    => $stageSummaries,
@@ -193,32 +167,27 @@ class ProcessController extends Controller
                 'total_weight'  => round($totalWeight, 2),
                 'stage_count'   => count(self::STAGES),
             ],
-            'current_time'       => Carbon::now($tz)->format('l, d F Y — H:i:s') . ' WIB',
+            'current_time' => Carbon::now($tz)->format('l, d F Y — H:i:s') . ' WIB',
         ]);
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // STAGE DETAIL PAGE
+    // STAGE DETAIL
     // ═══════════════════════════════════════════════════════════════════
 
     /**
      * Halaman detail satu stage.
-     *
-     * Menampilkan DUA panel:
-     * 1. INCOMING — batch dari stage sebelumnya yang siap diterima
-     * 2. CURRENT  — batch yang sedang ada di stage ini
-     *
-     * Ini adalah fix utama untuk masalah "batch hilang setelah diterima".
+     * Menampilkan panel INCOMING + CURRENT + warehouse inventory dashboard.
      */
     public function stage(Request $request, string $stage): Response
     {
-        abort_unless(array_key_exists($stage, self::STAGES), 404, 'Stage tidak ditemukan.');
+        abort_unless(array_key_exists($stage, self::STAGES), 404);
 
         $companyId = Auth::user()->company_id;
         $config    = self::STAGES[$stage];
         $tz        = 'Asia/Jakarta';
 
-        // ─── Batch CURRENT (di stage ini) ─────────────────────────────────
+        // ─── Batch CURRENT ─────────────────────────────────────────────────
         $query = Batch::with([
                 'productCode',
                 'currentLocation',
@@ -243,20 +212,16 @@ class ProcessController extends Controller
         $batches->getCollection()->transform(fn($b) => $this->formatBatch($b, $tz));
 
         // ─── Batch INCOMING (dari stage sebelumnya) ────────────────────────
-        // INI ADALAH FIX UTAMA: batch dari prev_stage ditampilkan agar
-        // operator dapat menerimanya ke stage ini
         $incomingBatches = $this->getIncomingBatches($stage, $companyId, $tz);
 
         // ─── Stats ─────────────────────────────────────────────────────────
         $currentCount  = Batch::where('company_id', $companyId)
             ->where('process_stage', $stage)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
-            ->count();
-        $incomingCount = count($incomingBatches);
+            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count();
 
         $stats = [
             'current_count'  => $currentCount,
-            'incoming_count' => $incomingCount,
+            'incoming_count' => count($incomingBatches),
             'alerts'         => Batch::where('company_id', $companyId)
                                     ->where('process_stage', $stage)
                                     ->where('has_discrepancy', true)->count(),
@@ -273,7 +238,7 @@ class ProcessController extends Controller
             ),
         ];
 
-        // ─── Activity log (checkpoint di stage ini) ────────────────────────
+        // ─── Activity log ──────────────────────────────────────────────────
         $activityLog = Checkpoint::with(['batch.productCode', 'recordedByUser', 'location'])
             ->whereHas('batch', fn($q) => $q->where('company_id', $companyId))
             ->where(fn($q) => $q
@@ -304,10 +269,9 @@ class ProcessController extends Controller
                 'recorded_at_diff' => $cp->recorded_at?->diffForHumans(),
             ]);
 
-        // ─── Threshold mass balance ─────────────────────────────────────────
+        // ─── Mass balance threshold ─────────────────────────────────────────
         $threshold = MassBalanceThreshold::where('company_id', $companyId)
-            ->where('process_stage', $stage)
-            ->first();
+            ->where('process_stage', $stage)->first();
 
         // ─── Lokasi stage ini ──────────────────────────────────────────────
         $locations = Location::where('company_id', $companyId)
@@ -316,7 +280,7 @@ class ProcessController extends Controller
             ->get(['id', 'code', 'name', 'full_name', 'city'])
             ->toArray();
 
-        // ─── Lokasi next stage (untuk forward) ────────────────────────────
+        // ─── Lokasi next stage ─────────────────────────────────────────────
         $nextStageLocations = [];
         if ($config['next_stage'] && isset(self::STAGES[$config['next_stage']])) {
             $nextConfig = self::STAGES[$config['next_stage']];
@@ -327,7 +291,7 @@ class ProcessController extends Controller
                 ->toArray();
         }
 
-        // ─── Output products (khusus dry_process: MON, ZIR, ILM) ──────────
+        // ─── Output products (khusus dry_process) ─────────────────────────
         $outputProducts = [];
         if ($stage === 'dry_process') {
             $outputProducts = ProductCode::where('company_id', $companyId)
@@ -337,7 +301,7 @@ class ProcessController extends Controller
                 ->toArray();
         }
 
-        // ─── All stages nav bar ────────────────────────────────────────────
+        // ─── All stages nav ────────────────────────────────────────────────
         $allStages = collect(self::STAGES)->map(fn($c, $s) => [
             'stage'      => $s,
             'label'      => $c['label'],
@@ -345,9 +309,52 @@ class ProcessController extends Controller
             'icon'       => $c['icon'],
             'href'       => "/company/process/{$s}",
             'is_current' => $s === $stage,
-            'count'      => Batch::where('company_id', $companyId)->where('process_stage', $s)
+            'count'      => Batch::where('company_id', $companyId)
+                               ->where('process_stage', $s)
                                ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count(),
         ])->values()->toArray();
+
+        // ═══════════════════════════════════════════════════════════════
+        // WAREHOUSE INVENTORY BREAKDOWN
+        // Data untuk pie chart distribusi stok per produk dan status ekspor.
+        // Hanya dihitung saat halaman warehouse — hindari query tidak perlu di stage lain.
+        // ═══════════════════════════════════════════════════════════════
+        $warehouseInventory = [];
+        $warehouseByExport  = [];
+
+        if ($stage === 'warehouse') {
+            $whBatches = Batch::with('productCode')
+                ->where('company_id', $companyId)
+                ->where('process_stage', 'warehouse')
+                ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+                ->get();
+
+            // ─── Breakdown per kode produk (untuk donut chart produk) ──────
+            $warehouseInventory = $whBatches
+                ->groupBy(fn($b) => $b->productCode?->code ?? 'OTHER')
+                ->map(fn($grp, $code) => [
+                    'code'             => $code,
+                    'name'             => $grp->first()?->productCode?->name ?? $code,
+                    'count'            => $grp->count(),
+                    'total_weight_kg'  => round($grp->sum('current_weight'), 2),
+                    'export_available' => $grp->where('export_status', 'available')->count(),
+                    'export_blocked'   => $grp->where('export_status', 'not_applicable')->count(),
+                ])
+                ->sortByDesc('total_weight_kg')
+                ->values()
+                ->toArray();
+
+            // ─── Breakdown per status ekspor (untuk donut chart readiness) ─
+            $warehouseByExport = [
+                'available'       => round($whBatches->where('export_status', 'available')->sum('current_weight'), 2),
+                'not_applicable'  => round($whBatches->where('export_status', 'not_applicable')->sum('current_weight'), 2),
+                'reserved'        => round($whBatches->where('export_status', 'reserved')->sum('current_weight'), 2),
+                'total_weight'    => round($whBatches->sum('current_weight'), 2),
+                'count_available' => $whBatches->where('export_status', 'available')->count(),
+                'count_blocked'   => $whBatches->where('export_status', 'not_applicable')->count(),
+                'count_reserved'  => $whBatches->where('export_status', 'reserved')->count(),
+            ];
+        }
 
         return Inertia::render('Company/Process/Stage', [
             'stage'                => $stage,
@@ -367,32 +374,26 @@ class ProcessController extends Controller
             'filters'              => $request->only(['search', 'status', 'alerts_only']),
             'user_role'            => Auth::user()->getRoleNames()->first(),
             'current_time'         => Carbon::now($tz)->format('d/m/Y H:i:s') . ' WIB',
+            // ─── Warehouse-specific ─────────────────────────────────────────
+            'warehouse_inventory'  => $warehouseInventory,
+            'warehouse_by_export'  => $warehouseByExport,
         ]);
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // RECEIVE BATCH — Pindahkan batch DARI stage sebelumnya KE stage ini
+    // RECEIVE BATCH
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Terima batch dari stage sebelumnya — TANPA mengubah berat.
-     *
-     * Contoh:
-     *   Lab Kimia → Receiving      : operator_wet menerima MIT dari Lab
-     *   Receiving → Wet Process    : operator_wet mulai shaking table
-     *   Wet Process → Dry Process  : (gunakan forwardBatch karena ada perubahan berat)
-     *   Warehouse → Project Plant  : operator_warehouse kirim MON ke Lab LTJ
-     *
+     * Terima batch dari stage sebelumnya.
      * Route: POST /company/process/{stage}/receive-batch
      */
     public function receiveBatch(Request $request, string $stage): RedirectResponse
     {
         abort_unless(array_key_exists($stage, self::STAGES), 404);
 
-        // Validasi role berdasarkan stage tujuan
         $allowedRoles = self::STAGE_ROLES[$stage] ?? ['company_admin'];
-        abort_unless(Auth::user()->hasAnyRole($allowedRoles), 403,
-            'Anda tidak memiliki akses untuk menerima batch di stage ini.');
+        abort_unless(Auth::user()->hasAnyRole($allowedRoles), 403);
 
         $validated = $request->validate([
             'batch_id'    => 'required|integer|exists:batches,id',
@@ -400,40 +401,33 @@ class ProcessController extends Controller
             'notes'       => 'nullable|string|max:1000',
         ]);
 
-        $batch = Batch::with('productCode')
+        $batch  = Batch::with('productCode')
             ->where('company_id', Auth::user()->company_id)
             ->findOrFail($validated['batch_id']);
 
-        // Validasi: batch harus dari stage sebelumnya
         $config    = self::STAGES[$stage];
         $prevStage = $config['prev_stage'];
 
         if ($prevStage && $batch->process_stage !== $prevStage) {
             return back()->with('error',
-                "Batch {$batch->batch_code} bukan berada di stage {$prevStage}. " .
-                "Stage saat ini: {$batch->process_stage}.");
+                "Batch {$batch->batch_code} bukan dari stage {$prevStage}. Stage saat ini: {$batch->process_stage}.");
         }
 
-        // Khusus project_plant: hanya batch MON
         if ($stage === 'project_plant' && $batch->productCode?->code !== 'MON') {
-            return back()->with('error',
-                "Hanya batch Monasit (MON) yang dapat dikirim ke Lab Analisis LTJ.");
+            return back()->with('error', 'Hanya batch Monasit (MON) yang dapat dikirim ke Lab Analisis LTJ.');
         }
 
         return DB::transaction(function () use ($batch, $stage, $validated, $config) {
             $tz = 'Asia/Jakarta';
 
-            // Tentukan lokasi tujuan
             $locationId = $validated['location_id'];
             if (!$locationId) {
                 $defaultLoc = Location::where('company_id', Auth::user()->company_id)
                     ->where('location_type', $config['location_type'])
-                    ->where('is_active', true)
-                    ->first();
+                    ->where('is_active', true)->first();
                 $locationId = $defaultLoc?->id ?? $batch->current_location_id;
             }
 
-            // Update batch: pindah ke stage ini
             $batch->update([
                 'process_stage'       => $stage,
                 'status'              => 'in_process',
@@ -441,22 +435,20 @@ class ProcessController extends Controller
                 'updated_by'          => Auth::id(),
             ]);
 
-            // Lakukan mapping exact enum string berdasarkan nama $stage
+            // Mapping ke ENUM checkpoint_stage yang valid
             $exactCheckpointStage = match ($stage) {
                 'receiving'     => 'receiving_verify',
                 'wet_process'   => 'wet_process_input',
                 'dry_process'   => 'dry_process_input',
                 'project_plant' => 'project_plant_input',
                 'warehouse'     => 'warehouse_inbound',
-                'smelter'       => 'smelter_input',
-                default         => $stage, 
+                default         => $stage,
             };
 
-            // Catat checkpoint penerimaan
             Checkpoint::create([
                 'batch_id'         => $batch->id,
                 'location_id'      => $locationId,
-                'checkpoint_stage' => $exactCheckpointStage, 
+                'checkpoint_stage' => $exactCheckpointStage,
                 'weight_recorded'  => $batch->current_weight,
                 'weight_previous'  => $batch->current_weight,
                 'weight_loss'      => 0,
@@ -484,29 +476,21 @@ class ProcessController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // RECORD CHECKPOINT — Catat berat di stage saat ini (tanpa pindah stage)
+    // RECORD CHECKPOINT
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Catat checkpoint — update berat batch tanpa memindahkan stage.
-     * Digunakan untuk monitoring dan mass balance selama proses berlangsung.
-     *
-     * PERBAIKAN UTAMA: Role check sekarang menggunakan 5 operator role BARU.
-     * Sebelumnya masih 'operator_lab' dan 'operator_process' (tidak exist).
+     * Catat berat tanpa memindahkan stage.
+     * Route: POST /company/process/{stage}/checkpoint
      */
     public function recordCheckpoint(Request $request, string $stage): RedirectResponse
     {
         abort_unless(array_key_exists($stage, self::STAGES), 404);
 
-        // ─── PERBAIKAN: pakai role baru yang sesuai database ──────────────
         abort_unless(Auth::user()->hasAnyRole([
-            'company_admin',
-            'operator_lab_station',
-            'operator_lab_ltj',
-            'operator_wet',
-            'operator_dry',
-            'operator_warehouse',
-        ]), 403, 'Anda tidak memiliki akses untuk mencatat checkpoint.');
+            'company_admin', 'operator_lab_station', 'operator_lab_ltj',
+            'operator_wet', 'operator_dry', 'operator_warehouse',
+        ]), 403);
 
         $validated = $request->validate([
             'batch_id'        => 'required|integer|exists:batches,id',
@@ -514,10 +498,6 @@ class ProcessController extends Controller
             'location_id'     => 'nullable|integer|exists:locations,id',
             'notes'           => 'nullable|string|max:1000',
             'is_verified'     => 'nullable|boolean',
-        ], [
-            'batch_id.required'        => 'Pilih batch terlebih dahulu.',
-            'weight_recorded.required' => 'Berat tercatat wajib diisi.',
-            'weight_recorded.min'      => 'Berat tidak boleh negatif.',
         ]);
 
         $batch = Batch::where('company_id', Auth::user()->company_id)
@@ -529,34 +509,26 @@ class ProcessController extends Controller
             $newWeight      = (float) $validated['weight_recorded'];
             $loss           = $previousWeight - $newWeight;
             $lossPct        = $previousWeight > 0
-                ? round(($loss / $previousWeight) * 100, 2)
-                : 0;
+                ? round(($loss / $previousWeight) * 100, 2) : 0;
 
-            // Cek threshold mass balance
-            $threshold = MassBalanceThreshold::where('company_id', $batch->company_id)
-                ->where('process_stage', $stage)
-                ->first();
-            $hasDiscrepancy = $threshold
-                ? $lossPct >= $threshold->warning_threshold_pct
-                : false;
+            $threshold      = MassBalanceThreshold::where('company_id', $batch->company_id)
+                ->where('process_stage', $stage)->first();
+            $hasDiscrepancy = $threshold ? $lossPct >= $threshold->warning_threshold_pct : false;
 
-            // Mapping stage ke Enum yang valid di database untuk checkpoint internal
             $exactCheckpointStage = match ($stage) {
                 'receiving'     => 'receiving_verify',
                 'wet_process'   => 'wet_process_input',
                 'dry_process'   => 'dry_process_input',
                 'project_plant' => 'project_plant_input',
-                'warehouse'     => 'warehouse_transfer', 
-                'lab_kimia'     => 'lab_sample_taken', 
-                'smelter'       => 'smelter_input',
+                'warehouse'     => 'warehouse_transfer',
+                'lab_kimia'     => 'lab_sample_taken',
                 default         => 'in_transit',
             };
 
-            // Catat checkpoint
             Checkpoint::create([
                 'batch_id'         => $batch->id,
                 'location_id'      => $validated['location_id'] ?? $batch->current_location_id,
-                'checkpoint_stage' => $exactCheckpointStage, 
+                'checkpoint_stage' => $exactCheckpointStage,
                 'weight_recorded'  => $newWeight,
                 'weight_previous'  => $previousWeight,
                 'weight_loss'      => $loss,
@@ -573,36 +545,27 @@ class ProcessController extends Controller
                 'recorded_at'  => now(),
             ]);
 
-            // Update berat batch
             $batch->update([
                 'current_weight'  => $newWeight,
                 'mass_loss_pct'   => $batch->initial_weight > 0
-                    ? round((($batch->initial_weight - $newWeight) / $batch->initial_weight) * 100, 2)
-                    : 0,
+                    ? round((($batch->initial_weight - $newWeight) / $batch->initial_weight) * 100, 2) : 0,
                 'has_discrepancy' => $hasDiscrepancy,
                 'updated_by'      => Auth::id(),
             ]);
 
             $message = "Checkpoint batch {$batch->batch_code} dicatat. Berat: {$newWeight} kg, Susut: {$lossPct}%.";
-            if ($hasDiscrepancy) {
-                $message .= " ⚠️ Susut melebihi threshold!";
-            }
+            if ($hasDiscrepancy) $message .= " ⚠️ Susut melebihi threshold!";
 
             return back()->with($hasDiscrepancy ? 'warning' : 'success', $message);
         });
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // FORWARD BATCH — Pindahkan batch ke stage berikutnya dengan update berat
+    // FORWARD BATCH
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Forward batch ke stage berikutnya — WITH weight update.
-     *
-     * Digunakan untuk:
-     * - Receiving → Wet Process  (konfirmasi berat di receiving, lanjut)
-     * - Wet Process → Dry Process (setelah shaking table, catat berat baru)
-     *
+     * Pindahkan batch ke stage berikutnya dengan update berat.
      * Route: POST /company/process/{stage}/forward-batch
      */
     public function forwardBatch(Request $request, string $stage): RedirectResponse
@@ -611,8 +574,7 @@ class ProcessController extends Controller
 
         $config    = self::STAGES[$stage];
         $nextStage = $config['next_stage'];
-        abort_unless($nextStage && isset(self::STAGES[$nextStage]), 422,
-            'Stage ini tidak memiliki next stage yang valid.');
+        abort_unless($nextStage && isset(self::STAGES[$nextStage]), 422);
 
         $allowedRoles = self::STAGE_ROLES[$stage] ?? ['company_admin'];
         abort_unless(Auth::user()->hasAnyRole($allowedRoles), 403);
@@ -623,9 +585,6 @@ class ProcessController extends Controller
             'location_id'     => 'nullable|integer|exists:locations,id',
             'notes'           => 'nullable|string|max:1000',
             'is_verified'     => 'nullable|boolean',
-        ], [
-            'weight_recorded.required' => 'Berat setelah proses wajib diisi.',
-            'weight_recorded.min'      => 'Berat harus lebih dari 0.',
         ]);
 
         $batch = Batch::where('company_id', Auth::user()->company_id)
@@ -633,8 +592,7 @@ class ProcessController extends Controller
 
         if ($batch->process_stage !== $stage) {
             return back()->with('error',
-                "Batch {$batch->batch_code} tidak berada di stage {$stage}. " .
-                "Stage saat ini: {$batch->process_stage}.");
+                "Batch {$batch->batch_code} tidak berada di stage {$stage}.");
         }
 
         return DB::transaction(function () use ($validated, $batch, $stage, $nextStage) {
@@ -643,15 +601,12 @@ class ProcessController extends Controller
             $newWeight      = (float) $validated['weight_recorded'];
             $loss           = $previousWeight - $newWeight;
             $lossPct        = $previousWeight > 0
-                ? round(($loss / $previousWeight) * 100, 2)
-                : 0;
+                ? round(($loss / $previousWeight) * 100, 2) : 0;
 
-            // Cek threshold
-            $threshold = MassBalanceThreshold::where('company_id', $batch->company_id)
+            $threshold      = MassBalanceThreshold::where('company_id', $batch->company_id)
                 ->where('process_stage', $stage)->first();
             $hasDiscrepancy = $threshold ? $lossPct >= $threshold->warning_threshold_pct : false;
 
-            // Tentukan lokasi tujuan (next stage)
             $locationId = $validated['location_id'];
             if (!$locationId) {
                 $nextConfig = self::STAGES[$nextStage];
@@ -663,21 +618,19 @@ class ProcessController extends Controller
 
             $nextConfig = self::STAGES[$nextStage];
 
-            // Mapping stage asal ke nilai Enum Output/Forward yang valid di database
             $exactForwardStage = match ($stage) {
-                'wet_process'   => 'wet_process_output',
-                'dry_process'   => 'dry_process_output',
-                'project_plant' => 'project_plant_output',
-                'warehouse'     => 'warehouse_outbound',
-                'receiving', 'lab_kimia' => 'in_transit', 
-                default         => 'in_transit',
+                'wet_process'           => 'wet_process_output',
+                'dry_process'           => 'dry_process_output',
+                'project_plant'         => 'project_plant_output',
+                'warehouse'             => 'warehouse_outbound',
+                'receiving', 'lab_kimia'=> 'in_transit',
+                default                 => 'in_transit',
             };
 
-            // Catat checkpoint "forward" di stage asal menggunakan mapping yang valid
             Checkpoint::create([
                 'batch_id'         => $batch->id,
                 'location_id'      => $batch->current_location_id,
-                'checkpoint_stage' => $exactForwardStage, 
+                'checkpoint_stage' => $exactForwardStage,
                 'weight_recorded'  => $newWeight,
                 'weight_previous'  => $previousWeight,
                 'weight_loss'      => $loss,
@@ -695,34 +648,26 @@ class ProcessController extends Controller
                 'recorded_at'  => now(),
             ]);
 
-            // Update batch — pindah ke next stage
             $batch->update([
                 'process_stage'       => $nextStage,
                 'status'              => 'in_process',
                 'current_weight'      => $newWeight,
                 'mass_loss_pct'       => $batch->initial_weight > 0
-                    ? round((($batch->initial_weight - $newWeight) / $batch->initial_weight) * 100, 2)
-                    : 0,
+                    ? round((($batch->initial_weight - $newWeight) / $batch->initial_weight) * 100, 2) : 0,
                 'has_discrepancy'     => $hasDiscrepancy,
                 'current_location_id' => $locationId,
                 'updated_by'          => Auth::id(),
             ]);
 
             $message = "✅ Batch {$batch->batch_code} berhasil dikirim ke {$nextConfig['label']}. Berat: {$newWeight} kg.";
-            if ($hasDiscrepancy) {
-                $message .= " ⚠️ Susut {$lossPct}% melebihi threshold!";
-            }
+            if ($hasDiscrepancy) $message .= " ⚠️ Susut {$lossPct}% melebihi threshold!";
 
-            return redirect()
-                ->route('company.process.stage', $stage)
+            return redirect()->route('company.process.stage', $stage)
                 ->with($hasDiscrepancy ? 'warning' : 'success', $message);
         });
     }
 
-    /**
-     * Alias untuk forward dari wet_process.
-     * Route: POST /company/process/wet/forward
-     */
+    /** Alias untuk forward dari wet_process */
     public function wetForward(Request $request): RedirectResponse
     {
         return $this->forwardBatch($request, 'wet_process');
@@ -733,55 +678,37 @@ class ProcessController extends Controller
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Transformasi Dry Process — 1 batch MIT → 3 batch konsentrat.
-     *
-     * Hasil Magnetic Separator:
-     *   MON (Monasit) — radioaktif, diblokir ekspor, dikirim ke Lab LTJ
-     *   ZIR (Zirkon)  — dapat diekspor
-     *   ILM (Ilmenit) — dapat diekspor
-     *
-     * Semua 3 batch output langsung masuk ke Warehouse (status: in_warehouse).
-     *
+     * Transformasi Dry Process: 1 batch MIT → 3 batch konsentrat.
      * Route: POST /company/process/dry/transform
      */
     public function dryTransform(Request $request): RedirectResponse
     {
-        abort_unless(Auth::user()->hasAnyRole(['company_admin', 'operator_dry']), 403,
-            'Hanya Operator Dry Process yang dapat melakukan transformasi.');
+        abort_unless(Auth::user()->hasAnyRole(['company_admin', 'operator_dry']), 403);
 
         $validated = $request->validate([
-            'batch_id'                      => 'required|integer|exists:batches,id',
-            'notes'                         => 'nullable|string|max:1000',
-            'outputs'                       => 'required|array|min:1|max:3',
-            'outputs.*.product_code_id'     => 'required|integer|exists:product_codes,id',
-            'outputs.*.weight_kg'           => 'required|numeric|min:0.01',
-            'outputs.*.percentage'          => 'nullable|numeric|min:0|max:100',
-        ], [
-            'outputs.required'                   => 'Minimal satu output konsentrat wajib diisi.',
-            'outputs.*.product_code_id.required' => 'Kode produk output wajib dipilih.',
-            'outputs.*.weight_kg.required'       => 'Berat output wajib diisi.',
-            'outputs.*.weight_kg.min'            => 'Berat output harus lebih dari 0.',
+            'batch_id'                  => 'required|integer|exists:batches,id',
+            'notes'                     => 'nullable|string|max:1000',
+            'outputs'                   => 'required|array|min:1|max:3',
+            'outputs.*.product_code_id' => 'required|integer|exists:product_codes,id',
+            'outputs.*.weight_kg'       => 'required|numeric|min:0.01',
+            'outputs.*.percentage'      => 'nullable|numeric|min:0|max:100',
         ]);
 
         $companyId  = Auth::user()->company_id;
         $inputBatch = Batch::where('company_id', $companyId)
             ->findOrFail($validated['batch_id']);
 
-        // State guards
         if ($inputBatch->process_stage !== 'dry_process') {
-            return back()->with('error',
-                "Batch {$inputBatch->batch_code} bukan di Dry Process. Stage: {$inputBatch->process_stage}.");
+            return back()->with('error', "Batch {$inputBatch->batch_code} bukan di Dry Process.");
         }
         if (!in_array($inputBatch->status, ['active', 'in_process'])) {
-            return back()->with('error',
-                "Status batch tidak valid untuk transformasi: {$inputBatch->status}.");
+            return back()->with('error', "Status batch tidak valid untuk transformasi: {$inputBatch->status}.");
         }
 
-        // Validasi total output ≤ input
         $totalOutput = collect($validated['outputs'])->sum('weight_kg');
         if ($totalOutput > $inputBatch->current_weight) {
             return back()->with('error',
-                "Total berat output ({$totalOutput} kg) tidak boleh melebihi berat input ({$inputBatch->current_weight} kg).");
+                "Total berat output ({$totalOutput} kg) melebihi berat input ({$inputBatch->current_weight} kg).");
         }
 
         return DB::transaction(function () use ($inputBatch, $validated, $companyId) {
@@ -789,26 +716,19 @@ class ProcessController extends Controller
             $totalOutput = collect($validated['outputs'])->sum('weight_kg');
             $lossKg      = $inputBatch->current_weight - $totalOutput;
             $lossPct     = $inputBatch->current_weight > 0
-                ? round(($lossKg / $inputBatch->current_weight) * 100, 2)
-                : 0;
+                ? round(($lossKg / $inputBatch->current_weight) * 100, 2) : 0;
 
-            // Lokasi warehouse untuk output
             $warehouseLoc = Location::where('company_id', $companyId)
                 ->where('location_type', 'warehouse')
-                ->where('is_active', true)
-                ->first();
+                ->where('is_active', true)->first();
 
-            // ─── Archive batch input ───────────────────────────────────────
-            $inputBatch->update([
-                'status'     => 'transformed',
-                'updated_by' => Auth::id(),
-            ]);
+            // Archive batch input
+            $inputBatch->update(['status' => 'transformed', 'updated_by' => Auth::id()]);
 
-            // Checkpoint transformasi pada input
             Checkpoint::create([
                 'batch_id'         => $inputBatch->id,
                 'location_id'      => $inputBatch->current_location_id,
-                'checkpoint_stage' => 'dry_process_input', 
+                'checkpoint_stage' => 'dry_process_input',
                 'weight_recorded'  => $inputBatch->current_weight,
                 'weight_previous'  => $inputBatch->current_weight,
                 'weight_loss'      => $lossKg,
@@ -827,22 +747,19 @@ class ProcessController extends Controller
                 'recorded_at'  => now(),
             ]);
 
-            // ─── Buat 3 batch output baru ─────────────────────────────────
+            // Buat 3 batch output baru
             $outputBatches    = [];
             $outputBatchCodes = [];
 
             foreach ($validated['outputs'] as $idx => $output) {
                 $productCode = ProductCode::findOrFail($output['product_code_id']);
-
-                // Generate batch code unik untuk output
-                $date   = Carbon::now($tz);
-                $prefix = 'B-' . $date->format('Ymd') . '-' . strtoupper($productCode->code) . '-';
-                $last   = Batch::where('batch_code', 'LIKE', $prefix . '%')
+                $date        = Carbon::now($tz);
+                $prefix      = 'B-' . $date->format('Ymd') . '-' . strtoupper($productCode->code) . '-';
+                $last        = Batch::where('batch_code', 'LIKE', $prefix . '%')
                     ->orderBy('batch_code', 'desc')->first();
-                $seq = $last ? (intval(substr($last->batch_code, -3)) + 1) : 1;
+                $seq       = $last ? (intval(substr($last->batch_code, -3)) + 1) : 1;
                 $batchCode = $prefix . str_pad($seq, 3, '0', STR_PAD_LEFT);
 
-                // Ensure uniqueness
                 $attempt = 0;
                 while (Batch::where('batch_code', $batchCode)->exists() && $attempt < 10) {
                     $seq++;
@@ -862,16 +779,15 @@ class ProcessController extends Controller
                     'current_location_id' => $warehouseLoc?->id,
                     'export_status'       => $productCode->is_export_blocked ? 'not_applicable' : 'available',
                     'metadata'            => [
-                        'from_transformation'  => $inputBatch->batch_code,
-                        'from_batch_id'        => $inputBatch->id,
-                        'product_code'         => $productCode->code,
-                        'percentage'           => $output['percentage'] ?? null,
-                        'transformation_date'  => Carbon::now($tz)->format('d/m/Y H:i:s') . ' WIB',
+                        'from_transformation' => $inputBatch->batch_code,
+                        'from_batch_id'       => $inputBatch->id,
+                        'product_code'        => $productCode->code,
+                        'percentage'          => $output['percentage'] ?? null,
+                        'transformation_date' => Carbon::now($tz)->format('d/m/Y H:i:s') . ' WIB',
                     ],
                     'created_by' => Auth::id(),
                 ]);
 
-                // Checkpoint inbound warehouse untuk setiap output
                 Checkpoint::create([
                     'batch_id'         => $outputBatch->id,
                     'location_id'      => $warehouseLoc?->id,
@@ -884,9 +800,9 @@ class ProcessController extends Controller
                     'is_verified'      => true,
                     'notes'            => "Output Dry Process dari {$inputBatch->batch_code}. Produk: {$productCode->code}.",
                     'checkpoint_data'  => [
-                        'source_batch'  => $inputBatch->batch_code,
-                        'product_code'  => $productCode->code,
-                        'percentage'    => $output['percentage'] ?? null,
+                        'source_batch' => $inputBatch->batch_code,
+                        'product_code' => $productCode->code,
+                        'percentage'   => $output['percentage'] ?? null,
                     ],
                     'recorded_by'  => Auth::id(),
                     'recorded_at'  => now(),
@@ -896,14 +812,13 @@ class ProcessController extends Controller
                 $outputBatchCodes[] = "{$productCode->code}: {$batchCode} ({$output['weight_kg']} kg)";
             }
 
-            // ─── Audit trail transformasi ──────────────────────────────────
             BatchTransformation::create([
                 'input_batch_id'         => $inputBatch->id,
                 'output_batch_ids'       => collect($outputBatches)->pluck('id')->toArray(),
-                'transformation_type'    => 'dry_process_extraction', 
+                'transformation_type'    => 'dry_process_extraction',
                 'location_id'            => $inputBatch->current_location_id,
                 'transformation_details' => [
-                    'machine'             => 'Magnetic Separator', 
+                    'machine'             => 'Magnetic Separator',
                     'input_weight'        => $inputBatch->current_weight,
                     'total_output_weight' => $totalOutput,
                     'loss_kg'             => $lossKg,
@@ -921,14 +836,11 @@ class ProcessController extends Controller
                 'transformed_at' => now(),
             ]);
 
-            $outputList = implode(' | ', $outputBatchCodes);
-
-            return redirect()
-                ->route('company.process.stage', 'dry_process')
+            return redirect()->route('company.process.stage', 'dry_process')
                 ->with('success',
                     "✅ Transformasi Dry Process selesai! " .
-                    "Batch {$inputBatch->batch_code} → {$outputList}. " .
-                    "Semua konsentrat telah masuk ke Warehouse.");
+                    "Batch {$inputBatch->batch_code} → " . implode(' | ', $outputBatchCodes) .
+                    ". Semua konsentrat masuk ke Warehouse.");
         });
     }
 
@@ -937,11 +849,7 @@ class ProcessController extends Controller
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Kirim batch Monasit (MON) dari Warehouse ke Lab Analisis LTJ.
-     *
-     * Hanya MON yang boleh dikirim. ZIR dan ILM langsung ke ekspor.
-     * Setelah analisis di Lab LTJ (project_plant), hasilnya kembali ke warehouse.
-     *
+     * Kirim batch Monasit dari Warehouse ke Lab Analisis LTJ.
      * Route: POST /company/process/warehouse/send-to-ltj
      */
     public function warehouseSendToLtj(Request $request): RedirectResponse
@@ -958,24 +866,18 @@ class ProcessController extends Controller
             ->where('company_id', Auth::user()->company_id)
             ->findOrFail($validated['batch_id']);
 
-        // Guard: hanya MON
         if ($batch->productCode?->code !== 'MON') {
             return back()->with('error',
-                "Hanya batch Monasit (MON) yang dapat dikirim ke Lab LTJ. " .
-                "Produk batch ini: {$batch->productCode?->code}.");
+                "Hanya batch Monasit (MON) yang dapat dikirim ke Lab LTJ. Produk: {$batch->productCode?->code}.");
         }
-
-        // Guard: harus di warehouse
         if ($batch->process_stage !== 'warehouse') {
             return back()->with('error',
-                "Batch {$batch->batch_code} tidak berada di Warehouse. " .
-                "Stage saat ini: {$batch->process_stage}.");
+                "Batch {$batch->batch_code} tidak berada di Warehouse. Stage: {$batch->process_stage}.");
         }
 
         return DB::transaction(function () use ($batch, $validated) {
             $tz = 'Asia/Jakarta';
 
-            // Lokasi Project Plant
             $locationId = $validated['location_id'];
             if (!$locationId) {
                 $ppLoc = Location::where('company_id', Auth::user()->company_id)
@@ -984,7 +886,6 @@ class ProcessController extends Controller
                 $locationId = $ppLoc?->id ?? $batch->current_location_id;
             }
 
-            // Update batch
             $batch->update([
                 'process_stage'       => 'project_plant',
                 'status'              => 'in_process',
@@ -992,7 +893,8 @@ class ProcessController extends Controller
                 'updated_by'          => Auth::id(),
             ]);
 
-            // Checkpoint
+            // PENTING: Gunakan 'project_plant_input' bukan 'project_plant_receive'
+            // untuk menjaga konsistensi ENUM di seluruh codebase
             Checkpoint::create([
                 'batch_id'         => $batch->id,
                 'location_id'      => $locationId,
@@ -1004,7 +906,7 @@ class ProcessController extends Controller
                 'has_discrepancy'  => false,
                 'is_verified'      => true,
                 'notes'            => $validated['notes']
-                    ?? "Batch MON dikirim ke Lab Analisis LTJ (Project Plant) — " . Carbon::now($tz)->format('d/m/Y H:i:s') . ' WIB',
+                    ?? "Batch MON dikirim ke Lab Analisis LTJ — " . Carbon::now($tz)->format('d/m/Y H:i:s') . ' WIB',
                 'checkpoint_data'  => [
                     'action'     => 'send_to_ltj_lab',
                     'from_stage' => 'warehouse',
@@ -1014,11 +916,10 @@ class ProcessController extends Controller
                 'recorded_at'  => now(),
             ]);
 
-            return redirect()
-                ->route('company.process.stage', 'warehouse')
+            return redirect()->route('company.process.stage', 'warehouse')
                 ->with('success',
                     "✅ Batch Monasit {$batch->batch_code} ({$batch->current_weight} kg) " .
-                    "berhasil dikirim ke Lab Analisis LTJ (Project Plant).");
+                    "berhasil dikirim ke Lab Analisis LTJ.");
         });
     }
 
@@ -1026,10 +927,7 @@ class ProcessController extends Controller
     // PRIVATE HELPERS
     // ═══════════════════════════════════════════════════════════════════
 
-    /**
-     * Dapatkan batch dari stage sebelumnya yang siap diterima di stage ini.
-     * Ini adalah core fix untuk masalah "batch hilang setelah dikirim".
-     */
+    /** Batch dari stage sebelumnya yang siap diterima */
     private function getIncomingBatches(string $stage, int $companyId, string $tz): array
     {
         $config    = self::STAGES[$stage];
@@ -1049,7 +947,6 @@ class ProcessController extends Controller
                 ->get()->map(fn($b) => $this->formatBatch($b, $tz))->toArray();
         }
 
-        // Stage lain: ambil dari prev_stage yang belum di-transform/export
         return Batch::with(['productCode', 'currentLocation'])
             ->where('company_id', $companyId)
             ->where('process_stage', $prevStage)
@@ -1058,9 +955,7 @@ class ProcessController extends Controller
             ->get()->map(fn($b) => $this->formatBatch($b, $tz))->toArray();
     }
 
-    /**
-     * Format batch untuk response JSON — dengan timestamp detail WIB.
-     */
+    /** Format batch untuk response JSON */
     private function formatBatch(Batch $b, string $tz): array
     {
         $lastCp = $b->checkpoints ? $b->checkpoints->last() : null;
@@ -1083,6 +978,8 @@ class ProcessController extends Controller
             'current_weight'  => $b->current_weight,
             'mass_loss_pct'   => $b->mass_loss_pct,
             'has_discrepancy' => $b->has_discrepancy,
+            'export_status'   => $b->export_status,
+            'rfid_tag'        => $b->rfid_tag,
             'location'        => $b->currentLocation ? [
                 'id'   => $b->currentLocation->id,
                 'code' => $b->currentLocation->code,
@@ -1092,7 +989,6 @@ class ProcessController extends Controller
                 'stage'       => $lastCp->checkpoint_stage,
                 'recorded_at' => $lastCp->recorded_at?->diffForHumans(),
             ] : null,
-            // Timestamp detail WIB
             'created_at'      => $b->created_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
             'created_at_date' => $b->created_at?->timezone($tz)->format('l, d F Y'),
             'created_at_time' => $b->created_at?->timezone($tz)->format('H:i:s') . ' WIB',
