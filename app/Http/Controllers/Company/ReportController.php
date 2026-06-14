@@ -99,7 +99,7 @@ class ReportController extends Controller
                 'mass_balance'       => $this->generateMassBalanceReport($company, $dateFrom, $dateTo, $format),
                 'export_summary'     => $this->generateExportReport($company, $dateFrom, $dateTo, $format),
                 'lab_analysis'       => $this->generateLabReport($company, $dateFrom, $dateTo, $format),
-                'monthly_summary'    => $this->generateMonthlyReport($company, $dateFrom, $format),
+                'monthly_summary' => $this->generateMonthlyReport($company, $dateFrom, $dateTo, $format),
             };
         } catch (\Exception $e) {
             logger()->error('Report generation failed', [
@@ -563,90 +563,100 @@ class ReportController extends Controller
         return $pdf->download("{$filename}.pdf");
     }
 
-    private function generateMonthlyReport($company, Carbon $from, string $format)
-    {
-        // Gunakan full range dari date_from hingga date_to (satu bulan penuh)
-        $start = $from->copy()->startOfMonth();
-        $end   = $from->copy()->endOfMonth();
+    private function generateMonthlyReport($company, Carbon $from, Carbon $to, string $format)
+{
+    $tz = 'Asia/Jakarta';
 
-        // ─── Batch summary ─────────────────────────────────────────────────────
-        $monthBatches = Batch::with('productCode')
-            ->where('company_id', $company->id)
-            ->whereBetween('created_at', [$start, $end])
-            ->get();
+    // ── Gunakan bulan dari $from, akhir bulan dari $to ────────────────────
+    // Jika user pilih rentang satu bulan (Jun 1 – Jun 30), gunakan tepat.
+    // Jika user pilih custom range, gunakan $from – $to apa adanya.
+    $start = $from->copy()->startOfMonth();
+    $end   = $to->copy()->endOfMonth();
 
-        $batchSummary = [
-            'total_created'   => $monthBatches->count(),
-            'total_weight_kg' => round($monthBatches->sum('initial_weight'), 2),
-            'by_product'      => $monthBatches
-                ->groupBy(fn($b) => $b->productCode?->code ?? '—')
-                ->map(fn($grp, $code) => [
-                    'code'   => $code,
-                    'count'  => $grp->count(),
-                    'weight' => round($grp->sum('initial_weight'), 2),
-                ])
-                ->values()
-                ->toArray(),
-            'by_stage'        => $monthBatches
-                ->groupBy('process_stage')
-                ->map(fn($grp, $stage) => [
-                    'stage'       => $stage,
-                    'stage_label' => $this->stageLabel($stage),
-                    'count'       => $grp->count(),
-                    'weight'      => round($grp->sum('initial_weight'), 2),
-                ])
-                ->values()
-                ->toArray(),
-        ];
+    // ── Batch summary dengan by_product dan by_stage ──────────────────────
+    $monthBatches = Batch::with('productCode')
+        ->where('company_id', $company->id)
+        ->whereBetween('created_at', [$start, $end])
+        ->get();
 
-        // ─── Export summary ────────────────────────────────────────────────────
-        $exportBase = ExportLog::where('company_id', $company->id)
-            ->whereBetween('exported_at', [$start, $end]);
-
-        $exportSummary = [
-            'total'         => (clone $exportBase)->count(),
-            'international' => (clone $exportBase)->where('export_type', 'international')->count(),
-            'domestic'      => (clone $exportBase)->where('export_type', 'domestic')->count(),
-            'total_weight'  => round((clone $exportBase)->sum('total_weight_kg'), 2),
-            'total_value'   => round((clone $exportBase)->sum('value_usd'), 2),
-        ];
-
-        // ─── Lab summary ───────────────────────────────────────────────────────
-        $labBase = LabAnalysis::where('company_id', $company->id)
-            ->whereBetween('analyzed_at', [$start, $end]);
-
-        $labSummary = [
-            'total'       => (clone $labBase)->count(),
-            'validated'   => (clone $labBase)->where('is_validated', true)->count(),
-            'avg_reo_pct' => round((clone $labBase)->where('is_validated', true)->avg('total_reo_pct') ?? 0, 2),
-        ];
-
-        // ─── Mass balance alerts ────────────────────────────────────────────────
-        $alerts = Batch::where('company_id', $company->id)
-            ->where('has_discrepancy', true)
-            ->whereBetween('updated_at', [$start, $end])
-            ->selectRaw('process_stage, COUNT(*) as cnt, AVG(mass_loss_pct) as avg_loss')
-            ->groupBy('process_stage')
-            ->get()
-            ->map(fn($r) => [
-                'process_stage' => $r->process_stage,
-                'cnt'           => $r->cnt,
-                'avg_loss'      => round($r->avg_loss, 2),
+    $batchSummary = [
+        'total_created'   => $monthBatches->count(),
+        'total_weight_kg' => round($monthBatches->sum('initial_weight'), 2),
+        'by_product'      => $monthBatches
+            ->groupBy(fn($b) => $b->productCode?->code ?? '—')
+            ->map(fn($grp, $code) => [
+                'code'   => $code,
+                'name'   => $grp->first()?->productCode?->name ?? $code,
+                'count'  => $grp->count(),
+                'weight' => round($grp->sum('initial_weight'), 2),
             ])
-            ->toArray();
+            ->sortByDesc('weight')
+            ->values()
+            ->toArray(),
+        'by_stage'        => $monthBatches
+            ->groupBy('process_stage')
+            ->map(fn($grp, $stage) => [
+                'stage'       => $stage,
+                'stage_label' => $this->stageLabel($stage),
+                'count'       => $grp->count(),
+                'weight'      => round($grp->sum('initial_weight'), 2),
+            ])
+            ->sortByDesc('count')
+            ->values()
+            ->toArray(),
+    ];
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.reports.monthly', [
-            'company'        => $company,
-            'month_label'    => $start->translatedFormat('F Y'),
-            'generated_at'   => now()->timezone('Asia/Jakarta')->format('d M Y H:i') . ' WIB',
-            'batch_summary'  => $batchSummary,
-            'export_summary' => $exportSummary,
-            'lab_summary'    => $labSummary,
-            'alerts'         => $alerts,
-        ])->setPaper('a4', 'portrait');
+    // ── Export summary ─────────────────────────────────────────────────────
+    $exportQuery = fn() => ExportLog::where('company_id', $company->id)
+        ->whereBetween('exported_at', [$start, $end]);
 
-        return $pdf->download("Monthly-{$company->code}-{$start->format('Y-m')}.pdf");
-    }
+    $exportSummary = [
+        'total'         => $exportQuery()->count(),
+        'international' => $exportQuery()->where('export_type', 'international')->count(),
+        'domestic'      => $exportQuery()->where('export_type', 'domestic')->count(),
+        'total_weight'  => round($exportQuery()->sum('total_weight_kg'), 2),
+        'total_value'   => round($exportQuery()->sum('value_usd'), 2),
+    ];
+
+    // ── Lab summary ────────────────────────────────────────────────────────
+    $labQuery = fn() => LabAnalysis::where('company_id', $company->id)
+        ->whereBetween('analyzed_at', [$start, $end]);
+
+    $labSummary = [
+        'total'       => $labQuery()->count(),
+        'validated'   => $labQuery()->where('is_validated', true)->count(),
+        'avg_reo_pct' => round($labQuery()->where('is_validated', true)->avg('total_reo_pct') ?? 0, 2),
+    ];
+
+    // ── Mass balance alerts ────────────────────────────────────────────────
+    $alerts = Batch::where('company_id', $company->id)
+        ->where('has_discrepancy', true)
+        ->whereBetween('updated_at', [$start, $end])
+        ->selectRaw("process_stage, COUNT(*) as cnt, ROUND(AVG(mass_loss_pct)::numeric, 2) as avg_loss")
+        ->groupBy('process_stage')
+        ->orderByDesc('cnt')
+        ->get()
+        ->map(fn($r) => [
+            'process_stage' => $r->process_stage,
+            'cnt'           => $r->cnt,
+            'avg_loss'      => round($r->avg_loss, 2),
+        ])
+        ->toArray();
+
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.reports.monthly', [
+        'company'        => $company,
+        'month_label'    => $start->locale('id')->translatedFormat('F Y') . ' — ' . $end->locale('id')->translatedFormat('d F Y'),
+        'date_from'      => $start->format('d F Y'),
+        'date_to'        => $end->format('d F Y'),
+        'generated_at'   => now()->timezone($tz)->format('d M Y H:i') . ' WIB',
+        'batch_summary'  => $batchSummary,
+        'export_summary' => $exportSummary,
+        'lab_summary'    => $labSummary,
+        'alerts'         => $alerts,
+    ])->setPaper('a4', 'portrait');
+
+    return $pdf->download("Monthly-{$company->code}-{$start->format('Y-m')}.pdf");
+}
 
     // ──────────────────────────────────────────────────────────────────────
     // PRIVATE: Helpers
