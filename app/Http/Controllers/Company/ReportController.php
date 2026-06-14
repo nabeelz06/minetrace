@@ -144,7 +144,7 @@ class ReportController extends Controller
                 'mass_balance'       => $this->generateMassBalanceReport($company, $dateFrom, $dateTo, $format),
                 'export_summary'     => $this->generateExportReport($company, $dateFrom, $dateTo, $format),
                 'lab_analysis'       => $this->generateLabReport($company, $dateFrom, $dateTo, $format),
-                'monthly_summary'    => $this->generateMonthlyReport($company, $dateFrom, $format),
+                'monthly_summary' => $this->generateMonthlyReport($company, $dateFrom, $dateTo, $format),
             };
         } catch (\Exception $e) {
             logger()->error('Report download failed', [
@@ -279,273 +279,10 @@ class ReportController extends Controller
 
         if ($format === 'excel') {
             return \Maatwebsite\Excel\Facades\Excel::download(
-                new \App\Exports\LabAnalysisExport($analyses, $company, $from, $to),</div>
-                    
-                    <div class="space-y-3">
-                        <p class="text-xs font-semibold text-foreground">
-                            {{ lang === 'en' ? 'Output Concentrates' : 'Konsentrat Output' }}
-                        </p>
-                        
-                        <div 
-                            v-for="(output, idx) in transformForm.outputs" 
-                            :key="idx"
-                            class="rounded-xl border p-3 space-y-2"
-                            :class="{
-                                'border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/10': output_products?.[idx]?.code === 'MON',
-                                'border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-950/10': output_products?.[idx]?.code === 'ZIR',
-                                'border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/10': output_products?.[idx]?.code === 'ILM'
-                            }"
-                        >
-                            <div class="flex items-center gap-2">
-                                <div 
-                                    class="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white"
-                                    :style="{
-                                        'MON': 'background:#ef4444',
-                                        'ZIR': 'background:#3b82f6',
-                                        'ILM': 'background:#f59e0b'
-                                    }[output_products?.[idx]?.code ?? ''] ?? 'background:#6b7280'"
-                                >
-                                    {{ (output_products?.[idx]?.code ?? `#${idx+1}`).slice(0,3) }}
-                                </div>
-                                <div>
-                                    <p class="text-xs font-bold text-foreground">
-                                        {{ getProductLabel(output_products?.[idx]?.code) }}
-                                    </p>
-                                    <p class="text-[10px] text-muted-foreground">
-                                        {{ output_products?.[idx]?.is_export_blocked ? '🔒 Lab LTJ' : '✓ Ekspor' }}
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-2">
-                                <div class="space-y-1">
-                                    <label class="text-[10px] font-semibold text-muted-foreground">
-                                        Berat (kg) <span class="text-red-500">*</span>
-                                    </label>
-                                    <input 
-                                        v-model="output.weight_kg" 
-                                        type="number" 
-                                        step="0.01" 
-                                        min="0.01"
-                                        @input="updatePercentage(idx)"
-                                        class="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-xs font-mono text-foreground"
-                                    />
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-[10px] font-semibold text-muted-foreground">
-                                        % (auto)
-                                    </label>
-                                    <input 
-                                        v-model="output.percentage" 
-                                        type="number" 
-                                        readonly 
-                                        class="w-full h-8 px-2.5 rounded-lg border border-border bg-muted text-xs font-mono text-muted-foreground cursor-not-allowed"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
-                        <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                            Mass Balance
-                        </p>
-                        <div class="grid grid-cols-3 gap-3 text-xs">
-                            <div>
-                                <p class="text-muted-foreground">Input</p>
-                                <p class="font-bold font-mono text-foreground">{{ inputBatchWeight.toFixed(2) }} kg</p>
-                            </div>
-                            <div>
-                                <p class="text-muted-foreground">Output</p>
-                                <p class="font-bold font-mono text-foreground">{{ totalOutputWeight.toFixed(2) }} kg</p>
-                            </div>
-                            <div>
-                                <p class="text-muted-foreground">Susut</p>
-                                <p 
-                                    class="font-bold font-mono" 
-                                    :class="parseFloat(transformLossPct) > 5 ? 'text-amber-600' : 'text-emerald-600'"
-                                >
-                                    {{ transformLossKg.toFixed(2) }} kg ({{ transformLossPct }}%)
-                                </p>
-                            </div>
-                        </div>
-                        <p v-if="totalOutputWeight > inputBatchWeight" class="text-xs font-bold text-red-500">
-                            ⚠ Total output melebihi berat input!
-                        </p>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="text-xs font-semibold text-foreground">Catatan</label>
-                        <textarea 
-                            v-model="transformForm.notes" 
-                            rows="2" 
-                            class="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground resize-none"
-                        ></textarea>
-                    </div>
-                    
-                    <div class="flex gap-3">
-                        <button 
-                            @click="showTransformModal = false" 
-                            class="flex-1 h-10 rounded-xl text-sm font-semibold border border-border text-muted-foreground hover:bg-muted"
-                        >
-                            {{ lang === 'en' ? 'Cancel' : 'Batal' }}
-                        </button>
-                        <button 
-                            @click="submitTransform" 
-                            :disabled="transformForm.processing || !transformIsValid"
-                            class="flex-[2] h-10 rounded-xl text-sm font-bold text-white disabled:opacity-60"
-                            style="background: linear-gradient(135deg, #f59e0b, #d97706)"
-                        >
-                            {{ transformForm.processing ? 'Memproses...' : '⚡ Eksekusi Transformasi' }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </Transition>
-
-        <Transition name="modal">
-            <div 
-                v-if="showSendLtjModal" 
-                class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" 
-                style="background: rgba(0,0,0,0.4); backdrop-filter: blur(6px);" 
-                @click.self="showSendLtjModal = false"
-            >
-                <div class="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl p-6 space-y-4 dialog-in">
-                    
-                    <div class="flex items-start justify-between">
-                        <div>
-                            <h3 class="font-heading text-base font-bold text-foreground">
-                                ⚗️ {{ lang === 'en' ? 'Send MON to LTJ Lab' : 'Kirim MON ke Lab LTJ' }}
-                            </h3>
-                            <p class="text-xs text-muted-foreground mt-0.5">
-                                {{ lang === 'en' ? 'Send Monazite to Project Plant for LTJ analysis.' : 'Kirim Monasit ke Project Plant untuk analisis LTJ.' }}
-                            </p>
-                        </div>
-                        <button @click="showSendLtjModal = false" class="text-muted-foreground hover:text-foreground">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div 
-                        v-if="selectedForLtj" 
-                        class="rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/10 p-3"
-                    >
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <div class="w-7 h-7 rounded-lg bg-red-500 flex items-center justify-center text-[10px] font-bold text-white">
-                                    MON
-                                </div>
-                                <div>
-                                    <p class="text-xs font-bold font-mono text-foreground">{{ selectedForLtj.batch_code }}</p>
-                                    <p class="text-xs text-muted-foreground">
-                                        {{ lang === 'en' ? 'Monazite — Radioactive' : 'Monasit — Radioaktif ☢' }}
-                                    </p>
-                                </div>
-                            </div>
-                            <p class="text-sm font-bold text-red-700 dark:text-red-300">
-                                {{ selectedForLtj.current_weight?.toLocaleString('id-ID') }} kg
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="text-xs font-semibold text-foreground">
-                            {{ lang === 'en' ? 'Notes (optional)' : 'Catatan (opsional)' }}
-                        </label>
-                        <textarea 
-                            v-model="sendLtjForm.notes" 
-                            rows="2" 
-                            class="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground resize-none"
-                        ></textarea>
-                    </div>
-
-                    <div class="flex gap-3">
-                        <button 
-                            @click="showSendLtjModal = false" 
-                            class="flex-1 h-10 rounded-xl text-sm font-semibold border border-border text-muted-foreground hover:bg-muted"
-                        >
-                            {{ lang === 'en' ? 'Cancel' : 'Batal' }}
-                        </button>
-                        <button 
-                            @click="submitSendLtj" 
-                            :disabled="sendLtjForm.processing"
-                            class="flex-[2] h-10 rounded-xl text-sm font-bold text-white disabled:opacity-60"
-                            style="background: linear-gradient(135deg, #7c3aed, #5b21b6)"
-                        >
-                            {{ sendLtjForm.processing ? 'Mengirim...' : '→ Kirim ke Lab LTJ' }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </Transition>
-    </AppLayout>
-</template>
-
-<style scoped>
-/* ─── Pie chart hole + text theming ────────────────────────────────────────── */
-.pie-hole {
-    fill: hsl(var(--card));
-}
-.pie-text-main {
-    fill: hsl(var(--foreground));
-}
-.pie-text-sub {
-    fill: hsl(var(--muted-foreground));
-}
-
-/* ─── Animations ────────────────────────────────────────────────────────────── */
-@keyframes fade-in {
-    from {
-        opacity: 0;
-        transform: translateY(5px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-.animate-fade-in {
-    animation: fade-in 0.28s ease-out both;
-}
-.delay-50 { animation-delay: 50ms; }
-.delay-75 { animation-delay: 75ms; }
-.delay-100 { animation-delay: 100ms; }
-.delay-150 { animation-delay: 150ms; }
-.delay-200 { animation-delay: 200ms; }
-.delay-250 { animation-delay: 250ms; }
-.delay-300 { animation-delay: 300ms; }
-
-/* ─── Modals ────────────────────────────────────────────────────────────────── */
-.modal-enter-active {
-    transition: opacity 0.2s ease;
-}
-.modal-leave-active {
-    transition: opacity 0.15s ease;
-}
-.modal-enter-from,
-.modal-leave-to {
-    opacity: 0;
-}
-
-@keyframes dialog-in {
-    from {
-        opacity: 0;
-        transform: scale(0.94) translateY(6px);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
-}
-.dialog-in {
-    animation: dialog-in 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
-}
-</style>
+                new \App\Exports\LabAnalysisExport($analyses, $company, $from, $to),
                 "{$filename}.xlsx"
             );
-        }g
+        }
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.reports.lab-analysis', [
             'analyses'     => $analyses,
@@ -564,99 +301,96 @@ class ReportController extends Controller
     }
 
     private function generateMonthlyReport($company, Carbon $from, Carbon $to, string $format)
-{
-    $tz = 'Asia/Jakarta';
+    {
+        $tz = 'Asia/Jakarta';
 
-    // ── Gunakan bulan dari $from, akhir bulan dari $to ────────────────────
-    // Jika user pilih rentang satu bulan (Jun 1 – Jun 30), gunakan tepat.
-    // Jika user pilih custom range, gunakan $from – $to apa adanya.
-    $start = $from->copy()->startOfMonth();
-    $end   = $to->copy()->endOfMonth();
+        $start = $from->copy()->startOfMonth();
+        $end   = $to->copy()->endOfMonth();
 
-    // ── Batch summary dengan by_product dan by_stage ──────────────────────
-    $monthBatches = Batch::with('productCode')
-        ->where('company_id', $company->id)
-        ->whereBetween('created_at', [$start, $end])
-        ->get();
+        // ── Batch summary dengan by_product dan by_stage ──────────────────────
+        $monthBatches = Batch::with('productCode')
+            ->where('company_id', $company->id)
+            ->whereBetween('created_at', [$start, $end])
+            ->get();
 
-    $batchSummary = [
-        'total_created'   => $monthBatches->count(),
-        'total_weight_kg' => round($monthBatches->sum('initial_weight'), 2),
-        'by_product'      => $monthBatches
-            ->groupBy(fn($b) => $b->productCode?->code ?? '—')
-            ->map(fn($grp, $code) => [
-                'code'   => $code,
-                'name'   => $grp->first()?->productCode?->name ?? $code,
-                'count'  => $grp->count(),
-                'weight' => round($grp->sum('initial_weight'), 2),
-            ])
-            ->sortByDesc('weight')
-            ->values()
-            ->toArray(),
-        'by_stage'        => $monthBatches
+        $batchSummary = [
+            'total_created'   => $monthBatches->count(),
+            'total_weight_kg' => round($monthBatches->sum('initial_weight'), 2),
+            'by_product'      => $monthBatches
+                ->groupBy(fn($b) => $b->productCode?->code ?? '—')
+                ->map(fn($grp, $code) => [
+                    'code'   => $code,
+                    'name'   => $grp->first()?->productCode?->name ?? $code,
+                    'count'  => $grp->count(),
+                    'weight' => round($grp->sum('initial_weight'), 2),
+                ])
+                ->sortByDesc('weight')
+                ->values()
+                ->toArray(),
+            'by_stage'        => $monthBatches
+                ->groupBy('process_stage')
+                ->map(fn($grp, $stage) => [
+                    'stage'       => $stage,
+                    'stage_label' => $this->stageLabel($stage),
+                    'count'       => $grp->count(),
+                    'weight'      => round($grp->sum('initial_weight'), 2),
+                ])
+                ->sortByDesc('count')
+                ->values()
+                ->toArray(),
+        ];
+
+        // ── Export summary ─────────────────────────────────────────────────────
+        $exportQuery = fn() => ExportLog::where('company_id', $company->id)
+            ->whereBetween('exported_at', [$start, $end]);
+
+        $exportSummary = [
+            'total'         => $exportQuery()->count(),
+            'international' => $exportQuery()->where('export_type', 'international')->count(),
+            'domestic'      => $exportQuery()->where('export_type', 'domestic')->count(),
+            'total_weight'  => round($exportQuery()->sum('total_weight_kg'), 2),
+            'total_value'   => round($exportQuery()->sum('value_usd'), 2),
+        ];
+
+        // ── Lab summary ────────────────────────────────────────────────────────
+        $labQuery = fn() => LabAnalysis::where('company_id', $company->id)
+            ->whereBetween('analyzed_at', [$start, $end]);
+
+        $labSummary = [
+            'total'       => $labQuery()->count(),
+            'validated'   => $labQuery()->where('is_validated', true)->count(),
+            'avg_reo_pct' => round($labQuery()->where('is_validated', true)->avg('total_reo_pct') ?? 0, 2),
+        ];
+
+        // ── Mass balance alerts ────────────────────────────────────────────────
+        $alerts = Batch::where('company_id', $company->id)
+            ->where('has_discrepancy', true)
+            ->whereBetween('updated_at', [$start, $end])
+            ->selectRaw("process_stage, COUNT(*) as cnt, ROUND(AVG(mass_loss_pct)::numeric, 2) as avg_loss")
             ->groupBy('process_stage')
-            ->map(fn($grp, $stage) => [
-                'stage'       => $stage,
-                'stage_label' => $this->stageLabel($stage),
-                'count'       => $grp->count(),
-                'weight'      => round($grp->sum('initial_weight'), 2),
+            ->orderByDesc('cnt')
+            ->get()
+            ->map(fn($r) => [
+                'process_stage' => $r->process_stage,
+                'cnt'           => $r->cnt,
+                'avg_loss'      => round($r->avg_loss, 2),
             ])
-            ->sortByDesc('count')
-            ->values()
-            ->toArray(),
-    ];
+            ->toArray();
 
-    // ── Export summary ─────────────────────────────────────────────────────
-    $exportQuery = fn() => ExportLog::where('company_id', $company->id)
-        ->whereBetween('exported_at', [$start, $end]);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.reports.monthly', [
+            'company'        => $company,
+            'month_label'    => $start->locale('id')->translatedFormat('F Y') . ' — ' . $end->locale('id')->translatedFormat('d F Y'),
+            'date_from'      => $start->format('d F Y'),
+            'date_to'        => $end->format('d F Y'),
+            'generated_at'   => now()->timezone($tz)->format('d M Y H:i') . ' WIB',
+            'batch_summary'  => $batchSummary,
+            'export_summary' => $exportSummary,
+            'lab_summary'    => $labSummary,
+            'alerts'         => $alerts,
+        ])->setPaper('a4', 'portrait');
 
-    $exportSummary = [
-        'total'         => $exportQuery()->count(),
-        'international' => $exportQuery()->where('export_type', 'international')->count(),
-        'domestic'      => $exportQuery()->where('export_type', 'domestic')->count(),
-        'total_weight'  => round($exportQuery()->sum('total_weight_kg'), 2),
-        'total_value'   => round($exportQuery()->sum('value_usd'), 2),
-    ];
-
-    // ── Lab summary ────────────────────────────────────────────────────────
-    $labQuery = fn() => LabAnalysis::where('company_id', $company->id)
-        ->whereBetween('analyzed_at', [$start, $end]);
-
-    $labSummary = [
-        'total'       => $labQuery()->count(),
-        'validated'   => $labQuery()->where('is_validated', true)->count(),
-        'avg_reo_pct' => round($labQuery()->where('is_validated', true)->avg('total_reo_pct') ?? 0, 2),
-    ];
-
-    // ── Mass balance alerts ────────────────────────────────────────────────
-    $alerts = Batch::where('company_id', $company->id)
-        ->where('has_discrepancy', true)
-        ->whereBetween('updated_at', [$start, $end])
-        ->selectRaw("process_stage, COUNT(*) as cnt, ROUND(AVG(mass_loss_pct)::numeric, 2) as avg_loss")
-        ->groupBy('process_stage')
-        ->orderByDesc('cnt')
-        ->get()
-        ->map(fn($r) => [
-            'process_stage' => $r->process_stage,
-            'cnt'           => $r->cnt,
-            'avg_loss'      => round($r->avg_loss, 2),
-        ])
-        ->toArray();
-
-    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.reports.monthly', [
-        'company'        => $company,
-        'month_label'    => $start->locale('id')->translatedFormat('F Y') . ' — ' . $end->locale('id')->translatedFormat('d F Y'),
-        'date_from'      => $start->format('d F Y'),
-        'date_to'        => $end->format('d F Y'),
-        'generated_at'   => now()->timezone($tz)->format('d M Y H:i') . ' WIB',
-        'batch_summary'  => $batchSummary,
-        'export_summary' => $exportSummary,
-        'lab_summary'    => $labSummary,
-        'alerts'         => $alerts,
-    ])->setPaper('a4', 'portrait');
-
-    return $pdf->download("Monthly-{$company->code}-{$start->format('Y-m')}.pdf");
-}
+        return $pdf->download("Monthly-{$company->code}-{$start->format('Y-m')}.pdf");
+    }
 
     // ──────────────────────────────────────────────────────────────────────
     // PRIVATE: Helpers
