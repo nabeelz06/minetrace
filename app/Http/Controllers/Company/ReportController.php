@@ -305,33 +305,80 @@ class ReportController extends Controller
         $start = $from->copy()->startOfMonth();
         $end   = $from->copy()->endOfMonth();
 
+        // ── Batch summary ──────────────────────────────────────────────────
+        $monthBatches = Batch::with('productCode')
+            ->where('company_id', $company->id)
+            ->whereBetween('created_at', [$start, $end])
+            ->get();
+
         $batchSummary = [
-            'total_created'   => Batch::where('company_id', $company->id)->whereBetween('created_at', [$start, $end])->count(),
-            'total_weight_kg' => Batch::where('company_id', $company->id)->whereBetween('created_at', [$start, $end])->sum('initial_weight'),
-            'by_product'      => [],
-            'by_stage'        => [],
+            'total_created'   => $monthBatches->count(),
+            'total_weight_kg' => round($monthBatches->sum('initial_weight'), 2),
+            'by_product'      => $monthBatches
+                ->groupBy(fn($b) => $b->productCode?->code ?? '—')
+                ->map(fn($group, $code) => [
+                    'code'   => $code,
+                    'count'  => $group->count(),
+                    'weight' => round($group->sum('initial_weight'), 2),
+                ])
+                ->values()
+                ->toArray(),
+            'by_stage'        => $monthBatches
+                ->groupBy('process_stage')
+                ->map(fn($group, $stage) => [
+                    'stage'       => $stage,
+                    'stage_label' => $this->stageLabel($stage),
+                    'count'       => $group->count(),
+                    'weight'      => round($group->sum('initial_weight'), 2),
+                ])
+                ->values()
+                ->toArray(),
         ];
+
+        // ── Export summary ─────────────────────────────────────────────────
+        $exportQuery = ExportLog::where('company_id', $company->id)
+            ->whereBetween('exported_at', [$start, $end]);
+
         $exportSummary = [
-            'total'         => ExportLog::where('company_id', $company->id)->whereBetween('exported_at', [$start, $end])->count(),
-            'international' => ExportLog::where('company_id', $company->id)->whereBetween('exported_at', [$start, $end])->where('export_type', 'international')->count(),
-            'domestic'      => ExportLog::where('company_id', $company->id)->whereBetween('exported_at', [$start, $end])->where('export_type', 'domestic')->count(),
-            'total_weight'  => ExportLog::where('company_id', $company->id)->whereBetween('exported_at', [$start, $end])->sum('total_weight_kg'),
-            'total_value'   => ExportLog::where('company_id', $company->id)->whereBetween('exported_at', [$start, $end])->sum('value_usd'),
+            'total'         => $exportQuery->clone()->count(),
+            'international' => $exportQuery->clone()->where('export_type', 'international')->count(),
+            'domestic'      => $exportQuery->clone()->where('export_type', 'domestic')->count(),
+            'total_weight'  => round($exportQuery->clone()->sum('total_weight_kg'), 2),
+            'total_value'   => round($exportQuery->clone()->sum('value_usd'), 2),
         ];
+
+        // ── Lab summary ────────────────────────────────────────────────────
+        $labQuery = LabAnalysis::where('company_id', $company->id)
+            ->whereBetween('analyzed_at', [$start, $end]);
+
         $labSummary = [
-            'total'       => LabAnalysis::where('company_id', $company->id)->whereBetween('analyzed_at', [$start, $end])->count(),
-            'validated'   => LabAnalysis::where('company_id', $company->id)->whereBetween('analyzed_at', [$start, $end])->where('is_validated', true)->count(),
-            'avg_reo_pct' => round(LabAnalysis::where('company_id', $company->id)->whereBetween('analyzed_at', [$start, $end])->avg('total_reo_pct') ?? 0, 2),
+            'total'       => $labQuery->clone()->count(),
+            'validated'   => $labQuery->clone()->where('is_validated', true)->count(),
+            'avg_reo_pct' => round($labQuery->clone()->where('is_validated', true)->avg('total_reo_pct') ?? 0, 2),
         ];
+
+        // ── Alerts (batch dengan discrepancy bulan ini) ────────────────────
+        $alerts = Batch::where('company_id', $company->id)
+            ->where('has_discrepancy', true)
+            ->whereBetween('updated_at', [$start, $end])
+            ->selectRaw("process_stage, COUNT(*) as cnt, AVG(mass_loss_pct) as avg_loss")
+            ->groupBy('process_stage')
+            ->get()
+            ->map(fn($r) => [
+                'process_stage' => $r->process_stage,
+                'cnt'           => $r->cnt,
+                'avg_loss'      => round($r->avg_loss, 2),
+            ])
+            ->toArray();
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.reports.monthly', [
             'company'        => $company,
             'month_label'    => $start->translatedFormat('F Y'),
-            'generated_at'   => now()->format('d M Y H:i') . ' WIB',
+            'generated_at'   => now()->timezone('Asia/Jakarta')->format('d M Y H:i') . ' WIB',
             'batch_summary'  => $batchSummary,
             'export_summary' => $exportSummary,
             'lab_summary'    => $labSummary,
-            'alerts'         => [],
+            'alerts'         => $alerts,
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download("Monthly-{$company->code}-{$start->format('Y-m')}.pdf");

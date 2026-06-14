@@ -996,7 +996,7 @@ class ProcessController extends Controller
             Checkpoint::create([
                 'batch_id'         => $batch->id,
                 'location_id'      => $locationId,
-                'checkpoint_stage' => 'project_plant_receive',
+                'checkpoint_stage' => 'project_plant_input',
                 'weight_recorded'  => $batch->current_weight,
                 'weight_previous'  => $batch->current_weight,
                 'weight_loss'      => 0,

@@ -105,7 +105,7 @@ class RfidService
         ],
         'project_plant' => [
             'prev_stage'    => 'warehouse',
-            'in_checkpoint' => 'project_plant_receive',
+            'in_checkpoint' => 'project_plant_input', 
             'out_checkpoint'=> 'project_plant_output',
             'in_status'     => 'in_process',
             'out_status'    => 'in_transit',
