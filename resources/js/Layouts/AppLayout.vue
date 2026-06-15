@@ -92,7 +92,7 @@ const warehouseStages = computed(() => processStages.value.filter(s => s.key ===
 // Diakses oleh semua operator company — bukan BIM/SuperAdmin
 const navHardwareRfid = computed(() =>
     ['company_admin','operator_lab_station','operator_lab_ltj',
-     'operator_wet','operator_dry','operator_warehouse'].includes(userRole.value)
+     'operator_wet','operator_dry','operator_warehouse'].includes(role.value)
 )
 
 const navigation = computed(() => {
