@@ -279,7 +279,7 @@ class ApiRfidController extends Controller
     public function setPendingBatch(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->hasAnyRole([
-            'company_admin', 'operator_lab_station', 'operator_wet',
+            'company_admin', 'operator_lab_station', 'operator_lab_ltj', 'operator_wet',
         ]), 403, 'Tidak memiliki akses untuk mendaftarkan RFID tag.');
 
         $validated = $request->validate([

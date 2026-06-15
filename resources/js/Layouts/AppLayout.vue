@@ -80,6 +80,7 @@ const processStages = computed(() => [
     { key: 'dry_process',   href: '/company/process/dry_process',   icon: '🔥', id: 'Dry Process',    en: 'Dry Process'    },
     { key: 'project_plant', href: '/company/process/project_plant', icon: '⚗️', id: 'Project Plant',  en: 'Project Plant'  },
     { key: 'warehouse',     href: '/company/process/warehouse',     icon: '🏭', id: 'LTJ Warehouse',  en: 'LTJ Warehouse'  },
+    { key: 'hardware',      href: '/company/hardware/rfid',         icon: '📡', id: 'Hardware RFID',  en: 'Hardware RFID'  },
 ])
 
 const wetStages       = computed(() => processStages.value.filter(s => ['receiving','wet_process'].includes(s.key)))
@@ -89,13 +90,10 @@ const warehouseStages = computed(() => processStages.value.filter(s => s.key ===
 
 // ─── Nav item RFID Hardware (reusable) ────────────────────────────────────────
 // Diakses oleh semua operator company — bukan BIM/SuperAdmin
-const navHardwareRfid = computed(() => ({
-    key:  'hardware',
-    href: '/company/hardware/rfid',
-    icon: '📡',
-    id:   'Hardware RFID',
-    en:   'Hardware RFID',
-}))
+const navHardwareRfid = computed(() =>
+    ['company_admin','operator_lab_station','operator_lab_ltj',
+     'operator_wet','operator_dry','operator_warehouse'].includes(userRole.value)
+)
 
 const navigation = computed(() => {
     // ── SUPER ADMIN ─────────────────────────────────────────────────

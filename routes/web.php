@@ -238,6 +238,7 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
             ->group(function () {
                 Route::get('/hardware', [\App\Http\Controllers\Company\HardwareController::class, 'index']);
                 Route::get('hardware/rfid', [HardwareController::class, 'rfidPanel'])
+                    ->middleware('role:company_admin|operator_lab_station|operator_lab_ltj|operator_wet|operator_dry|operator_warehouse')
                     ->name('hardware.rfid');
             }); 
     });
