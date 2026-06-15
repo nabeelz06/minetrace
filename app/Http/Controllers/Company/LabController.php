@@ -390,11 +390,11 @@ class LabController extends Controller
             ]);
 
             return redirect()
-                ->route('company.batches.show', $batch)
+                ->route('company.lab.index')
                 ->with('success',
                     "✅ Analisis lab batch {$batch->batch_code} berhasil disimpan. " .
-                    "Total REO: {$totalReo}% ({$totalReoKg} kg). " .
-                    "Silakan validasi analisis ini setelah verifikasi data.");
+                    "Total REO: {$totalReo}% (" . round($totalReoKg, 3) . " kg). " .
+                    "Silakan validasi analisis kemudian kirim ke Warehouse.");
         });
     }
 

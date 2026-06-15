@@ -1,23 +1,17 @@
 <script setup>
 /**
- * Lab/Index.vue — Halaman Lab Analisis LTJ.
+ * Lab/Index.vue — Daftar analisis + stok LTJ + real-time polling.
  *
- * Menampilkan dua tab utama:
- * 1. "Daftar Analisis"  — tabel semua analisis dengan % dan kg per elemen
- * 2. "Stok Unsur LTJ"  — agregasi total stok La/Ce/Pr/Nd/Y dalam kg
- *    dari semua analisis tervalidasi
- *
- * Ini menjawab pertanyaan: "Di mana saya bisa melihat data storage unsur LTJ?"
- * → Tab "Stok Unsur LTJ" menampilkan total berat setiap unsur dari seluruh
- *   batch MON yang sudah dianalisis dan divalidasi.
+ * POLLING: Auto-refresh setiap 30 detik via router.reload(only:[...])
+ * MANUAL: Tombol refresh + indicator "last updated"
  */
-import { ref, computed } from 'vue'
-import { Head, Link, router } from '@inertiajs/vue3'
-import AppLayout     from '@/Layouts/AppLayout.vue'
-import StatusBadge   from '@/components/shared/StatusBadge.vue'
-import WeightDisplay from '@/components/shared/WeightDisplay.vue'
-import EmptyState    from '@/components/shared/EmptyState.vue'
-import { useI18n }   from '@/composables/core/useI18n.js'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Head, Link, router }                     from '@inertiajs/vue3'
+import AppLayout                                  from '@/Layouts/AppLayout.vue'
+import StatusBadge                                from '@/components/shared/StatusBadge.vue'
+import WeightDisplay                              from '@/components/shared/WeightDisplay.vue'
+import EmptyState                                 from '@/components/shared/EmptyState.vue'
+import { useI18n }                                from '@/composables/core/useI18n.js'
 
 const { lang } = useI18n()
 
@@ -32,68 +26,84 @@ const props = defineProps({
     current_time:      String,
 })
 
-// ─── Tab navigation ────────────────────────────────────────────────────────
-const activeTab = ref('analyses') // 'analyses' | 'stock'
+// ─── Real-time polling ─────────────────────────────────────────────────────────
+const lastRefreshed = ref(new Date())
+const isRefreshing  = ref(false)
+let   pollTimer     = null
+const POLL_INTERVAL = 30_000  // 30 detik
 
-// ─── Filters ───────────────────────────────────────────────────────────────
+const lastRefreshedText = computed(() => {
+    const diff = Math.floor((Date.now() - lastRefreshed.value) / 1000)
+    if (diff < 10) return lang.value === 'en' ? 'just now' : 'baru saja'
+    if (diff < 60) return `${diff}s ${lang.value === 'en' ? 'ago' : 'lalu'}`
+    return `${Math.floor(diff / 60)}m ${lang.value === 'en' ? 'ago' : 'lalu'}`
+})
+
+function refreshData(silent = false) {
+    if (!silent) isRefreshing.value = true
+    router.reload({
+        only: ['analyses','stats','ltj_aggregate','ltj_element_stock','monthly_trend','current_time'],
+        onFinish: () => {
+            isRefreshing.value = false
+            lastRefreshed.value = new Date()
+        },
+    })
+}
+
+onMounted(() => {
+    pollTimer = setInterval(() => refreshData(true), POLL_INTERVAL)
+})
+
+onUnmounted(() => {
+    if (pollTimer) clearInterval(pollTimer)
+})
+
+// ─── Tabs ──────────────────────────────────────────────────────────────────────
+const activeTab = ref('analyses')
+
+// ─── Filters ──────────────────────────────────────────────────────────────────
 const search    = ref(props.filters?.search    ?? '')
 const validated = ref(props.filters?.validated ?? '')
 
-let timeout = null
+let searchTimeout = null
+function onSearch() {
+    clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => applyFilters(), 400)
+}
 function applyFilters() {
     router.get('/company/lab', {
         search:    search.value || undefined,
         validated: validated.value !== '' ? validated.value : undefined,
     }, { preserveState: true, replace: true })
 }
-function onSearch() { clearTimeout(timeout); timeout = setTimeout(applyFilters, 400) }
 
-// ─── Role capabilities ─────────────────────────────────────────────────────
-const canValidate       = computed(() => ['company_admin', 'operator_lab_ltj'].includes(props.user_role))
-const canSendWarehouse  = computed(() => ['company_admin', 'operator_lab_ltj'].includes(props.user_role))
+// ─── Role capabilities ─────────────────────────────────────────────────────────
+const canValidate      = computed(() => ['company_admin','operator_lab_ltj'].includes(props.user_role))
+const canSendWarehouse = computed(() => ['company_admin','operator_lab_ltj'].includes(props.user_role))
 
-// ─── Actions ───────────────────────────────────────────────────────────────
+// ─── Actions ───────────────────────────────────────────────────────────────────
 function validateAnalysis(id) {
-    router.patch(`/company/lab/${id}/validate`, {}, {
-        preserveScroll: true,
-    })
+    router.patch(`/company/lab/${id}/validate`, {}, { preserveScroll: true })
 }
-
 function sendToWarehouse(batchId) {
-    router.post(`/company/batches/${batchId}/send-to-warehouse`, {}, {
-        preserveScroll: true,
-    })
+    router.post(`/company/batches/${batchId}/send-to-warehouse`, {}, { preserveScroll: true })
 }
 
-// ─── Format helpers ────────────────────────────────────────────────────────
-function fmtKg(val) {
-    if (val === null || val === undefined) return '—'
-    const n = parseFloat(val)
-    if (isNaN(n)) return '—'
-    return n.toFixed(3) + ' kg'
-}
+// ─── Formatters ────────────────────────────────────────────────────────────────
+const fmtKg  = (v) => v !== null && v !== undefined ? parseFloat(v).toFixed(3) + ' kg' : '—'
+const fmtPct = (v) => v !== null && v !== undefined ? parseFloat(v).toFixed(2) + '%'   : '—'
 
-function fmtPct(val) {
-    if (val === null || val === undefined) return '—'
-    const n = parseFloat(val)
-    if (isNaN(n)) return '—'
-    return n.toFixed(2) + '%'
-}
-
-// ─── Total LTJ kg formatted ────────────────────────────────────────────────
 const totalLtjKg = computed(() => {
     const t = props.ltj_aggregate?.total_ltj_kg ?? 0
-    if (t >= 1000) return (t / 1000).toFixed(3) + ' ton'
-    return t.toFixed(3) + ' kg'
+    return t >= 1000 ? (t / 1000).toFixed(3) + ' ton' : t.toFixed(3) + ' kg'
 })
 
-// ─── Tabel kolom elemen LTJ ───────────────────────────────────────────────
 const elementColumns = [
-    { key: 'la_pct', kgKey: 'la_kg', label: 'La', full: 'Lantanum' },
-    { key: 'ce_pct', kgKey: 'ce_kg', label: 'Ce', full: 'Serium' },
-    { key: 'pr_pct', kgKey: 'pr_kg', label: 'Pr', full: 'Praseodimium' },
-    { key: 'nd_pct', kgKey: 'nd_kg', label: 'Nd', full: 'Neodimium' },
-    { key: 'y_pct',  kgKey: 'y_kg',  label: 'Y',  full: 'Itrium' },
+    { key: 'la_pct', kgKey: 'la_kg', label: 'La', full: 'Lantanum',     color: '#7c3aed' },
+    { key: 'ce_pct', kgKey: 'ce_kg', label: 'Ce', full: 'Serium',       color: '#2563eb' },
+    { key: 'pr_pct', kgKey: 'pr_kg', label: 'Pr', full: 'Praseodimium', color: '#059669' },
+    { key: 'nd_pct', kgKey: 'nd_kg', label: 'Nd', full: 'Neodimium',    color: '#d97706' },
+    { key: 'y_pct',  kgKey: 'y_kg',  label: 'Y',  full: 'Itrium',       color: '#dc2626' },
 ]
 </script>
 
@@ -118,10 +128,27 @@ const elementColumns = [
                         : 'Hasil analisis kimia La, Ce, Pr, Nd, Y dari konsentrat Monasit (MON)' }}
                 </p>
             </div>
-            <div class="flex-shrink-0 hidden md:block">
+            <div class="flex-shrink-0 hidden md:flex flex-col items-end gap-2">
+                <!-- Live indicator + manual refresh -->
+                <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <div class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"/>
+                        <span>{{ lang==='en' ? 'Live' : 'Live' }} · {{ lastRefreshedText }}</span>
+                    </div>
+                    <button @click="refreshData()"
+                            :disabled="isRefreshing"
+                            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold border border-border text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.97] disabled:opacity-50 transition-all">
+                        <svg class="w-3 h-3" :class="isRefreshing ? 'animate-spin' : ''"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
+                        </svg>
+                        {{ isRefreshing ? (lang==='en' ? 'Refreshing...' : 'Memperbarui...') : (lang==='en' ? 'Refresh' : 'Perbarui') }}
+                    </button>
+                </div>
+                <!-- System time -->
                 <div class="rounded-xl border border-border bg-card px-4 py-2 text-right">
                     <p class="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        {{ lang === 'en' ? 'System Time' : 'Waktu Sistem' }}
+                        {{ lang==='en' ? 'System Time' : 'Waktu Sistem' }}
                     </p>
                     <p class="font-mono text-sm font-bold text-foreground">{{ current_time }}</p>
                 </div>

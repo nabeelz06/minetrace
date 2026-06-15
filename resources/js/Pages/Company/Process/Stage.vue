@@ -799,11 +799,22 @@ const exportPieData = computed(() => {
                             </div>
                             <p class="text-[10px] text-muted-foreground mt-0.5">{{ batch.updated_at_diff }}</p>
                         </div>
-                        <div class="flex flex-col gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div class="flex flex-col gap-1 flex-shrink-0 transition-opacity"
+                             :class="isProjectPlant ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'">
                             <button v-if="canCheckpoint && !isDry" @click="openCheckpointModal(batch)"
                                     class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold active:scale-[0.97] border border-border text-muted-foreground hover:bg-muted hover:text-foreground">
                                 {{ lang === 'en' ? 'Checkpoint' : 'Checkpoint' }}
                             </button>
+
+                            <!-- ─── Project Plant: Input Analisis Lab LTJ ─── -->
+                            <Link v-if="isProjectPlant && ['company_admin','operator_lab_ltj'].includes(user_role) && !['exported','terminated','transformed'].includes(batch.status)"
+                                :href="`/company/batches/${batch.id}/lab/create`"
+                                class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-[0.97] text-center block"
+                                style="background:linear-gradient(135deg,#059669,#047857)">
+                                🔬 {{ lang === 'en' ? 'Input Lab' : 'Input Lab' }}
+                            </Link>
+                            
+                            <!-- Forward batch (receiving, wet) -->
                             <button v-if="canForward && (isReceiving || isWet)" @click="openForwardModal(batch)"
                                     class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-[0.97]"
                                     style="background:hsl(207 40% 45%)">

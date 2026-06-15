@@ -1,14 +1,32 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { Head, Link, useForm } from '@inertiajs/vue3'
-import AppLayout from '@/Layouts/AppLayout.vue'
+/**
+ * Lab/Create.vue — Input analisis unsur LTJ untuk batch MON di Project Plant.
+ *
+ * FEATURES:
+ * - Two-column layout: form (kiri) | live preview panel (kanan, sticky)
+ * - Real-time kalkulasi: total REO%, kg per elemen, quality badge
+ * - localStorage autosave sebagai draft
+ * - Language support (ID / EN)
+ * - Visual breakdown bar chart (color-coded per elemen)
+ * - Redirect ke /company/lab setelah simpan (untuk validasi langsung)
+ */
+import { ref, computed, watch, onMounted } from 'vue'
+import { Head, Link, useForm }              from '@inertiajs/vue3'
+import AppLayout                            from '@/Layouts/AppLayout.vue'
+import { useI18n }                          from '@/composables/core/useI18n.js'
+
+const { lang } = useI18n()
 
 const props = defineProps({
-    batch:     Object,
-    locations: Array,
-    methods:   Array,
+    batch:             Object,
+    existing_analyses: { type: Number, default: 0 },
+    has_validated:     { type: Boolean, default: false },
+    locations:         { type: Array, default: () => [] },
+    methods:           { type: Array, default: () => ['XRF','ICP-MS','AAS','Gravimetri'] },
+    current_time:      String,
 })
 
+// ─── Form ─────────────────────────────────────────────────────────────────────
 const form = useForm({
     location_id:     '',
     la_pct:          '',
@@ -24,298 +42,605 @@ const form = useForm({
     notes:           '',
 })
 
-// ─── Hitung total REO realtime ────────────────────────────────────────────
-const totalReo = computed(() => {
-    const sum = [form.la_pct, form.ce_pct, form.pr_pct, form.nd_pct, form.y_pct]
-        .reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
-    return Math.round(sum * 1000) / 1000
+// ─── Draft autosave ────────────────────────────────────────────────────────────
+const DRAFT_KEY  = computed(() => `lab_draft_${props.batch?.id}`)
+const hasDraft   = ref(false)
+const draftSaved = ref(false)
+
+onMounted(() => {
+    try {
+        const raw = localStorage.getItem(DRAFT_KEY.value)
+        if (raw) {
+            const d = JSON.parse(raw)
+            Object.entries(d).forEach(([k, v]) => { if (k in form) form[k] = v })
+            hasDraft.value = true
+        }
+    } catch (e) { /* ignore */ }
 })
 
-// ─── Hitung berat per elemen ──────────────────────────────────────────────
-const batchWeight = computed(() => props.batch?.current_weight ?? 0)
+// Simpan draft setiap ada perubahan
+watch([
+    () => form.la_pct, () => form.ce_pct, () => form.pr_pct,
+    () => form.nd_pct, () => form.y_pct,  () => form.tho2_pct,
+    () => form.u3o8_pct, () => form.lab_method, () => form.equipment_used,
+    () => form.sample_weight_g, () => form.notes, () => form.location_id,
+], () => {
+    try {
+        localStorage.setItem(DRAFT_KEY.value, JSON.stringify(form.data()))
+        draftSaved.value = true
+        setTimeout(() => { draftSaved.value = false }, 1500)
+    } catch (e) {}
+}, { debounce: 300 })
 
-function calcKg(pct) {
-    const v = parseFloat(pct)
-    if (!v || !batchWeight.value) return null
-    return Math.round(batchWeight.value * v / 100 * 1000) / 1000
-}
+// ─── Konfigurasi 5 unsur LTJ ───────────────────────────────────────────────────
+const ELEMENTS = [
+    { key: 'la_pct', symbol: 'La', num: 57, name_id: 'Lantanum',     name_en: 'Lanthanum',    color: '#7c3aed', bg: 'rgba(124,58,237,0.09)' },
+    { key: 'ce_pct', symbol: 'Ce', num: 58, name_id: 'Serium',       name_en: 'Cerium',        color: '#2563eb', bg: 'rgba(37,99,235,0.09)'  },
+    { key: 'pr_pct', symbol: 'Pr', num: 59, name_id: 'Praseodimium', name_en: 'Praseodymium',  color: '#059669', bg: 'rgba(5,150,105,0.09)'  },
+    { key: 'nd_pct', symbol: 'Nd', num: 60, name_id: 'Neodimium',    name_en: 'Neodymium',     color: '#d97706', bg: 'rgba(217,119,6,0.09)'  },
+    { key: 'y_pct',  symbol: 'Y',  num: 39, name_id: 'Itrium',       name_en: 'Yttrium',       color: '#dc2626', bg: 'rgba(220,38,38,0.09)'  },
+]
 
-// ─── Parameter config ──────────────────────────────────────────────────────
-const parameters = computed(() => [
-    { key: 'la_pct', label: 'Lantanum (La)', symbol: 'La', color: 'bg-violet-500', required: true },
-    { key: 'ce_pct', label: 'Serium (Ce)',   symbol: 'Ce', color: 'bg-blue-500',   required: true },
-    { key: 'pr_pct', label: 'Praseodimium (Pr)', symbol: 'Pr', color: 'bg-cyan-500', required: true },
-    { key: 'nd_pct', label: 'Neodimium (Nd)', symbol: 'Nd', color: 'bg-emerald-500', required: true },
-    { key: 'y_pct',  label: 'Itrium (Y)',     symbol: 'Y',  color: 'bg-amber-500', required: true },
-])
+// ─── Kalkulasi real-time ───────────────────────────────────────────────────────
+const batchWeight = computed(() => parseFloat(props.batch?.current_weight) || 0)
 
+const elementValues = computed(() =>
+    ELEMENTS.map(el => {
+        const pct = Math.max(0, parseFloat(form[el.key]) || 0)
+        const kg  = batchWeight.value > 0
+            ? Math.round(batchWeight.value * pct / 100 * 10000) / 10000 : 0
+        return { ...el, pct, kg }
+    })
+)
+
+const totalReo = computed(() =>
+    Math.round(elementValues.value.reduce((s, e) => s + e.pct, 0) * 10000) / 10000
+)
+
+const totalLtjKg = computed(() =>
+    Math.round(elementValues.value.reduce((s, e) => s + e.kg, 0) * 10000) / 10000
+)
+
+const maxPct = computed(() =>
+    Math.max(...elementValues.value.map(e => e.pct), 0.001)
+)
+
+const reoQuality = computed(() => {
+    const r = totalReo.value
+    if (r >= 10) return { id: 'Sangat Baik', en: 'Excellent', color: '#059669', bg: 'rgba(5,150,105,0.12)'  }
+    if (r >= 5)  return { id: 'Baik',        en: 'Good',      color: '#2563eb', bg: 'rgba(37,99,235,0.12)'  }
+    if (r >= 2)  return { id: 'Cukup',       en: 'Moderate',  color: '#d97706', bg: 'rgba(217,119,6,0.12)'  }
+    if (r > 0)   return { id: 'Rendah',      en: 'Low',       color: '#dc2626', bg: 'rgba(220,38,38,0.12)'  }
+    return null
+})
+
+const reoProgress = computed(() => Math.min((totalReo.value / 15) * 100, 100))
+
+// ─── Submit ────────────────────────────────────────────────────────────────────
 function submit() {
     form.post(`/company/batches/${props.batch.id}/lab`, {
-        onSuccess: () => form.reset(),
+        onSuccess: () => {
+            try { localStorage.removeItem(DRAFT_KEY.value) } catch (e) {}
+        },
     })
 }
 
-function formatWeight(kg) {
-    if (!kg) return '—'
-    return `${parseFloat(kg).toLocaleString('id-ID', { maximumFractionDigits: 1 })} kg`
+function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY.value) } catch (e) {}
+    form.reset()
+    hasDraft.value = false
 }
 </script>
 
 <template>
-    <AppLayout>
-        <Head :title="`Lab Analysis — ${batch.batch_code}`" />
-        <template #header>Lab Analisis</template>
+<AppLayout>
+    <Head :title="`${lang==='en'?'Lab Analysis':'Analisis Lab'} — ${batch.batch_code}`"/>
+    <template #header>{{ lang==='en' ? 'LTJ Lab Analysis Input' : 'Input Analisis Lab LTJ' }}</template>
 
-        <div class="max-w-3xl mx-auto space-y-6">
+    <div class="max-w-[1400px] mx-auto space-y-4">
 
-            <!-- Breadcrumb -->
-            <div class="flex items-center gap-2 text-sm text-muted-foreground animate-fade-in">
-                <Link href="/company/batches" class="hover:text-foreground transition-colors">Batch</Link>
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-                <Link :href="`/company/batches/${batch.id}`" class="hover:text-foreground transition-colors font-mono text-xs">{{ batch.batch_code }}</Link>
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-                <span class="text-foreground font-medium">Input Analisis Lab</span>
-            </div>
+        <!-- Breadcrumb -->
+        <nav class="flex items-center gap-1.5 text-xs text-muted-foreground animate-fade-in">
+            <Link href="/company/process/project_plant" class="hover:text-foreground transition-colors">⚗️ Project Plant</Link>
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+            </svg>
+            <Link :href="`/company/batches/${batch.id}`" class="hover:text-foreground font-mono">{{ batch.batch_code }}</Link>
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+            </svg>
+            <span class="text-foreground font-medium">{{ lang==='en' ? 'Lab Analysis' : 'Analisis Lab' }}</span>
+        </nav>
 
-            <!-- Batch Info Card -->
-            <div class="rounded-2xl border border-border bg-card p-5 animate-scale-in">
-                <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-                         style="background: hsl(var(--primary)/0.1);">
-                        🔬
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <h2 class="font-mono font-bold text-lg text-foreground">{{ batch.batch_code }}</h2>
-                            <span v-if="batch.product_code?.is_hazardous"
-                                  class="text-xs px-2 py-0.5 rounded-lg font-semibold badge-radioactive">
-                                ☢ Radioaktif
-                            </span>
-                        </div>
-                        <p class="text-sm text-muted-foreground">
-                            {{ batch.product_code?.code }} — {{ batch.product_code?.name }}
-                        </p>
-                    </div>
-                    <div class="text-right flex-shrink-0">
-                        <p class="text-xs text-muted-foreground">Berat Batch</p>
-                        <p class="text-xl font-bold text-foreground">{{ formatWeight(batch.current_weight) }}</p>
-                    </div>
+        <!-- Draft restore banner -->
+        <Transition name="slide-down">
+            <div v-if="hasDraft"
+                 class="flex items-center justify-between px-4 py-3 rounded-xl border border-amber-300 dark:border-amber-700/50 animate-fade-in"
+                 style="background:rgba(245,158,11,0.06)">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">📋</span>
+                    <p class="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                        {{ lang==='en'
+                            ? 'Draft restored from your previous session.'
+                            : 'Draft dipulihkan dari sesi sebelumnya.' }}
+                    </p>
                 </div>
+                <button @click="clearDraft"
+                        class="text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-900 underline px-2 py-1 rounded">
+                    {{ lang==='en' ? 'Clear & Reset' : 'Hapus & Reset' }}
+                </button>
             </div>
+        </Transition>
 
-            <!-- Form -->
-            <form @submit.prevent="submit" class="space-y-5 animate-fade-in delay-100">
+        <!-- Validated warning -->
+        <div v-if="has_validated"
+             class="flex items-center gap-3 px-4 py-3 rounded-xl border border-red-300 dark:border-red-700/50 animate-fade-in"
+             style="background:rgba(220,38,38,0.05)">
+            <span class="text-base flex-shrink-0">⚠️</span>
+            <p class="text-xs font-semibold text-red-700 dark:text-red-400">
+                {{ lang==='en'
+                    ? 'This batch already has a validated analysis. A new submission will create an additional record.'
+                    : 'Batch ini sudah memiliki analisis yang tervalidasi. Input baru akan membuat catatan tambahan.' }}
+            </p>
+        </div>
 
-                <!-- Lokasi & Metode -->
-                <div class="rounded-2xl border border-border bg-card p-6 space-y-5">
-                    <h3 class="text-sm font-semibold text-foreground border-b border-border pb-3">
-                        Informasi Lab
-                    </h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <label class="block text-sm font-semibold text-foreground">Lokasi Lab</label>
-                            <select
-                                v-model="form.location_id"
-                                class="w-full h-11 px-3 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
-                                :class="form.errors.location_id ? 'border-red-500' : 'border-input'"
-                            >
-                                <option value="">Pilih lokasi...</option>
-                                <option v-for="loc in locations" :key="loc.id" :value="loc.id">
-                                    [{{ loc.code }}] {{ loc.full_name || loc.name }}
-                                </option>
-                            </select>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="block text-sm font-semibold text-foreground">Metode Analisis</label>
-                            <select
-                                v-model="form.lab_method"
-                                class="w-full h-11 px-3 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
-                            >
-                                <option v-for="m in methods" :key="m" :value="m">{{ m }}</option>
-                            </select>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="block text-sm font-semibold text-foreground">Peralatan</label>
-                            <input
-                                v-model="form.equipment_used"
-                                type="text"
-                                placeholder="Contoh: XRF Analyzer X-500"
-                                class="w-full h-11 px-3 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                            />
-                        </div>
-                        <div class="space-y-2">
-                            <label class="block text-sm font-semibold text-foreground">Berat Sampel (gram)</label>
-                            <input
-                                v-model="form.sample_weight_g"
-                                type="number"
-                                step="0.001"
-                                placeholder="Contoh: 50.0"
-                                class="w-full h-11 px-3 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                            />
-                        </div>
-                    </div>
-                </div>
+        <!-- ════════════════════════════════════════════════
+             MAIN LAYOUT — 2 kolom
+        ════════════════════════════════════════════════ -->
+        <div class="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
 
-                <!-- Parameter LTJ -->
-                <div class="rounded-2xl border border-border bg-card p-6 space-y-5">
-                    <div class="flex items-center justify-between border-b border-border pb-3">
-                        <h3 class="text-sm font-semibold text-foreground">Parameter LTJ (5 Unsur Aktif)</h3>
-                        <!-- Live Total REO -->
-                        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl border"
-                             :style="totalReo > 0
-                                ? 'background: hsl(var(--primary)/0.08); border-color: hsl(var(--primary)/0.3);'
-                                : 'background: hsl(var(--muted)); border-color: hsl(var(--border));'">
-                            <span class="text-xs text-muted-foreground font-medium">Total REO:</span>
-                            <span class="text-sm font-bold" :style="totalReo > 0 ? 'color: hsl(var(--primary));' : 'color: hsl(var(--muted-foreground));'">
-                                {{ totalReo }}%
-                            </span>
-                        </div>
-                    </div>
+            <!-- ─────────────────────────────────────────
+                 KIRI: Form Input
+            ───────────────────────────────────────── -->
+            <div class="space-y-4">
 
-                    <!-- Parameter Input Grid -->
-                    <div class="space-y-3">
-                        <div
-                            v-for="param in parameters"
-                            :key="param.key"
-                            class="flex items-center gap-4 p-3.5 rounded-xl border border-border hover:border-primary/20 transition-all duration-150 group"
-                            :class="form[param.key] ? 'bg-primary/3' : 'bg-muted/20'"
-                        >
-                            <!-- Symbol badge -->
-                            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-sm font-bold shadow-sm"
-                                 :class="param.color">
-                                {{ param.symbol }}
+                <!-- Batch Info Header -->
+                <div class="rounded-2xl border border-border bg-card p-5 animate-fade-in">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
+                             style="background:linear-gradient(135deg,rgba(62,92,116,0.12),rgba(62,92,116,0.06))">
+                            ⚗️
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap mb-1">
+                                <h2 class="font-mono font-bold text-xl text-foreground tracking-wider">{{ batch.batch_code }}</h2>
+                                <span v-if="batch.product?.is_hazardous"
+                                      class="text-[10px] px-2 py-0.5 rounded-lg font-bold"
+                                      style="background:rgba(168,85,247,0.12);color:#9333ea">
+                                    ☢ {{ lang==='en' ? 'Radioactive' : 'Radioaktif' }}
+                                </span>
+                                <span class="text-[10px] px-2 py-0.5 rounded-lg font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                                    ⚗️ Project Plant
+                                </span>
                             </div>
+                            <p class="text-sm text-muted-foreground">{{ batch.product?.code }} — {{ batch.product?.name }}</p>
+                            <p v-if="batch.location" class="text-xs text-muted-foreground mt-0.5">📍 {{ batch.location }}</p>
+                        </div>
+                        <div class="text-right flex-shrink-0">
+                            <p class="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">
+                                {{ lang==='en' ? 'Batch Weight' : 'Berat Batch' }}
+                            </p>
+                            <p class="text-2xl font-black text-foreground tabular-nums leading-none">
+                                {{ parseFloat(batch.current_weight).toLocaleString('id-ID', {maximumFractionDigits: 1}) }}
+                            </p>
+                            <p class="text-sm font-semibold text-muted-foreground">kg</p>
+                        </div>
+                    </div>
+                </div>
 
-                            <!-- Label -->
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-semibold text-foreground">{{ param.label }}</p>
-                                <p class="text-xs text-muted-foreground">
-                                    ≈ {{ calcKg(form[param.key]) ? calcKg(form[param.key]) + ' kg' : '—' }}
+                <!-- Form -->
+                <form @submit.prevent="submit" class="space-y-4">
+
+                    <!-- ── Lab Info ─────────────────────────────── -->
+                    <div class="rounded-2xl border border-border bg-card p-5 space-y-4 animate-fade-in delay-50">
+                        <h3 class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2 pb-3 border-b border-border">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/>
+                            </svg>
+                            {{ lang==='en' ? 'Lab Information' : 'Informasi Lab' }}
+                        </h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-foreground">
+                                    {{ lang==='en' ? 'Lab Location' : 'Lokasi Lab' }}
+                                </label>
+                                <select v-model="form.location_id"
+                                        class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all">
+                                    <option value="">{{ lang==='en' ? 'Select location...' : 'Pilih lokasi...' }}</option>
+                                    <option v-for="loc in locations" :key="loc.id" :value="loc.id">
+                                        [{{ loc.code }}] {{ loc.full_name || loc.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-foreground">
+                                    {{ lang==='en' ? 'Analysis Method' : 'Metode Analisis' }}
+                                </label>
+                                <select v-model="form.lab_method"
+                                        class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all">
+                                    <option v-for="m in methods" :key="m" :value="m">{{ m }}</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-foreground">
+                                    {{ lang==='en' ? 'Equipment Used' : 'Peralatan Digunakan' }}
+                                </label>
+                                <input v-model="form.equipment_used" type="text"
+                                       :placeholder="lang==='en' ? 'e.g. XRF Analyzer X-500' : 'Contoh: XRF Analyzer X-500'"
+                                       class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all"/>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-foreground">
+                                    {{ lang==='en' ? 'Sample Weight (gram)' : 'Berat Sampel (gram)' }}
+                                </label>
+                                <input v-model="form.sample_weight_g" type="number" step="0.001" min="0"
+                                       placeholder="50.000"
+                                       class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all font-mono"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Parameter LTJ (5 Unsur) ─────────────── -->
+                    <div class="rounded-2xl border border-border bg-card p-5 space-y-4 animate-fade-in delay-75">
+                        <div class="flex items-center justify-between pb-3 border-b border-border">
+                            <h3 class="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605"/>
+                                </svg>
+                                {{ lang==='en' ? 'LTJ Parameters (5 Active Elements)' : 'Parameter LTJ (5 Unsur Aktif)' }}
+                            </h3>
+                            <!-- Live Total REO badge -->
+                            <div v-if="totalReo > 0"
+                                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+                                 :style="`background:${reoQuality?.bg};color:${reoQuality?.color}`">
+                                <span>REO</span>
+                                <span class="text-base font-black tabular-nums">{{ totalReo.toFixed(2) }}%</span>
+                            </div>
+                        </div>
+
+                        <!-- Element input rows -->
+                        <div class="space-y-2.5">
+                            <div v-for="el in elementValues" :key="el.key"
+                                 class="group/el rounded-xl p-3.5 transition-all duration-200 cursor-pointer"
+                                 :style="el.pct > 0
+                                     ? `background:${el.bg};border:1px solid ${el.color}30`
+                                     : 'background:hsl(var(--muted)/0.3);border:1px solid hsl(var(--border))'">
+                                <div class="grid grid-cols-[44px_1fr_140px] gap-3 items-center">
+
+                                    <!-- Symbol badge -->
+                                    <div class="w-11 h-11 rounded-xl flex flex-col items-center justify-center text-white flex-shrink-0 shadow-sm"
+                                         :style="`background:linear-gradient(135deg,${el.color},${el.color}cc)`">
+                                        <span class="text-[11px] font-black leading-none">{{ el.symbol }}</span>
+                                        <span class="text-[7px] leading-none opacity-60 mt-0.5">{{ el.num }}</span>
+                                    </div>
+
+                                    <!-- Name + calculated kg -->
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-bold text-foreground leading-tight">
+                                            {{ lang==='en' ? el.name_en : el.name_id }}
+                                        </p>
+                                        <p class="text-[10px] font-mono mt-0.5 transition-all duration-300"
+                                           :style="el.pct > 0 ? `color:${el.color}` : 'color:hsl(var(--muted-foreground))'">
+                                            {{ el.kg > 0 ? `≈ ${el.kg.toFixed(4)} kg dari ${batchWeight.toLocaleString('id-ID')} kg` : '— masukkan persentase' }}
+                                        </p>
+                                        <!-- Mini progress bar -->
+                                        <div class="mt-1.5 h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                                            <div class="h-full rounded-full transition-all duration-500"
+                                                 :style="`width:${maxPct > 0 ? (el.pct/maxPct)*100 : 0}%;background:${el.color}`"/>
+                                        </div>
+                                    </div>
+
+                                    <!-- % Input -->
+                                    <div class="relative">
+                                        <input v-model="form[el.key]"
+                                               type="number" step="0.001" min="0" max="100"
+                                               :placeholder="lang==='en' ? 'Enter %...' : 'Masukkan %...'"
+                                               class="w-full h-10 pl-4 pr-8 rounded-xl text-sm font-bold border bg-background text-foreground outline-none transition-all text-right tabular-nums"
+                                               :class="form.errors[el.key]
+                                                   ? 'border-red-400 focus:ring-2 focus:ring-red-300'
+                                                   : 'border-border focus:ring-2 focus:ring-primary/25 focus:border-primary'"
+                                               :style="el.pct > 0 ? `color:${el.color}` : ''"
+                                        />
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">%</span>
+                                    </div>
+                                </div>
+
+                                <!-- Error message -->
+                                <p v-if="form.errors[el.key]"
+                                   class="text-xs text-red-500 mt-1.5 ml-14">{{ form.errors[el.key] }}</p>
+                            </div>
+                        </div>
+
+                        <!-- REO Progress bar -->
+                        <div v-if="totalReo > 0" class="pt-1 space-y-1.5">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-muted-foreground font-medium">Total REO Progress</span>
+                                <span class="font-bold tabular-nums" :style="`color:${reoQuality?.color}`">{{ totalReo.toFixed(3) }}% / ~15%</span>
+                            </div>
+                            <div class="h-2.5 rounded-full bg-muted/60 overflow-hidden">
+                                <div class="h-full rounded-full transition-all duration-700"
+                                     :style="`width:${reoProgress}%;background:${reoQuality?.color}`"/>
+                            </div>
+                            <!-- Stacked breakdown bar -->
+                            <div class="flex h-1.5 rounded-full overflow-hidden gap-0.5 mt-1">
+                                <div v-for="el in elementValues.filter(e => e.pct > 0)" :key="el.key"
+                                     class="h-full rounded transition-all duration-500"
+                                     :style="`width:${totalReo > 0 ? (el.pct/totalReo)*100 : 0}%;background:${el.color}`"
+                                     :title="`${el.symbol}: ${el.pct}%`"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Parameter Radioaktif ────────────────── -->
+                    <div v-if="batch.product?.is_hazardous"
+                         class="rounded-2xl border p-5 space-y-4 animate-fade-in delay-100"
+                         style="border-color:rgba(168,85,247,0.3);background:rgba(168,85,247,0.04)">
+                        <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2 pb-3 border-b"
+                            style="color:#9333ea;border-color:rgba(168,85,247,0.2)">
+                            <span class="text-base">☢</span>
+                            {{ lang==='en' ? 'Radioactive Parameters (optional)' : 'Parameter Radioaktif (opsional)' }}
+                        </h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold" style="color:#9333ea">
+                                    ThO₂ — Thorium Oxide (%)
+                                </label>
+                                <div class="relative">
+                                    <input v-model="form.tho2_pct" type="number" step="0.001" min="0" max="100"
+                                           :placeholder="lang==='en' ? 'Enter ThO₂...' : 'Masukkan ThO₂...'"
+                                           class="w-full h-10 pl-4 pr-8 rounded-xl text-xs border bg-background text-foreground outline-none focus:ring-2 transition-all font-mono"
+                                           style="border-color:rgba(168,85,247,0.3)"/>
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold" style="color:#9333ea">%</span>
+                                </div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold" style="color:#9333ea">
+                                    U₃O₈ — Uranium Oxide (%)
+                                </label>
+                                <div class="relative">
+                                    <input v-model="form.u3o8_pct" type="number" step="0.001" min="0" max="100"
+                                           :placeholder="lang==='en' ? 'Enter U₃O₈...' : 'Masukkan U₃O₈...'"
+                                           class="w-full h-10 pl-4 pr-8 rounded-xl text-xs border bg-background text-foreground outline-none focus:ring-2 transition-all font-mono"
+                                           style="border-color:rgba(168,85,247,0.3)"/>
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold" style="color:#9333ea">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Notes ──────────────────────────────── -->
+                    <div class="rounded-2xl border border-border bg-card p-5 space-y-3 animate-fade-in delay-150">
+                        <h3 class="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                            {{ lang==='en' ? 'Additional Notes' : 'Catatan Tambahan' }}
+                        </h3>
+                        <textarea v-model="form.notes" rows="3"
+                                  :placeholder="lang==='en'
+                                      ? 'Sample conditions, anomalies, or special observations...'
+                                      : 'Kondisi sampel, anomali, atau catatan pengamatan khusus...'"
+                                  class="w-full px-4 py-3 rounded-xl text-xs border border-border bg-background text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all resize-none leading-relaxed"/>
+                    </div>
+
+                    <!-- ── Action Buttons ──────────────────────── -->
+                    <div class="flex items-center gap-3 animate-fade-in delay-200">
+                        <Link href="/company/process/project_plant"
+                              class="h-11 px-4 rounded-xl text-xs font-semibold text-muted-foreground border border-border flex items-center gap-2 hover:bg-muted hover:text-foreground transition-all active:scale-[0.98]">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
+                            </svg>
+                            {{ lang==='en' ? 'Back' : 'Kembali' }}
+                        </Link>
+
+                        <!-- Draft saved indicator -->
+                        <Transition name="toast">
+                            <span v-if="draftSaved"
+                                  class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75"/>
+                                </svg>
+                                {{ lang==='en' ? 'Draft saved' : 'Draft tersimpan' }}
+                            </span>
+                        </Transition>
+
+                        <button type="submit" :disabled="form.processing"
+                                class="flex-1 h-11 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-[0.97]"
+                                style="background:linear-gradient(135deg,hsl(var(--primary)),hsl(207 30% 28%));box-shadow:0 4px 14px hsl(var(--primary)/0.3)">
+                            <svg v-if="form.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                            <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            {{ form.processing
+                                ? (lang==='en' ? 'Saving Analysis...' : 'Menyimpan Analisis...')
+                                : (lang==='en' ? 'Save Lab Analysis' : 'Simpan Analisis Lab') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ─────────────────────────────────────────
+                 KANAN: Live Preview Panel (sticky)
+            ───────────────────────────────────────── -->
+            <div class="xl:block">
+                <div class="sticky top-5 space-y-4">
+
+                    <!-- ── REO Live Display ────────────────────── -->
+                    <div class="rounded-2xl border border-border bg-card overflow-hidden animate-fade-in delay-100">
+                        <!-- Header -->
+                        <div class="px-5 py-3.5 border-b border-border flex items-center justify-between"
+                             :style="totalReo > 0 ? `background:${reoQuality?.bg}` : ''">
+                            <div class="flex items-center gap-2">
+                                <div class="w-1.5 h-1.5 rounded-full animate-pulse"
+                                     :style="`background:${totalReo > 0 ? reoQuality?.color : 'hsl(var(--muted-foreground))'}`"/>
+                                <span class="text-xs font-bold text-foreground">
+                                    {{ lang==='en' ? 'Live Preview' : 'Pratinjau Live' }}
+                                </span>
+                            </div>
+                            <div v-if="reoQuality"
+                                 class="px-2.5 py-1 rounded-lg text-[10px] font-bold"
+                                 :style="`background:${reoQuality.bg};color:${reoQuality.color};border:1px solid ${reoQuality.color}40`">
+                                {{ lang==='en' ? reoQuality.en : reoQuality.id }}
+                            </div>
+                        </div>
+
+                        <div class="p-5 space-y-4">
+                            <!-- Total REO big number -->
+                            <div class="rounded-xl p-5 text-center"
+                                 :style="totalReo > 0
+                                     ? `background:${reoQuality?.bg}`
+                                     : 'background:hsl(var(--muted)/0.4)'">
+                                <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+                                    Total REO
+                                </p>
+                                <div class="flex items-baseline justify-center gap-1">
+                                    <p class="font-heading font-black tabular-nums leading-none"
+                                       :class="totalReo > 0 ? 'text-6xl' : 'text-4xl'"
+                                       :style="totalReo > 0 ? `color:${reoQuality?.color}` : 'color:hsl(var(--muted-foreground))'">
+                                        {{ totalReo > 0 ? totalReo.toFixed(3) : '—' }}
+                                    </p>
+                                    <span v-if="totalReo > 0" class="text-xl font-bold text-muted-foreground">%</span>
+                                </div>
+                                <p v-if="totalReo > 0" class="text-xs text-muted-foreground mt-2 font-mono">
+                                    ≈ {{ totalLtjKg.toFixed(4) }} kg LTJ
                                 </p>
                             </div>
 
-                            <!-- Input -->
-                            <div class="relative w-36 flex-shrink-0">
-                                <input
-                                    v-model="form[param.key]"
-                                    type="number"
-                                    step="0.001"
-                                    min="0"
-                                    max="100"
-                                    :placeholder="param.required ? 'Wajib...' : 'Opsional'"
-                                    class="w-full h-10 pl-3 pr-10 rounded-lg text-sm border bg-background text-foreground outline-none transition-all text-right"
-                                    :class="[
-                                        form.errors[param.key] ? 'border-red-400 focus:ring-2 focus:ring-red-400/20' : 'border-input focus:ring-2 focus:ring-primary/20 focus:border-primary',
-                                        form[param.key] ? 'font-semibold' : ''
-                                    ]"
-                                />
-                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">%</span>
+                            <!-- Batch stats -->
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="rounded-xl border border-border bg-muted/20 p-3 text-center">
+                                    <p class="text-[9px] text-muted-foreground uppercase tracking-wider">
+                                        {{ lang==='en' ? 'Batch Weight' : 'Berat Batch' }}
+                                    </p>
+                                    <p class="text-sm font-bold text-foreground tabular-nums">{{ batchWeight.toLocaleString('id-ID') }} kg</p>
+                                </div>
+                                <div class="rounded-xl border border-border bg-muted/20 p-3 text-center">
+                                    <p class="text-[9px] text-muted-foreground uppercase tracking-wider">LTJ Total</p>
+                                    <p class="text-sm font-bold tabular-nums"
+                                       :style="totalLtjKg > 0 ? `color:${reoQuality?.color}` : 'color:hsl(var(--muted-foreground))'">
+                                        {{ totalLtjKg > 0 ? totalLtjKg.toFixed(3) + ' kg' : '—' }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Element breakdown -->
+                            <div class="space-y-2">
+                                <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                    {{ lang==='en' ? 'Element Breakdown' : 'Rincian Unsur' }}
+                                </p>
+
+                                <!-- Stacked bar -->
+                                <div v-if="totalReo > 0" class="flex h-3 rounded-full overflow-hidden gap-0.5">
+                                    <div v-for="el in elementValues.filter(e => e.pct > 0)" :key="el.key"
+                                         class="h-full rounded transition-all duration-500 relative group/bar"
+                                         :style="`width:${totalReo > 0 ? (el.pct/totalReo)*100 : 0}%;background:${el.color}`"
+                                         :title="`${el.symbol}: ${el.pct}%`"/>
+                                </div>
+                                <div v-else class="h-3 rounded-full bg-muted/50"/>
+
+                                <!-- Element rows -->
+                                <div class="space-y-1.5 mt-2">
+                                    <div v-for="el in elementValues" :key="el.key"
+                                         class="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all"
+                                         :style="el.pct > 0 ? `background:${el.bg}` : ''">
+                                        <!-- Color dot + symbol -->
+                                        <div class="w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-black text-white flex-shrink-0"
+                                             :style="`background:${el.pct > 0 ? el.color : 'hsl(var(--muted-foreground))'}`">
+                                            {{ el.symbol }}
+                                        </div>
+                                        <!-- Name -->
+                                        <span class="flex-1 text-[10px] font-semibold text-muted-foreground truncate">
+                                            {{ lang==='en' ? el.name_en : el.name_id }}
+                                        </span>
+                                        <!-- Values -->
+                                        <div class="text-right flex-shrink-0">
+                                            <span class="text-xs font-bold tabular-nums"
+                                                  :style="el.pct > 0 ? `color:${el.color}` : 'color:hsl(var(--muted-foreground))'">
+                                                {{ el.pct > 0 ? el.pct.toFixed(3) + '%' : '—' }}
+                                            </span>
+                                            <p v-if="el.kg > 0" class="text-[9px] text-muted-foreground font-mono">
+                                                {{ el.kg.toFixed(4) }} kg
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Empty state -->
+                            <div v-if="totalReo === 0" class="py-4 text-center">
+                                <div class="text-3xl mb-2 opacity-40">🔬</div>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ lang==='en'
+                                        ? 'Enter element percentages to see live calculations'
+                                        : 'Masukkan persentase unsur untuk melihat kalkulasi langsung' }}
+                                </p>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Progress bar visual REO -->
-                    <div v-if="totalReo > 0" class="pt-2 space-y-1.5">
-                        <div class="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Komposisi REO</span>
-                            <span>{{ totalReo }}%</span>
-                        </div>
-                        <div class="h-2 rounded-full bg-muted overflow-hidden">
-                            <div
-                                class="h-full rounded-full transition-all duration-500"
-                                :style="`width: ${Math.min(totalReo, 100)}%; background: linear-gradient(to right, hsl(var(--primary)), hsl(207 40% 60%));`"
-                            />
-                        </div>
-                        <!-- Breakdown bar -->
-                        <div class="flex h-1.5 rounded-full overflow-hidden gap-0.5">
-                            <div v-if="form.la_pct" class="h-full bg-violet-500 rounded transition-all duration-300"
-                                 :style="`width: ${(parseFloat(form.la_pct)||0)/totalReo*100}%`" :title="`La: ${form.la_pct}%`"/>
-                            <div v-if="form.ce_pct" class="h-full bg-blue-500 rounded transition-all duration-300"
-                                 :style="`width: ${(parseFloat(form.ce_pct)||0)/totalReo*100}%`" :title="`Ce: ${form.ce_pct}%`"/>
-                            <div v-if="form.pr_pct" class="h-full bg-cyan-500 rounded transition-all duration-300"
-                                 :style="`width: ${(parseFloat(form.pr_pct)||0)/totalReo*100}%`" :title="`Pr: ${form.pr_pct}%`"/>
-                            <div v-if="form.nd_pct" class="h-full bg-emerald-500 rounded transition-all duration-300"
-                                 :style="`width: ${(parseFloat(form.nd_pct)||0)/totalReo*100}%`" :title="`Nd: ${form.nd_pct}%`"/>
-                            <div v-if="form.y_pct"  class="h-full bg-amber-500 rounded transition-all duration-300"
-                                 :style="`width: ${(parseFloat(form.y_pct)||0)/totalReo*100}%`" :title="`Y: ${form.y_pct}%`"/>
-                        </div>
-                        <div class="flex items-center gap-3 flex-wrap">
-                            <div v-for="param in parameters" :key="param.key" class="flex items-center gap-1 text-xs text-muted-foreground">
-                                <div class="w-2 h-2 rounded-full" :class="param.color"/>
-                                {{ param.symbol }}
+                    <!-- ── Quality Guide ───────────────────────── -->
+                    <div class="rounded-2xl border border-border bg-card p-4 space-y-3 animate-fade-in delay-150">
+                        <h3 class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {{ lang==='en' ? 'REO Quality Guide' : 'Panduan Kualitas REO' }}
+                        </h3>
+                        <div class="space-y-1.5">
+                            <div v-for="q in [
+                                { id:'≥10% — Sangat Baik', en:'≥10% — Excellent', color:'#059669', bg:'rgba(5,150,105,0.1)'  },
+                                { id:'5–10% — Baik',       en:'5–10% — Good',     color:'#2563eb', bg:'rgba(37,99,235,0.1)'  },
+                                { id:'2–5% — Cukup',       en:'2–5% — Moderate',  color:'#d97706', bg:'rgba(217,119,6,0.1)'  },
+                                { id:'<2% — Rendah',       en:'<2% — Low',        color:'#dc2626', bg:'rgba(220,38,38,0.1)'  },
+                            ]" :key="q.id"
+                                 class="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-semibold"
+                                 :style="`background:${q.bg};color:${q.color}`">
+                                <div class="w-2 h-2 rounded-full flex-shrink-0" :style="`background:${q.color}`"/>
+                                {{ lang==='en' ? q.en : q.id }}
                             </div>
                         </div>
+                        <p class="text-[9px] text-muted-foreground leading-relaxed pt-1 border-t border-border">
+                            {{ lang==='en'
+                                ? '💡 La + Ce + Pr + Nd + Y = Total REO. Radioactive (ThO₂, U₃O₈) recorded separately.'
+                                : '💡 La + Ce + Pr + Nd + Y = Total REO. Radioaktif (ThO₂, U₃O₈) dicatat terpisah.' }}
+                        </p>
+                    </div>
+
+                    <!-- ── Existing analyses ──────────────────── -->
+                    <div v-if="existing_analyses > 0"
+                         class="rounded-xl border px-4 py-3 animate-fade-in"
+                         style="border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.04)">
+                        <p class="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                            {{ lang==='en'
+                                ? `📋 ${existing_analyses} previous record(s) for this batch.`
+                                : `📋 ${existing_analyses} catatan analisis sebelumnya untuk batch ini.` }}
+                        </p>
+                        <Link href="/company/lab"
+                              class="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline mt-1 block">
+                            {{ lang==='en' ? 'View all in Lab Index →' : 'Lihat semua di Lab Index →' }}
+                        </Link>
                     </div>
                 </div>
+            </div>
 
-                <!-- Parameter Radioaktif (Opsional) -->
-                <div v-if="batch.product_code?.is_hazardous"
-                     class="rounded-2xl border p-5 space-y-4 animate-fade-in"
-                     style="border-color: rgba(168,85,247,0.3); background: rgba(168,85,247,0.04);">
-                    <h3 class="text-sm font-semibold flex items-center gap-2" style="color: #7c3aed;">
-                        <span>☢</span> Parameter Radioaktif (Opsional)
-                    </h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <label class="block text-xs font-semibold" style="color: #7c3aed;">ThO₂ (%)</label>
-                            <div class="relative">
-                                <input v-model="form.tho2_pct" type="number" step="0.001" min="0" max="100" placeholder="Thorium Oxide"
-                                       class="w-full h-10 pl-3 pr-10 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 transition-all"
-                                       style="border-color: rgba(168,85,247,0.3); focus-ring-color: rgba(168,85,247,0.2);"/>
-                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-purple-400">%</span>
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="block text-xs font-semibold" style="color: #7c3aed;">U₃O₈ (%)</label>
-                            <div class="relative">
-                                <input v-model="form.u3o8_pct" type="number" step="0.001" min="0" max="100" placeholder="Uranium Oxide"
-                                       class="w-full h-10 pl-3 pr-10 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 transition-all"
-                                       style="border-color: rgba(168,85,247,0.3);"/>
-                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-purple-400">%</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Catatan -->
-                <div class="rounded-2xl border border-border bg-card p-5 space-y-3">
-                    <h3 class="text-sm font-semibold text-foreground">Catatan Tambahan</h3>
-                    <textarea
-                        v-model="form.notes"
-                        rows="3"
-                        placeholder="Kondisi sampel, anomali, atau catatan khusus lainnya..."
-                        class="w-full px-4 py-3 rounded-xl text-sm border border-input bg-background text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
-                    />
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex items-center gap-3">
-                    <Link
-                        :href="`/company/batches/${batch.id}`"
-                        class="flex-1 h-11 rounded-xl text-sm font-semibold text-muted-foreground border border-border flex items-center justify-center gap-2 hover:bg-muted hover:text-foreground transition-all duration-200 active:scale-[0.98]"
-                    >
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
-                        </svg>
-                        Kembali
-                    </Link>
-                    <button
-                        type="submit"
-                        :disabled="form.processing"
-                        class="flex-[2] h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5 active:scale-[0.97]"
-                        style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(207 30% 28%));"
-                    >
-                        <svg v-if="form.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                        </svg>
-                        <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        {{ form.processing ? 'Menyimpan...' : 'Simpan Analisis Lab' }}
-                    </button>
-                </div>
-            </form>
         </div>
-    </AppLayout>
+    </div>
+</AppLayout>
 </template>
+
+<style scoped>
+@keyframes fade-in { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+.animate-fade-in { animation: fade-in 0.28s ease-out both; }
+.delay-50  { animation-delay: 50ms; }
+.delay-75  { animation-delay: 75ms; }
+.delay-100 { animation-delay: 100ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+
+.slide-down-enter-active { transition: all 0.2s ease; }
+.slide-down-leave-active { transition: all 0.15s ease; }
+.slide-down-enter-from   { opacity:0; transform:translateY(-6px); }
+.slide-down-leave-to     { opacity:0; transform:translateY(-4px); }
+
+.toast-enter-active { transition: all 0.25s ease; }
+.toast-leave-active { transition: all 0.15s ease; }
+.toast-enter-from   { opacity:0; transform:translateX(-6px); }
+.toast-leave-to     { opacity:0; }
+</style>
