@@ -216,14 +216,23 @@ class ApiRfidController extends Controller
         ]), 403, 'Tidak memiliki akses.');
 
         $validated = $request->validate([
-            // scan_in = karung masuk area, scan_out = karung keluar area
-            'mode'  => 'required|string|in:scan_in,scan_out,register,idle',
+            // Accept BOTH old names (login/logout) dan new names (scan_in/scan_out)
+            // untuk backward compatibility dengan ESP32 firmware dan kode lama
+            'mode'  => 'required|string|in:scan_in,scan_out,login,logout,register,idle',
             'stage' => 'required_unless:mode,idle|nullable|string|in:receiving,wet_process,dry_process,warehouse,project_plant',
         ]);
 
+        // ─── Normalize mode name ────────────────────────────────────────────────
+        // login → scan_in, logout → scan_out (internal naming canonical)
+        $mode = match($validated['mode']) {
+            'login'  => 'scan_in',
+            'logout' => 'scan_out',
+            default  => $validated['mode'],
+        };
+
         $companyId = Auth::user()->company_id;
 
-        if ($validated['mode'] === 'idle') {
+        if ($mode === 'idle') {
             $this->rfid->clearActiveMode($companyId);
             return response()->json([
                 'success' => true,
@@ -233,7 +242,7 @@ class ApiRfidController extends Controller
         }
 
         $stage = $validated['stage'];
-        $this->rfid->setActiveMode($validated['mode'], $stage, $companyId);
+        $this->rfid->setActiveMode($mode, $stage, $companyId);
 
         $stageLabels = [
             'receiving'     => 'Receiving Area',
@@ -243,17 +252,17 @@ class ApiRfidController extends Controller
             'project_plant' => 'Lab Analisis LTJ',
         ];
         $stageLabel = $stageLabels[$stage] ?? $stage;
-        $modeLabel  = match($validated['mode']) {
+        $modeLabel  = match($mode) {
             'scan_in'  => 'SCAN IN (Karung Masuk)',
             'scan_out' => 'SCAN OUT (Karung Keluar)',
-            default    => strtoupper($validated['mode']),
+            default    => strtoupper($mode),
         };
 
         return response()->json([
             'success' => true,
             'message' => "Mode {$modeLabel} aktif untuk {$stageLabel}. ESP32 siap merekam scan.",
             'data'    => [
-                'mode'        => $validated['mode'],
+                'mode'        => $mode,
                 'stage'       => $stage,
                 'label'       => $stageLabel,
                 'rfid_mode'   => 'manual',
