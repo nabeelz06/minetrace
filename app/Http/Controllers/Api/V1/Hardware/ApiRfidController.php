@@ -14,17 +14,19 @@ use Illuminate\Support\Facades\Log;
  * ApiRfidController — API endpoint RFID ESP32 + Web UI.
  *
  * ════════════════════════════════════════════════════════════════════
+ * MODE MANUAL — RFID sebagai audit trail saja.
+ *
  * HARDWARE ENDPOINTS (POST body: { uid, stage?, api_token? }):
  *   POST /api/rfid/register   → Link UID ke batch pending (Lab Kimia)
- *   POST /api/rfid/login      → Auto-terima batch di stage (MASUK)
- *   POST /api/rfid/logout     → Catat batch keluar stage (KELUAR)
+ *   POST /api/rfid/login      → Catat Scan IN (audit trail, NO stage move)
+ *   POST /api/rfid/logout     → Catat Scan OUT (audit trail, NO status change)
  *
- * WEB UI ENDPOINTS (session auth Inertia):
+ * WEB UI ENDPOINTS (session auth):
  *   GET    /api/v1/company/rfid/status         → Dashboard status
  *   GET    /api/v1/company/rfid/batches        → Batch belum ter-tag
  *   POST   /api/v1/company/rfid/pending-batch  → Set pending register
  *   DELETE /api/v1/company/rfid/pending-batch  → Cancel pending
- *   POST   /api/v1/company/rfid/set-mode       → Set active mode+stage
+ *   POST   /api/v1/company/rfid/set-mode       → Set scan mode + stage
  *   GET    /api/v1/company/rfid/active-mode    → Cek mode aktif
  *   GET    /api/v1/company/rfid/stages         → Daftar stage tersedia
  *   DELETE /api/v1/company/rfid/batches/{id}/tag → Hapus RFID tag
@@ -32,7 +34,7 @@ use Illuminate\Support\Facades\Log;
  *
  * FORMAT RESPONSE untuk LCD 16×2 ESP32:
  *   name    → LCD baris 1 (max 16 char)
- *   message → LCD baris 2 (max 16 char)
+ *   message → LCD baris 2 (max 16 char): "Scan IN OK" / "Scan OUT OK"
  *   status  → "success" | "failed"
  * ════════════════════════════════════════════════════════════════════
  */
@@ -56,9 +58,7 @@ class ApiRfidController extends Controller
 
     /**
      * REGISTER: Tempel tag RFID ke karung → link ke batch pending.
-     *
      * POST /api/rfid/register
-     * Body: { "uid": "A3B2C1D0", "api_token": "" }
      */
     public function registerCard(Request $request): JsonResponse
     {
@@ -68,7 +68,6 @@ class ApiRfidController extends Controller
             return $this->errorResponse('Token tidak valid', 401);
         }
 
-        // Sanitasi UID (handle spasi dari RC522)
         $request->merge([
             'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
         ]);
@@ -83,14 +82,14 @@ class ApiRfidController extends Controller
     }
 
     /**
-     * LOGIN / CHECKPOINT IN: Scan karung saat MASUK stage.
+     * SCAN IN: Rekam scan masuk area — AUDIT TRAIL ONLY.
      *
-     * PERUBAHAN UTAMA: Batch sekarang AUTO-DIPINDAH ke stage tujuan.
-     * Stage ditentukan dari: body.stage > cache active_mode > batch stage saat ini
+     * ✅ MANUAL MODE: Tidak ada perpindahan stage otomatis.
+     * Hanya mencatat Checkpoint dengan rfid_scan_code.
+     * Operator konfirmasi penerimaan via web panel.
      *
      * POST /api/rfid/login
-     * Body: { "uid": "A3B2C1D0", "stage": "wet_process", "api_token": "" }
-     *       stage opsional — jika tidak ada, dibaca dari cache
+     * Body: { "uid": "A3B2C1D0", "stage": "wet_process" }
      */
     public function loginCard(Request $request): JsonResponse
     {
@@ -106,23 +105,24 @@ class ApiRfidController extends Controller
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
         $companyId = $this->resolveCompanyId($request);
-
-        // Stage dari request body (ESP32 firmware baru)
-        // Jika tidak ada → RfidService akan baca dari cache active_mode
         $scanStage = $request->input('stage');
 
         $result = $this->rfid->checkpointIn($request->uid, $companyId, $scanStage);
 
-        Log::info("RFID /login (IN) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
+        Log::info("RFID /login (SCAN IN, audit only) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
 
         return $this->hardwareResponse($result);
     }
 
     /**
-     * LOGOUT / CHECKPOINT OUT: Scan karung saat KELUAR stage.
+     * SCAN OUT: Rekam scan keluar area — AUDIT TRAIL ONLY.
+     *
+     * ✅ MANUAL MODE: Tidak ada perubahan status batch.
+     * Hanya mencatat Checkpoint dengan rfid_scan_code.
+     * Operator kirim batch ke stage berikutnya via web panel.
      *
      * POST /api/rfid/logout
-     * Body: { "uid": "A3B2C1D0", "stage": "wet_process", "api_token": "" }
+     * Body: { "uid": "A3B2C1D0", "stage": "wet_process" }
      */
     public function logoutCard(Request $request): JsonResponse
     {
@@ -142,12 +142,12 @@ class ApiRfidController extends Controller
 
         $result = $this->rfid->checkpointOut($request->uid, $companyId, $scanStage);
 
-        Log::info("RFID /logout (OUT) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
+        Log::info("RFID /logout (SCAN OUT, audit only) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
 
         return $this->hardwareResponse($result);
     }
 
-    /** ESP32 Boot Config — dipanggil saat ESP32 startup */
+    /** ESP32 Boot Config */
     public function espBootConfig(Request $request): JsonResponse
     {
         $companyId = $this->resolveCompanyId($request);
@@ -164,7 +164,7 @@ class ApiRfidController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // WEB UI ENDPOINTS — Session auth (Inertia.js)
+    // WEB UI ENDPOINTS
     // ═══════════════════════════════════════════════════════════════════
 
     /** Status dashboard RFID */
@@ -175,17 +175,18 @@ class ApiRfidController extends Controller
         return response()->json([
             'success' => true,
             'data'    => [
-                'esp32_ip'       => $this->rfid->getEsp32Ip($companyId),
-                'active_mode'    => $this->rfid->getActiveMode($companyId),
-                'pending_batch'  => $this->rfid->getPendingBatch($companyId),
-                'tagged_batches' => $this->rfid->getTaggedBatches($companyId),
-                'recent_activity'=> $this->rfid->getRecentRfidActivity($companyId),
-                'timestamp_wib'  => now()->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
+                'esp32_ip'        => $this->rfid->getEsp32Ip($companyId),
+                'active_mode'     => $this->rfid->getActiveMode($companyId),
+                'pending_batch'   => $this->rfid->getPendingBatch($companyId),
+                'tagged_batches'  => $this->rfid->getTaggedBatches($companyId),
+                'recent_activity' => $this->rfid->getRecentRfidActivity($companyId),
+                'rfid_mode'       => 'manual',
+                'timestamp_wib'   => now()->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
             ],
         ]);
     }
 
-    /** Daftar batch belum ter-tag (dropdown register) */
+    /** Daftar batch belum ter-tag */
     public function getUntaggedBatches(Request $request): JsonResponse
     {
         $companyId = Auth::user()?->company_id ?? self::DEFAULT_COMPANY_ID;
@@ -196,12 +197,16 @@ class ApiRfidController extends Controller
     }
 
     /**
-     * SET ACTIVE MODE — operator klik Login/Logout mode di web panel.
+     * SET SCAN MODE — Operator set mode + stage di web panel.
      *
-     * FIX: Mode + stage di-cache sehingga ESP32 tahu di stage mana scan terjadi.
+     * Mode digunakan untuk:
+     * - Menampilkan label yang benar di LCD ESP32
+     * - Menentukan checkpoint_stage ENUM untuk audit log
+     *
+     * Mode TIDAK menentukan perpindahan stage batch.
      *
      * POST /api/v1/company/rfid/set-mode
-     * Body: { "mode": "login", "stage": "wet_process" }
+     * Body: { "mode": "scan_in", "stage": "wet_process" }
      */
     public function setActiveMode(Request $request): JsonResponse
     {
@@ -211,7 +216,8 @@ class ApiRfidController extends Controller
         ]), 403, 'Tidak memiliki akses.');
 
         $validated = $request->validate([
-            'mode'  => 'required|string|in:login,logout,register,idle',
+            // scan_in = karung masuk area, scan_out = karung keluar area
+            'mode'  => 'required|string|in:scan_in,scan_out,register,idle',
             'stage' => 'required_unless:mode,idle|nullable|string|in:receiving,wet_process,dry_process,warehouse,project_plant',
         ]);
 
@@ -221,7 +227,7 @@ class ApiRfidController extends Controller
             $this->rfid->clearActiveMode($companyId);
             return response()->json([
                 'success' => true,
-                'message' => 'Mode direset ke idle.',
+                'message' => 'Mode RFID direset ke idle.',
                 'data'    => ['mode' => 'idle', 'stage' => null],
             ]);
         }
@@ -238,18 +244,20 @@ class ApiRfidController extends Controller
         ];
         $stageLabel = $stageLabels[$stage] ?? $stage;
         $modeLabel  = match($validated['mode']) {
-            'login'  => 'LOGIN (Masuk)',
-            'logout' => 'LOGOUT (Keluar)',
-            default  => strtoupper($validated['mode']),
+            'scan_in'  => 'SCAN IN (Karung Masuk)',
+            'scan_out' => 'SCAN OUT (Karung Keluar)',
+            default    => strtoupper($validated['mode']),
         };
 
         return response()->json([
             'success' => true,
-            'message' => "Mode {$modeLabel} aktif untuk {$stageLabel}. ESP32 siap scan.",
+            'message' => "Mode {$modeLabel} aktif untuk {$stageLabel}. ESP32 siap merekam scan.",
             'data'    => [
-                'mode'   => $validated['mode'],
-                'stage'  => $stage,
-                'label'  => $stageLabel,
+                'mode'        => $validated['mode'],
+                'stage'       => $stage,
+                'label'       => $stageLabel,
+                'rfid_mode'   => 'manual',
+                'description' => 'Scan RFID hanya merekam audit trail. Perpindahan stage dilakukan manual via web panel.',
             ],
         ]);
     }
@@ -261,12 +269,13 @@ class ApiRfidController extends Controller
         $activeMode = $this->rfid->getActiveMode($companyId);
 
         return response()->json([
-            'success' => true,
-            'data'    => $activeMode,
+            'success'   => true,
+            'data'      => $activeMode,
+            'rfid_mode' => 'manual',
         ]);
     }
 
-    /** Daftar stage yang tersedia untuk dropdown di Vue */
+    /** Daftar stage tersedia */
     public function getAvailableStages(Request $request): JsonResponse
     {
         return response()->json([
@@ -279,7 +288,8 @@ class ApiRfidController extends Controller
     public function setPendingBatch(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->hasAnyRole([
-            'company_admin', 'operator_lab_station', 'operator_lab_ltj', 'operator_wet',
+            'company_admin', 'operator_lab_station', 'operator_lab_ltj',
+            'operator_wet', 'operator_dry', 'operator_warehouse',
         ]), 403, 'Tidak memiliki akses untuk mendaftarkan RFID tag.');
 
         $validated = $request->validate([
@@ -338,7 +348,9 @@ class ApiRfidController extends Controller
     /** Simpan IP ESP32 */
     public function saveDeviceIp(Request $request): JsonResponse
     {
-        abort_unless(Auth::user()->hasAnyRole(['company_admin', 'operator_lab_station', 'operator_wet']), 403);
+        abort_unless(Auth::user()->hasAnyRole([
+            'company_admin', 'operator_lab_station', 'operator_wet',
+        ]), 403);
 
         $validated = $request->validate(['esp32_ip' => 'required|string|max:100']);
 
