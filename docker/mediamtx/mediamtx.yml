@@ -1,0 +1,141 @@
+# mediamtx.yml — MediaMTX config untuk MINETRA local dev
+# RTSP-to-HLS/WebRTC bridge dengan 3 CCTV simulation stream
+# Image: bluenviron/mediamtx:latest-ffmpeg (ffmpeg built-in)
+
+# ── Ports ──────────────────────────────────────────────────────────────────────
+rtspAddress:    :8554
+rtmpAddress:    :1935
+hlsAddress:     :8888
+webRTCAddress:  :8889
+apiAddress:     :9997
+
+# ── Security ───────────────────────────────────────────────────────────────────
+# Disable auth untuk internal Docker network (local dev only)
+authMethod: none
+
+# ── API ────────────────────────────────────────────────────────────────────────
+api:     yes
+metrics: yes
+metricsAddress: :9998
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+logLevel:        warn
+logDestinations: [stdout]
+
+# ── HLS ────────────────────────────────────────────────────────────────────────
+hls:                yes
+hlsSegmentCount:    3
+hlsSegmentDuration: 1s
+hlsPartDuration:    200ms
+hlsAllowOrigin:     '*'
+hlsEncryption:      no
+
+# ── WebRTC ─────────────────────────────────────────────────────────────────────
+webrtc:            yes
+webrtcIceServers2: []
+
+# ── Camera Paths ───────────────────────────────────────────────────────────────
+paths:
+
+  # ── SIMULATION STREAM 1 — Gate Receiving Area ──────────────────────────────
+  # ffmpeg generates test pattern dengan real-time clock overlay via RTSP push
+  cam_gate1:
+    source:          publisher
+    sourceOnDemand:  no
+    runOnInit: >
+      ffmpeg
+      -f lavfi
+      -i "testsrc2=size=1280x720:rate=15,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+          text='MINETRA CCTV | Gate 1 - Receiving Area':
+          fontsize=28:fontcolor=white:x=10:y=10:
+          box=1:boxcolor=black@0.5:boxborderw=5,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:
+          text='%{localtime\\:%d/%m/%Y %H\\\\:%M\\\\:%S} WIB':
+          fontsize=22:fontcolor=lime:x=10:y=50:
+          box=1:boxcolor=black@0.5:boxborderw=5,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:
+          text='● REC   192.168.0.8':
+          fontsize=18:fontcolor=red:x=w-220:y=10:
+          box=1:boxcolor=black@0.4:boxborderw=4"
+      -c:v libx264
+      -preset ultrafast
+      -tune zerolatency
+      -b:v 800k
+      -maxrate 900k
+      -bufsize 1600k
+      -g 30
+      -f rtsp
+      rtsp://localhost:8554/cam_gate1
+    runOnInitRestart: yes
+
+  # ── SIMULATION STREAM 2 — Wet Process Area ─────────────────────────────────
+  cam_wet:
+    source:          publisher
+    sourceOnDemand:  no
+    runOnInit: >
+      ffmpeg
+      -f lavfi
+      -i "testsrc2=size=1280x720:rate=15,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+          text='MINETRA CCTV | Wet Process Area':
+          fontsize=28:fontcolor=white:x=10:y=10:
+          box=1:boxcolor=black@0.5:boxborderw=5,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:
+          text='%{localtime\\:%d/%m/%Y %H\\\\:%M\\\\:%S} WIB':
+          fontsize=22:fontcolor=lime:x=10:y=50:
+          box=1:boxcolor=black@0.5:boxborderw=5,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:
+          text='● REC   192.168.0.9':
+          fontsize=18:fontcolor=red:x=w-220:y=10:
+          box=1:boxcolor=black@0.4:boxborderw=4"
+      -c:v libx264
+      -preset ultrafast
+      -tune zerolatency
+      -b:v 800k
+      -maxrate 900k
+      -bufsize 1600k
+      -g 30
+      -f rtsp
+      rtsp://localhost:8554/cam_wet
+    runOnInitRestart: yes
+
+  # ── SIMULATION STREAM 3 — LTJ Warehouse ────────────────────────────────────
+  cam_warehouse:
+    source:          publisher
+    sourceOnDemand:  no
+    runOnInit: >
+      ffmpeg
+      -f lavfi
+      -i "testsrc2=size=1280x720:rate=15,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+          text='MINETRA CCTV | LTJ Warehouse':
+          fontsize=28:fontcolor=white:x=10:y=10:
+          box=1:boxcolor=black@0.5:boxborderw=5,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:
+          text='%{localtime\\:%d/%m/%Y %H\\\\:%M\\\\:%S} WIB':
+          fontsize=22:fontcolor=lime:x=10:y=50:
+          box=1:boxcolor=black@0.5:boxborderw=5,
+          drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:
+          text='● REC   192.168.0.10':
+          fontsize=18:fontcolor=red:x=w-220:y=10:
+          box=1:boxcolor=black@0.4:boxborderw=4"
+      -c:v libx264
+      -preset ultrafast
+      -tune zerolatency
+      -b:v 800k
+      -maxrate 900k
+      -bufsize 1600k
+      -g 30
+      -f rtsp
+      rtsp://localhost:8554/cam_warehouse
+    runOnInitRestart: yes
+
+  # ── PRODUCTION — Actual TP-Link Tapo C500 (aktif jika CCTV_USE_REAL=true) ──
+  # Set source ke stream fisik kamera di LAN yang sama
+  cam_gate1_real:
+    source:                       rtsp://admin_minetra:Tapo123!@192.168.0.8/stream2
+    sourceOnDemand:               yes
+    sourceOnDemandStartTimeout:   15s
+    sourceOnDemandCloseAfter:     60s
+    sourceProtocol:               tcp

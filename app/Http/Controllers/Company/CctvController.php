@@ -9,27 +9,39 @@ use App\Models\Checkpoint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CctvController extends Controller
 {
-    public function index(): Response
+    // ═══════════════════════════════════════════════════════════════════════
+    // WEB — Inertia Pages
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Monitor halaman utama CCTV (Inertia).
+     * GET /company/hardware/cctv
+     */
+    public function monitor(): Response
     {
         $companyId = Auth::user()->company_id ?? 1;
+        $useReal   = (bool) env('CCTV_USE_REAL', false);
 
         $cameras = CctvCamera::where('company_id', $companyId)
-            ->where('is_active', true)
+            ->active()
+            ->orderBy('id')
             ->get()
-            ->map(fn($cam) => [
-                'id'          => $cam->id,
-                'name'        => $cam->name,
-                'location_key'=> $cam->location_key,
-                'hls_url'     => $cam->effective_hls_url,
-                'rtsp_url'    => $cam->effective_rtsp_url,
+            ->map(fn ($cam) => [
+                'id'           => $cam->id,
+                'name'         => $cam->name,
+                'location_key' => $cam->location_key,
+                'hls_url'      => $cam->effective_hls_url,
+                'rtsp_url'     => $cam->effective_rtsp_url,
             ]);
 
-        // Jika belum ada kamera di DB, tampilkan satu default dari env
+        // Fallback ke default dari env jika belum ada kamera di DB
         if ($cameras->isEmpty()) {
             $hlsBase = rtrim(config('cctv.hls_base_url', ''), '/');
             if ($hlsBase) {
@@ -37,34 +49,200 @@ class CctvController extends Controller
                     'id'           => null,
                     'name'         => 'CCTV Utama',
                     'location_key' => null,
-                    'hls_url'      => $hlsBase . '/stream.m3u8',
+                    'hls_url'      => $hlsBase . '/cam_gate1/index.m3u8',
                     'rtsp_url'     => config('cctv.rtsp_url', ''),
                 ]]);
             }
         }
 
         return Inertia::render('Company/Hardware/CctvMonitor', [
-            'cameras'       => $cameras,
-            'hls_base_url'  => config('cctv.hls_base_url', ''),
-            'has_cctv'      => $cameras->isNotEmpty(),
+            'cameras'      => $cameras,
+            'hls_base_url' => config('cctv.hls_base_url', ''),
+            'has_cctv'     => $cameras->isNotEmpty(),
+            'simulation'   => !$useReal,
         ]);
     }
 
-    public function snapshot(Request $request, int $cameraId): JsonResponse
+    /**
+     * Settings halaman manajemen kamera (Inertia).
+     * GET /company/hardware/cctv/settings
+     */
+    public function index(): Response
     {
-        $companyId  = Auth::user()->company_id ?? 1;
-        $camera     = CctvCamera::where('company_id', $companyId)->findOrFail($cameraId);
+        $companyId = Auth::user()->company_id ?? 1;
 
-        $checkpointId = $request->input('checkpoint_id');
-        $batchId      = $request->input('batch_id');
+        $cameras = CctvCamera::where('company_id', $companyId)
+            ->orderBy('id')
+            ->get();
 
-        if (!$checkpointId || !$batchId) {
-            return response()->json(['success' => false, 'message' => 'batch_id dan checkpoint_id diperlukan.'], 422);
+        return Inertia::render('Company/Hardware/CctvMonitor', [
+            'cameras'      => $cameras->map(fn ($cam) => [
+                'id'           => $cam->id,
+                'name'         => $cam->name,
+                'location_key' => $cam->location_key,
+                'hls_url'      => $cam->hls_url,
+                'rtsp_url'     => $cam->rtsp_url,
+                'is_active'    => $cam->is_active,
+                'hls_url_effective' => $cam->effective_hls_url,
+            ]),
+            'hls_base_url' => config('cctv.hls_base_url', ''),
+            'has_cctv'     => $cameras->isNotEmpty(),
+            'simulation'   => !(bool) env('CCTV_USE_REAL', false),
+        ]);
+    }
+
+    /**
+     * Simpan kamera baru.
+     * POST /company/hardware/cctv
+     */
+    public function store(Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $validated = $request->validate([
+            'name'         => 'required|string|max:100',
+            'location_key' => 'nullable|string|max:50',
+            'rtsp_url'     => 'nullable|url|max:500',
+            'hls_url'      => 'nullable|url|max:500',
+            'is_active'    => 'boolean',
+        ]);
+
+        CctvCamera::create(array_merge($validated, [
+            'company_id' => Auth::user()->company_id,
+        ]));
+
+        return back()->with('success', 'Kamera CCTV berhasil ditambahkan.');
+    }
+
+    /**
+     * Update kamera.
+     * PUT /company/hardware/cctv/{camera}
+     */
+    public function update(Request $request, CctvCamera $camera): \Illuminate\Http\RedirectResponse
+    {
+        abort_if($camera->company_id !== Auth::user()->company_id, 403);
+
+        $validated = $request->validate([
+            'name'         => 'required|string|max:100',
+            'location_key' => 'nullable|string|max:50',
+            'rtsp_url'     => 'nullable|url|max:500',
+            'hls_url'      => 'nullable|url|max:500',
+            'is_active'    => 'boolean',
+        ]);
+
+        $camera->update($validated);
+
+        return back()->with('success', 'Kamera CCTV berhasil diperbarui.');
+    }
+
+    /**
+     * Hapus kamera.
+     * DELETE /company/hardware/cctv/{camera}
+     */
+    public function destroy(CctvCamera $camera): \Illuminate\Http\RedirectResponse
+    {
+        abort_if($camera->company_id !== Auth::user()->company_id, 403);
+        $camera->delete();
+        return back()->with('success', 'Kamera CCTV berhasil dihapus.');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // API — JSON Endpoints (dipanggil dari CctvMonitor.vue via polling)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Ambil status stream dari MediaMTX API.
+     * GET /api/v1/company/cctv/status
+     */
+    public function streamStatus(): JsonResponse
+    {
+        $apiUrl = rtrim(config('cctv.mediamtx_api', 'http://localhost:9997'), '/');
+
+        try {
+            $response = Http::timeout(3)->get($apiUrl . '/v3/paths/list');
+            if ($response->successful()) {
+                return response()->json([
+                    'success'    => true,
+                    'mediamtx'   => 'online',
+                    'simulation' => !(bool) env('CCTV_USE_REAL', false),
+                    'paths'      => $response->json('items', []),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::debug('CctvController::streamStatus — MediaMTX tidak terjangkau.', ['error' => $e->getMessage()]);
         }
 
-        $checkpoint = Checkpoint::findOrFail((int) $checkpointId);
+        return response()->json([
+            'success'    => false,
+            'mediamtx'   => 'offline',
+            'simulation' => !(bool) env('CCTV_USE_REAL', false),
+            'paths'      => [],
+        ]);
+    }
 
-        CaptureCctvSnapshotJob::dispatch((int) $batchId, (int) $checkpointId, 'manual_trigger');
+    /**
+     * Ambil 5 snapshot CCTV terbaru dari RFID scan.
+     * GET /api/v1/company/cctv/recent-snapshots
+     *
+     * Response: [{ id, batch_code, stage, camera_name, photo_url, captured_at, rfid_uid, scan_type }]
+     */
+    public function recentSnapshots(): JsonResponse
+    {
+        $companyId = Auth::user()->company_id ?? 1;
+
+        $checkpoints = Checkpoint::with(['batch.productCode'])
+            ->whereHas('batch', fn ($q) => $q->where('company_id', $companyId))
+            ->whereNotNull('photos')
+            ->where('photos', '!=', '[]')
+            ->whereNotNull('rfid_scan_code')
+            ->latest('recorded_at')
+            ->limit(30)
+            ->get();
+
+        $snapshots = $checkpoints
+            ->flatMap(function ($cp) {
+                $photos = $cp->photos ?? [];
+                return collect($photos)
+                    ->filter(fn ($p) => is_array($p) && isset($p['type']))
+                    ->filter(fn ($p) => in_array($p['type'], ['rfid_snapshot', 'departure_snapshot']))
+                    ->map(fn ($photo) => [
+                        'id'           => $cp->id,
+                        'batch_code'   => $cp->batch?->batch_code ?? '—',
+                        'stage'        => $photo['stage'] ?? $cp->checkpoint_data['scan_stage'] ?? null,
+                        'camera_name'  => $photo['camera_name'] ?? 'CCTV',
+                        'photo_url'    => $photo['url'] ?? null,
+                        'captured_at'  => $photo['captured_at'] ?? null,
+                        'rfid_uid'     => $photo['rfid_uid'] ?? $cp->rfid_scan_code,
+                        'scan_type'    => $photo['scan_type'] ?? 'scan_in',
+                        'filesize_kb'  => $photo['filesize_kb'] ?? null,
+                    ]);
+            })
+            ->take(5)
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $snapshots,
+        ]);
+    }
+
+    /**
+     * Trigger snapshot manual untuk checkpoint tertentu.
+     * POST /api/v1/company/cctv/cameras/{id}/snapshot
+     */
+    public function snapshot(Request $request, int $cameraId): JsonResponse
+    {
+        $companyId = Auth::user()->company_id ?? 1;
+        $camera    = CctvCamera::where('company_id', $companyId)->findOrFail($cameraId);
+
+        $validated = $request->validate([
+            'checkpoint_id' => 'required|integer|exists:checkpoints,id',
+        ]);
+
+        dispatch(new CaptureCctvSnapshotJob(
+            checkpointId: (int) $validated['checkpoint_id'],
+            companyId:    $companyId,
+            stageName:    $camera->location_key,
+            scanType:     'manual_trigger',
+        ))->onQueue(config('cctv.queue', 'default'));
 
         return response()->json([
             'success' => true,

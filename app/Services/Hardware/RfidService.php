@@ -680,6 +680,8 @@ class RfidService
                 'stage'            => $cp->checkpoint_stage,
                 'scan_stage'       => $cp->checkpoint_data['scan_stage'] ?? null,
                 'is_verified'      => $cp->is_verified,
+                'has_snapshot'     => $cp->checkpoint_data['snapshot_captured'] ?? false,
+                'snapshot_at'      => $cp->checkpoint_data['snapshot_at'] ?? null,
                 'weight_kg'        => (float) ($cp->weight_recorded ?? 0),
                 'recorded_at'      => $cp->recorded_at?->timezone(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
                 'recorded_at_diff' => $cp->recorded_at?->diffForHumans(),

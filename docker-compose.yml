@@ -1,135 +1,78 @@
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
+# docker-compose.yml — LOCAL DEVELOPMENT ONLY
+# Untuk VPS/production gunakan docker-compose.prod.yml
+# WSL2 Ubuntu / macOS + Docker Desktop
+#
+# Services: postgres + redis + mediamtx (CCTV simulation stream)
+# Laravel app server + queue worker dijalankan langsung di host: php artisan serve
 
-networks:
-  minetra_network:
-    driver: bridge
+version: '3.8'
 
 services:
 
-  app:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-      args:
-        USER_ID: 1000
-        GROUP_ID: 1000
-    container_name: minetra_app
-    restart: unless-stopped
-    working_dir: /var/www/html
-    volumes:
-      - .:/var/www/html
-      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
-    env_file:
-      - .env
-    networks:
-      - minetra_network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: minetra_nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - .:/var/www/html
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
-    networks:
-      - minetra_network
-    depends_on:
-      - app
-
+  # ─── PostgreSQL 15 — sama versi dengan production ─────────────────────────
   postgres:
     image: postgres:15-alpine
-    container_name: minetra_postgres
+    container_name: minetra_postgres_local
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       minetra_local
+      POSTGRES_USER:     minetra
+      POSTGRES_PASSWORD: minetra_local_pass
+    ports:
+      - '5432:5432'
+    volumes:
+      - minetra_pg_local:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U minetra -d minetra_local']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - minetra-local
+
+  # ─── Redis 7 — cache, queue, sessions ────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: minetra_redis_local
     restart: unless-stopped
     ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: minetra_master
-      POSTGRES_USER: minetra_user
-      POSTGRES_PASSWORD: secret123
-      PGDATA: /var/lib/postgresql/data/pgdata
+      - '6379:6379'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init:/docker-entrypoint-initdb.d
-    networks:
-      - minetra_network
+      - minetra_redis_local:/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U minetra_user -d minetra_master"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
-      timeout: 5s
+      timeout: 3s
       retries: 5
-
-  redis:
-    image: redis:7.2-alpine
-    container_name: minetra_redis
-    restart: unless-stopped
-    command: redis-server --requirepass redis123 --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
     networks:
-      - minetra_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "redis123", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - minetra-local
 
-  queue:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-      args:
-        USER_ID: 1000
-        GROUP_ID: 1000
-    container_name: minetra_queue
+  # ─── MediaMTX — RTSP-to-HLS bridge + CCTV simulation stream ─────────────
+  # bluenviron/mediamtx:latest-ffmpeg sudah include ffmpeg built-in
+  # Generates 3 test pattern streams (cam_gate1, cam_wet, cam_warehouse)
+  # HLS: http://localhost:8888/{stream}/index.m3u8
+  # API: http://localhost:9997/v3/paths/list
+  mediamtx:
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: minetra_mediamtx_local
     restart: unless-stopped
-    working_dir: /var/www/html
+    ports:
+      - '8554:8554'   # RTSP (untuk ffmpeg snapshot di job)
+      - '8888:8888'   # HLS (diakses browser di CctvMonitor.vue)
+      - '8889:8889'   # WebRTC (optional)
+      - '9997:9997'   # MediaMTX REST API (stream status)
     volumes:
-      - .:/var/www/html
-      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
-    env_file:
-      - .env
-    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=90
+      - ./docker/mediamtx/mediamtx.yml:/mediamtx.yml:ro
     networks:
-      - minetra_network
-    depends_on:
-      - app
-      - redis
+      - minetra-local
 
-  scheduler:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-      args:
-        USER_ID: 1000
-        GROUP_ID: 1000
-    container_name: minetra_scheduler
-    restart: unless-stopped
-    working_dir: /var/www/html
-    volumes:
-      - .:/var/www/html
-      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
-    env_file:
-      - .env
-    command: >
-      sh -c "while true; do
-        php artisan schedule:run --verbose --no-interaction;
-        sleep 60;
-      done"
-    networks:
-      - minetra_network
-    depends_on:
-      - app
-      - postgres
-      - redis
+volumes:
+  minetra_pg_local:
+    driver: local
+  minetra_redis_local:
+    driver: local
+
+networks:
+  minetra-local:
+    driver: bridge

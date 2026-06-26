@@ -5,35 +5,98 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import Hls from 'hls.js'
 
 const props = defineProps({
-    cameras:      { type: Array,  default: () => [] },
-    hls_base_url: { type: String, default: '' },
+    cameras:      { type: Array,   default: () => [] },
+    hls_base_url: { type: String,  default: '' },
     has_cctv:     { type: Boolean, default: false },
+    simulation:   { type: Boolean, default: false },
 })
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const activeCam     = ref(props.cameras[0] ?? null)
-const videoEl       = ref(null)
-const hlsInstance   = ref(null)
-const streamStatus  = ref('idle')   // idle | loading | playing | error
-const streamError   = ref('')
-const isFullscreen  = ref(false)
-const showGrid      = ref(props.cameras.length > 1)
-const currentTime   = ref('')
+const activeCam    = ref(props.cameras[0] ?? null)
+const videoEl      = ref(null)
+const hlsInstance  = ref(null)
+const streamStatus = ref('idle')   // idle | loading | playing | error
+const streamError  = ref('')
+const isFullscreen = ref(false)
+const showGrid     = ref(props.cameras.length > 1)
+const currentTime  = ref('')
+
+// ─── Recent Snapshots (RFID-CCTV synergy) ────────────────────────────────────
+const recentSnapshots = ref([])
+const snapshotToast   = ref(null)   // { message } saat RFID snapshot diambil
+const lightboxPhoto   = ref(null)   // URL foto fullscreen
 
 // ─── Clock ────────────────────────────────────────────────────────────────────
-let clockTimer = null
+let clockTimer     = null
+let snapshotTimer  = null
+
 onMounted(() => {
     clockTimer = setInterval(() => {
         currentTime.value = new Date().toLocaleTimeString('id-ID', {
             hour: '2-digit', minute: '2-digit', second: '2-digit',
         })
     }, 1000)
+
     if (activeCam.value) nextTick(() => initStream(activeCam.value))
+
+    fetchRecentSnapshots()
+    snapshotTimer = setInterval(fetchRecentSnapshots, 10_000)
 })
+
 onUnmounted(() => {
     clearInterval(clockTimer)
+    clearInterval(snapshotTimer)
     destroyHls()
 })
+
+// ─── Recent Snapshots API ─────────────────────────────────────────────────────
+async function fetchRecentSnapshots() {
+    try {
+        const res  = await fetch('/api/v1/company/cctv/recent-snapshots', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        const json = await res.json()
+        if (json.success && Array.isArray(json.data)) {
+            const prevCount = recentSnapshots.value.length
+            recentSnapshots.value = json.data
+
+            // Tunjukkan toast jika ada snapshot baru sejak polling terakhir
+            if (prevCount > 0 && json.data.length > prevCount) {
+                showSnapshotToast('📸 Snapshot CCTV baru dari RFID scan')
+            }
+        }
+    } catch (_) {
+        // Gagal silent — mediamtx mungkin belum ready
+    }
+}
+
+function showSnapshotToast(message) {
+    snapshotToast.value = { message }
+    setTimeout(() => { snapshotToast.value = null }, 4000)
+}
+
+function openLightbox(url) {
+    if (url) lightboxPhoto.value = url
+}
+
+function closeLightbox() {
+    lightboxPhoto.value = null
+}
+
+// ─── Scan type helpers ────────────────────────────────────────────────────────
+function scanTypeLabel(type) {
+    if (type === 'scan_out' || type === 'departure_snapshot') return 'SCAN OUT'
+    if (type === 'manual_trigger') return 'MANUAL'
+    return 'SCAN IN'
+}
+
+function scanTypeColor(type) {
+    if (type === 'scan_out' || type === 'departure_snapshot')
+        return 'text-amber-400 border-amber-500/30 bg-amber-500/10'
+    if (type === 'manual_trigger')
+        return 'text-purple-400 border-purple-500/30 bg-purple-500/10'
+    return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
+}
 
 // ─── HLS stream ───────────────────────────────────────────────────────────────
 function destroyHls() {
@@ -59,9 +122,9 @@ function initStream(camera) {
 
     if (Hls.isSupported()) {
         const hls = new Hls({
-            enableWorker:       true,
-            lowLatencyMode:     true,
-            backBufferLength:   10,
+            enableWorker:   true,
+            lowLatencyMode: true,
+            backBufferLength: 10,
         })
         hlsInstance.value = hls
         hls.loadSource(camera.hls_url)
@@ -80,7 +143,6 @@ function initStream(camera) {
             }
         })
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari native HLS
         video.src = camera.hls_url
         video.addEventListener('loadedmetadata', () => {
             video.play().catch(() => {})
@@ -139,13 +201,36 @@ const statusLabel = computed(() => ({
         <Head title="CCTV Monitor" />
         <template #header>CCTV Monitor</template>
 
+        <!-- ─── Lightbox Modal ─────────────────────────────────────────────── -->
+        <Transition name="fade">
+            <div v-if="lightboxPhoto"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+                @click.self="closeLightbox">
+                <div class="relative max-w-5xl max-h-[90vh] w-full mx-4">
+                    <button @click="closeLightbox"
+                        class="absolute -top-10 right-0 text-white/70 hover:text-white text-sm font-medium">
+                        ✕ Tutup
+                    </button>
+                    <img :src="lightboxPhoto" class="w-full h-auto rounded-xl object-contain max-h-[85vh]" alt="CCTV Snapshot" />
+                </div>
+            </div>
+        </Transition>
+
+        <!-- ─── RFID Snapshot Toast ────────────────────────────────────────── -->
+        <Transition name="toast">
+            <div v-if="snapshotToast"
+                class="fixed bottom-6 right-6 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl border border-sky-500/30 bg-gray-900 shadow-2xl">
+                <span class="text-sky-400 text-lg">📹</span>
+                <p class="text-sm font-semibold text-white">{{ snapshotToast.message }}</p>
+            </div>
+        </Transition>
+
         <!-- ─── Dark Command Center Shell ──────────────────────────────────── -->
         <div class="min-h-screen bg-gray-950 text-gray-100 rounded-2xl overflow-hidden border border-gray-800">
 
             <!-- ─── Top Bar ──────────────────────────────────────────────── -->
             <div class="flex items-center justify-between px-5 py-3 bg-gray-900 border-b border-gray-800">
                 <div class="flex items-center gap-3">
-                    <!-- Camera Icon -->
                     <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-sky-600/20 border border-sky-500/30">
                         <svg class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round"
@@ -154,11 +239,18 @@ const statusLabel = computed(() => ({
                     </div>
                     <div>
                         <p class="text-sm font-bold text-white tracking-wide">CCTV Monitor</p>
-                        <p class="text-xs text-gray-500">TP-Link Tapo C500 · MediaMTX HLS</p>
+                        <p class="text-xs text-gray-500">TP-Link Tapo C500 · MediaMTX HLS · RFID Synergy</p>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <!-- Simulation mode badge -->
+                    <div v-if="simulation"
+                        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-violet-500/30 bg-violet-500/10">
+                        <span class="text-xs">🎮</span>
+                        <span class="text-xs font-bold text-violet-400 tracking-wide">SIMULATION</span>
+                    </div>
+
                     <!-- Live clock -->
                     <div class="hidden sm:flex items-center gap-1.5 text-xs font-mono text-gray-400">
                         <div class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
@@ -194,15 +286,15 @@ const statusLabel = computed(() => ({
             </div>
 
             <!-- ─── Main Content ─────────────────────────────────────────── -->
-            <div v-else class="flex gap-0">
+            <div v-else class="flex flex-col lg:flex-row gap-0">
 
                 <!-- ─── Camera Sidebar ─────────────────────────────────── -->
                 <div v-if="cameras.length > 1"
-                    class="w-44 flex-shrink-0 border-r border-gray-800 bg-gray-900/50">
+                    class="w-full lg:w-44 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-gray-800 bg-gray-900/50">
                     <p class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-widest">
                         Kamera
                     </p>
-                    <div class="space-y-0.5 px-2 pb-4">
+                    <div class="flex lg:flex-col gap-1 px-2 pb-3 overflow-x-auto lg:overflow-x-visible">
                         <button
                             v-for="cam in cameras"
                             :key="cam.id ?? cam.name"
@@ -210,151 +302,243 @@ const statusLabel = computed(() => ({
                             :class="activeCam?.id === cam.id
                                 ? 'bg-sky-600/20 border-sky-500/50 text-white'
                                 : 'border-transparent text-gray-400 hover:bg-gray-800 hover:text-gray-200'"
-                            class="w-full text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150"
+                            class="flex-shrink-0 lg:w-full text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150"
                         >
                             <div class="flex items-center gap-2">
                                 <div class="w-1.5 h-1.5 rounded-full flex-shrink-0"
                                     :class="activeCam?.id === cam.id ? 'bg-emerald-400 animate-pulse' : 'bg-gray-600'" />
                                 <span class="truncate">{{ cam.name }}</span>
                             </div>
-                            <p v-if="cam.location_key" class="mt-0.5 pl-3.5 text-gray-600 text-xs truncate">
+                            <p v-if="cam.location_key" class="mt-0.5 pl-3.5 text-gray-600 text-xs truncate hidden lg:block">
                                 {{ cam.location_key.replace(/_/g, ' ') }}
                             </p>
                         </button>
                     </div>
                 </div>
 
-                <!-- ─── Video Grid / Single View ───────────────────────── -->
-                <div class="flex-1 p-4">
+                <!-- ─── Video + Snapshots ──────────────────────────────── -->
+                <div class="flex-1 flex flex-col lg:flex-row min-w-0">
 
-                    <!-- Single focused stream -->
-                    <div class="space-y-3">
-                        <!-- Camera label + status -->
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <div :class="statusDot" class="w-2 h-2 rounded-full" />
-                                <span class="text-sm font-semibold text-white">
-                                    {{ activeCam?.name ?? 'CCTV Utama' }}
-                                </span>
-                                <span class="text-xs px-2 py-0.5 rounded-full font-mono font-bold tracking-wider"
-                                    :class="{
-                                        'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30': streamStatus === 'playing',
-                                        'bg-amber-500/20 text-amber-400 border border-amber-500/30':   streamStatus === 'loading',
-                                        'bg-red-500/20 text-red-400 border border-red-500/30':         streamStatus === 'error',
-                                        'bg-gray-700 text-gray-500 border border-gray-700':            streamStatus === 'idle',
-                                    }">
-                                    {{ statusLabel }}
-                                </span>
-                            </div>
-                            <!-- Fullscreen button -->
-                            <button @click="toggleFullscreen"
-                                class="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 text-xs transition-colors">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                                </svg>
-                                Fullscreen
-                            </button>
-                        </div>
-
-                        <!-- Video element -->
-                        <div class="relative rounded-xl overflow-hidden bg-black border border-gray-800 aspect-video">
-                            <video
-                                ref="videoEl"
-                                class="w-full h-full object-contain"
-                                controls
-                                muted
-                                autoplay
-                                playsinline
-                            />
-
-                            <!-- Loading overlay -->
-                            <div v-if="streamStatus === 'loading'"
-                                class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/80 gap-3">
-                                <div class="w-10 h-10 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
-                                <p class="text-xs text-gray-400">Menghubungkan ke stream...</p>
-                            </div>
-
-                            <!-- Error overlay -->
-                            <div v-if="streamStatus === 'error'"
-                                class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/90 gap-4">
-                                <div class="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center">
-                                    <svg class="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <!-- ─── Video Area ─────────────────────────────────── -->
+                    <div class="flex-1 p-4">
+                        <div class="space-y-3">
+                            <!-- Camera label + status -->
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div :class="statusDot" class="w-2 h-2 rounded-full" />
+                                    <span class="text-sm font-semibold text-white">
+                                        {{ activeCam?.name ?? 'CCTV Utama' }}
+                                    </span>
+                                    <span class="text-xs px-2 py-0.5 rounded-full font-mono font-bold tracking-wider"
+                                        :class="{
+                                            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30': streamStatus === 'playing',
+                                            'bg-amber-500/20 text-amber-400 border border-amber-500/30':   streamStatus === 'loading',
+                                            'bg-red-500/20 text-red-400 border border-red-500/30':         streamStatus === 'error',
+                                            'bg-gray-700 text-gray-500 border border-gray-700':            streamStatus === 'idle',
+                                        }">
+                                        {{ statusLabel }}
+                                    </span>
+                                </div>
+                                <button @click="toggleFullscreen"
+                                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 text-xs transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                                            d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                                     </svg>
-                                </div>
-                                <div class="text-center">
-                                    <p class="text-sm font-semibold text-red-400">Stream Tidak Tersedia</p>
-                                    <p class="text-xs text-gray-500 mt-1">{{ streamError || 'Periksa koneksi mediamtx.' }}</p>
-                                </div>
-                                <button @click="retryStream"
-                                    class="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors">
-                                    Coba Lagi
+                                    Fullscreen
                                 </button>
                             </div>
 
-                            <!-- Idle overlay -->
-                            <div v-if="streamStatus === 'idle'"
-                                class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950 gap-4">
-                                <div class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center">
-                                    <svg class="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-                                    </svg>
+                            <!-- Video element -->
+                            <div class="relative rounded-xl overflow-hidden bg-black border border-gray-800 aspect-video">
+                                <video
+                                    ref="videoEl"
+                                    class="w-full h-full object-contain"
+                                    controls
+                                    muted
+                                    autoplay
+                                    playsinline
+                                />
+
+                                <!-- Loading overlay -->
+                                <div v-if="streamStatus === 'loading'"
+                                    class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/80 gap-3">
+                                    <div class="w-10 h-10 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+                                    <p class="text-xs text-gray-400">Menghubungkan ke stream...</p>
                                 </div>
-                                <p class="text-xs text-gray-500">Pilih kamera untuk memulai stream</p>
+
+                                <!-- Error overlay -->
+                                <div v-if="streamStatus === 'error'"
+                                    class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/90 gap-4">
+                                    <div class="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                                        </svg>
+                                    </div>
+                                    <div class="text-center">
+                                        <p class="text-sm font-semibold text-red-400">Stream Tidak Tersedia</p>
+                                        <p class="text-xs text-gray-500 mt-1">{{ streamError || 'Periksa koneksi mediamtx.' }}</p>
+                                    </div>
+                                    <button @click="retryStream"
+                                        class="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors">
+                                        Coba Lagi
+                                    </button>
+                                </div>
+
+                                <!-- Idle overlay -->
+                                <div v-if="streamStatus === 'idle'"
+                                    class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950 gap-4">
+                                    <div class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                                        </svg>
+                                    </div>
+                                    <p class="text-xs text-gray-500">Pilih kamera untuk memulai stream</p>
+                                </div>
+
+                                <!-- LIVE watermark -->
+                                <div v-if="streamStatus === 'playing'"
+                                    class="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                    <span class="text-xs font-bold text-white tracking-widest">LIVE</span>
+                                </div>
+
+                                <!-- Simulation mode watermark -->
+                                <div v-if="simulation && streamStatus === 'playing'"
+                                    class="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded bg-violet-600/60 backdrop-blur-sm">
+                                    <span class="text-xs">🎮</span>
+                                    <span class="text-xs font-bold text-white">SIM</span>
+                                </div>
                             </div>
 
-                            <!-- LIVE watermark -->
-                            <div v-if="streamStatus === 'playing'"
-                                class="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm">
-                                <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                <span class="text-xs font-bold text-white tracking-widest">LIVE</span>
+                            <!-- Stream info bar -->
+                            <div v-if="activeCam?.hls_url" class="flex items-center gap-2 text-xs text-gray-600 font-mono">
+                                <svg class="w-3 h-3 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                                </svg>
+                                <span class="truncate max-w-xs">{{ activeCam.hls_url }}</span>
                             </div>
-
-                            <!-- Scan/snapshot indicator overlay (future) -->
                         </div>
 
-                        <!-- Stream info bar -->
-                        <div v-if="activeCam?.hls_url" class="flex items-center gap-2 text-xs text-gray-600 font-mono">
-                            <svg class="w-3 h-3 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                            </svg>
-                            <span class="truncate max-w-xs">{{ activeCam.hls_url }}</span>
+                        <!-- Grid view (all cameras, small) -->
+                        <div v-if="showGrid && cameras.length > 1" class="mt-6">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+                                Semua Kamera
+                            </p>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                <button
+                                    v-for="cam in cameras"
+                                    :key="cam.id ?? cam.name"
+                                    @click="selectCamera(cam)"
+                                    :class="activeCam?.id === cam.id
+                                        ? 'border-sky-500/60 bg-sky-600/10'
+                                        : 'border-gray-800 bg-gray-900 hover:border-gray-700'"
+                                    class="relative rounded-lg border overflow-hidden aspect-video transition-all duration-150 group"
+                                >
+                                    <div class="absolute inset-0 flex flex-col items-center justify-center gap-1">
+                                        <svg class="w-5 h-5 text-gray-700 group-hover:text-gray-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                                        </svg>
+                                        <span class="text-xs text-gray-600 font-medium truncate px-2">{{ cam.name }}</span>
+                                    </div>
+                                    <div v-if="activeCam?.id === cam.id"
+                                        class="absolute top-1 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60">
+                                        <div class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                                        <span class="text-xs text-emerald-400 font-bold">LIVE</span>
+                                    </div>
+                                </button>
+                            </div>
                         </div>
-
                     </div>
 
-                    <!-- Grid view (all cameras, small) -->
-                    <div v-if="showGrid && cameras.length > 1" class="mt-6">
-                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                            Semua Kamera
-                        </p>
-                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            <button
-                                v-for="cam in cameras"
-                                :key="cam.id ?? cam.name"
-                                @click="selectCamera(cam)"
-                                :class="activeCam?.id === cam.id
-                                    ? 'border-sky-500/60 bg-sky-600/10'
-                                    : 'border-gray-800 bg-gray-900 hover:border-gray-700'"
-                                class="relative rounded-lg border overflow-hidden aspect-video transition-all duration-150 group"
+                    <!-- ─── Recent RFID Snapshots Panel ────────────────── -->
+                    <div class="w-full lg:w-56 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-gray-800 bg-gray-900/40 flex flex-col">
+                        <div class="px-3 py-2.5 border-b border-gray-800 flex items-center justify-between">
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+                                Snapshot RFID
+                            </p>
+                            <div class="flex items-center gap-1">
+                                <div class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                                <span class="text-xs text-gray-600">Live</span>
+                            </div>
+                        </div>
+
+                        <!-- Snapshot list -->
+                        <div class="flex-1 overflow-y-auto p-2 space-y-2">
+                            <!-- Empty state -->
+                            <div v-if="recentSnapshots.length === 0"
+                                class="flex flex-col items-center justify-center py-8 gap-2 text-center">
+                                <div class="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center">
+                                    <span class="text-lg">📷</span>
+                                </div>
+                                <p class="text-xs text-gray-600 leading-relaxed">
+                                    Belum ada snapshot.<br>
+                                    Akan muncul setelah RFID scan.
+                                </p>
+                            </div>
+
+                            <!-- Snapshot thumbnails -->
+                            <div
+                                v-for="snap in recentSnapshots"
+                                :key="snap.id + '-' + snap.captured_at"
+                                class="rounded-lg overflow-hidden border border-gray-800 hover:border-gray-700 transition-colors cursor-pointer group"
+                                @click="openLightbox(snap.photo_url)"
                             >
-                                <div class="absolute inset-0 flex flex-col items-center justify-center gap-1">
-                                    <svg class="w-5 h-5 text-gray-700 group-hover:text-gray-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-                                    </svg>
-                                    <span class="text-xs text-gray-600 font-medium truncate px-2">{{ cam.name }}</span>
+                                <!-- Thumbnail -->
+                                <div class="aspect-video bg-gray-900 relative overflow-hidden">
+                                    <img
+                                        v-if="snap.photo_url"
+                                        :src="snap.photo_url"
+                                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                        :alt="snap.camera_name"
+                                        loading="lazy"
+                                    />
+                                    <div v-else class="absolute inset-0 flex items-center justify-center">
+                                        <span class="text-2xl">📸</span>
+                                    </div>
+
+                                    <!-- Scan type badge -->
+                                    <div class="absolute top-1 left-1">
+                                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border"
+                                            :class="scanTypeColor(snap.scan_type)">
+                                            {{ scanTypeLabel(snap.scan_type) }}
+                                        </span>
+                                    </div>
+
+                                    <!-- Zoom hint -->
+                                    <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+                                        <span class="text-xs text-white font-semibold">🔍 Lihat</span>
+                                    </div>
                                 </div>
-                                <div v-if="activeCam?.id === cam.id"
-                                    class="absolute top-1 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60">
-                                    <div class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                                    <span class="text-xs text-emerald-400 font-bold">LIVE</span>
+
+                                <!-- Info -->
+                                <div class="p-2 space-y-1">
+                                    <p class="text-xs font-bold text-white truncate">{{ snap.batch_code }}</p>
+                                    <p class="text-[10px] text-gray-500 truncate">{{ snap.camera_name }}</p>
+                                    <div class="flex items-center justify-between">
+                                        <span v-if="snap.stage"
+                                            class="text-[9px] text-sky-400 font-medium">
+                                            {{ snap.stage.replace(/_/g, ' ') }}
+                                        </span>
+                                        <span class="text-[9px] text-gray-600 font-mono">
+                                            {{ snap.captured_at?.split(' ')[1]?.substring(0, 5) ?? '—' }}
+                                        </span>
+                                    </div>
+                                    <p v-if="snap.rfid_uid"
+                                        class="text-[9px] font-mono text-gray-600 truncate">
+                                        UID: {{ snap.rfid_uid }}
+                                    </p>
                                 </div>
-                            </button>
+                            </div>
+                        </div>
+
+                        <!-- Panel footer -->
+                        <div class="px-3 py-2 border-t border-gray-800 text-center">
+                            <p class="text-[9px] text-gray-700">Auto-refresh setiap 10 detik</p>
                         </div>
                     </div>
                 </div>
@@ -362,9 +546,22 @@ const statusLabel = computed(() => ({
 
             <!-- ─── Footer ───────────────────────────────────────────────── -->
             <div class="px-5 py-2.5 bg-gray-900/70 border-t border-gray-800 flex items-center justify-between text-xs text-gray-600">
-                <span>TP-Link Tapo C500 · MediaMTX HLS · Snapshot via ffmpeg</span>
-                <span class="font-mono">{{ cameras.length }} kamera terdaftar</span>
+                <span class="flex items-center gap-2">
+                    <span v-if="simulation" class="text-violet-500">🎮 Simulation Mode Active</span>
+                    <span v-else>TP-Link Tapo C500 · MediaMTX HLS · Snapshot via ffmpeg</span>
+                </span>
+                <span class="font-mono">{{ cameras.length }} kamera · {{ recentSnapshots.length }} snapshot</span>
             </div>
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to       { opacity: 0; }
+
+.toast-enter-active { transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.toast-leave-active { transition: all 0.18s ease; }
+.toast-enter-from   { opacity: 0; transform: translateY(20px) scale(0.9); }
+.toast-leave-to     { opacity: 0; transform: translateY(10px); }
+</style>

@@ -157,6 +157,27 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     | URL pattern: /api/v1/company/rfid/...
     |──────────────────────────────────────────────────────────────────────
     */
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2D. CCTV WEB UI ENDPOINTS
+    // Dipanggil dari CctvMonitor.vue — menggunakan session cookie (web guard)
+    // ─────────────────────────────────────────────────────────────────────────
+    Route::middleware(['web', 'auth'])
+        ->prefix('company/cctv')
+        ->name('company.cctv.')
+        ->group(function () {
+            // Status stream dari MediaMTX API
+            Route::get('status', [\App\Http\Controllers\Company\CctvController::class, 'streamStatus'])
+                ->name('status');
+
+            // 5 snapshot CCTV terbaru dari RFID scan
+            Route::get('recent-snapshots', [\App\Http\Controllers\Company\CctvController::class, 'recentSnapshots'])
+                ->name('recent-snapshots');
+
+            // Trigger snapshot manual via kamera tertentu
+            Route::post('cameras/{id}/snapshot', [\App\Http\Controllers\Company\CctvController::class, 'snapshot'])
+                ->name('cameras.snapshot');
+        });
+
     Route::middleware(['web', 'auth'])
         ->prefix('company/rfid')
         ->name('company.rfid.')

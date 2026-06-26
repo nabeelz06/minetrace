@@ -237,12 +237,23 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
         // ─────────────────────────────────────────────────────────────────────
         Route::middleware('role:company_admin|operator_lab_station|operator_lab_ltj|operator_wet|operator_dry|operator_warehouse|company_auditor')
             ->group(function () {
-                Route::get('/hardware', [\App\Http\Controllers\Company\HardwareController::class, 'index']);
+                Route::get('/hardware', [HardwareController::class, 'index']);
                 Route::get('hardware/rfid', [HardwareController::class, 'rfidPanel'])
                     ->name('hardware.rfid');
-                Route::get('hardware/cctv', [CctvController::class, 'index'])
+
+                // CCTV Monitor — semua hardware roles boleh lihat
+                Route::get('hardware/cctv', [CctvController::class, 'monitor'])
                     ->name('hardware.cctv');
-                Route::post('hardware/cctv/{camera}/snapshot', [CctvController::class, 'snapshot'])
-                    ->name('hardware.cctv.snapshot');
+            });
+
+        // CCTV Settings & CRUD — company_admin only
+        Route::middleware('role:company_admin')
+            ->prefix('hardware/cctv')
+            ->name('hardware.cctv.')
+            ->group(function () {
+                Route::get('settings',            [CctvController::class, 'index'])->name('settings');
+                Route::post('/',                  [CctvController::class, 'store'])->name('store');
+                Route::put('{camera}',            [CctvController::class, 'update'])->name('update');
+                Route::delete('{camera}',         [CctvController::class, 'destroy'])->name('destroy');
             });
     });

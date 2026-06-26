@@ -115,10 +115,19 @@ class ApiRfidController extends Controller
 
         if ($result['status'] === 'success' && !empty($result['batch_id'])) {
             $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
-                ->latest('id')->value('id');
+                ->whereNotNull('rfid_scan_code')
+                ->latest('recorded_at')
+                ->first();
+
             if ($checkpoint) {
-                CaptureCctvSnapshotJob::dispatch($result['batch_id'], $checkpoint, 'rfid_scan_in')
-                    ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
+                dispatch(new CaptureCctvSnapshotJob(
+                    checkpointId: $checkpoint->id,
+                    companyId:    $companyId,
+                    stageName:    $result['scan_stage'] ?? null,
+                    scanType:     'scan_in',
+                    rfidUid:      $request->uid,
+                ))->onQueue(config('cctv.queue', 'default'))
+                  ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
             }
         }
 
@@ -157,10 +166,19 @@ class ApiRfidController extends Controller
 
         if ($result['status'] === 'success' && !empty($result['batch_id'])) {
             $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
-                ->latest('id')->value('id');
+                ->whereNotNull('rfid_scan_code')
+                ->latest('recorded_at')
+                ->first();
+
             if ($checkpoint) {
-                CaptureCctvSnapshotJob::dispatch($result['batch_id'], $checkpoint, 'rfid_scan_out')
-                    ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
+                dispatch(new CaptureCctvSnapshotJob(
+                    checkpointId: $checkpoint->id,
+                    companyId:    $companyId,
+                    stageName:    $result['scan_stage'] ?? null,
+                    scanType:     'scan_out',
+                    rfidUid:      $request->uid,
+                ))->onQueue(config('cctv.queue', 'default'))
+                  ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
             }
         }
 
