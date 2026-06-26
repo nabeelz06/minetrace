@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Company\BatchController;
+use App\Http\Controllers\Company\CctvController;
 use App\Http\Controllers\Company\HardwareController;
 use App\Http\Controllers\Company\LabController;
 use App\Http\Controllers\Company\ExportController;
@@ -232,12 +233,16 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
         });
 
         // ─────────────────────────────────────────────────────────────────────
-        // HARDWARE 
+        // HARDWARE
         // ─────────────────────────────────────────────────────────────────────
         Route::middleware('role:company_admin|operator_lab_station|operator_lab_ltj|operator_wet|operator_dry|operator_warehouse|company_auditor')
             ->group(function () {
                 Route::get('/hardware', [\App\Http\Controllers\Company\HardwareController::class, 'index']);
                 Route::get('hardware/rfid', [HardwareController::class, 'rfidPanel'])
                     ->name('hardware.rfid');
+                Route::get('hardware/cctv', [CctvController::class, 'index'])
+                    ->name('hardware.cctv');
+                Route::post('hardware/cctv/{camera}/snapshot', [CctvController::class, 'snapshot'])
+                    ->name('hardware.cctv.snapshot');
             });
     });

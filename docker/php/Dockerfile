@@ -22,7 +22,8 @@ RUN apk add --no-cache \
     zip \
     nodejs \
     npm \
-    tzdata
+    tzdata \
+    ffmpeg
 
 # ─── Set timezone Jakarta ─────────────────────────────────────────────────────
 RUN cp /usr/share/zoneinfo/Asia/Jakarta /etc/localtime \

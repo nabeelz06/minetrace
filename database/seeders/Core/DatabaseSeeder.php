@@ -8,6 +8,7 @@ use Database\Seeders\Companies\PtTimah\PtTimahProductCodeSeeder;
 use Database\Seeders\Companies\PtTimah\PtTimahMassBalanceSeeder;
 use Database\Seeders\Companies\PtTimah\PtTimahCompanySettingsSeeder;
 use Database\Seeders\Companies\PtTimah\PtTimahWorkflowSeeder;
+use Database\Seeders\Companies\PtTimah\PtTimahCctvCameraSeeder;
 
 /**
  * DatabaseSeeder — master entry point semua seeder MINETRA.
@@ -49,6 +50,7 @@ class DatabaseSeeder extends Seeder
             PtTimahMassBalanceSeeder::class,
             PtTimahCompanySettingsSeeder::class,
             PtTimahWorkflowSeeder::class,
+            PtTimahCctvCameraSeeder::class,
         ]);
 
         /*

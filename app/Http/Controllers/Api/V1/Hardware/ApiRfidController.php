@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\V1\Hardware;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\CaptureCctvSnapshotJob;
 use App\Models\Batch;
+use App\Models\Checkpoint;
 use App\Services\Hardware\RfidService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -111,6 +113,15 @@ class ApiRfidController extends Controller
 
         Log::info("RFID /login (SCAN IN, audit only) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
 
+        if ($result['status'] === 'success' && !empty($result['batch_id'])) {
+            $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
+                ->latest('id')->value('id');
+            if ($checkpoint) {
+                CaptureCctvSnapshotJob::dispatch($result['batch_id'], $checkpoint, 'rfid_scan_in')
+                    ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
+            }
+        }
+
         return $this->hardwareResponse($result);
     }
 
@@ -143,6 +154,15 @@ class ApiRfidController extends Controller
         $result = $this->rfid->checkpointOut($request->uid, $companyId, $scanStage);
 
         Log::info("RFID /logout (SCAN OUT, audit only) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
+
+        if ($result['status'] === 'success' && !empty($result['batch_id'])) {
+            $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
+                ->latest('id')->value('id');
+            if ($checkpoint) {
+                CaptureCctvSnapshotJob::dispatch($result['batch_id'], $checkpoint, 'rfid_scan_out')
+                    ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
+            }
+        }
 
         return $this->hardwareResponse($result);
     }

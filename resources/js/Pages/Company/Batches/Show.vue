@@ -8,12 +8,33 @@ const props = defineProps({
     timeline: Array,
 })
 
+// ─── CCTV Photo modal ─────────────────────────────────────────────────────────
+const photoModal = ref(null)
+function openPhoto(url) { photoModal.value = url }
+function closePhoto()   { photoModal.value = null }
+
+// Kumpulkan semua foto dari semua checkpoint
+const allPhotos = computed(() => {
+    const items = []
+    for (const cp of props.batch?.checkpoints ?? []) {
+        for (const photo of cp.photos ?? []) {
+            items.push({
+                url:   `/storage/${photo}`,
+                stage: cp.stage_label || cp.checkpoint_stage,
+                date:  cp.recorded_at,
+            })
+        }
+    }
+    return items
+})
+
 // ─── Tab active ───────────────────────────────────────────────────────────
 const activeTab = ref('overview')
 const tabs = [
     { id: 'overview',    label: 'Ringkasan', icon: '📊' },
     { id: 'timeline',    label: 'Timeline', icon: '⏱' },
     { id: 'checkpoints', label: 'Checkpoint', icon: '📍' },
+    { id: 'photos',      label: 'Foto CCTV', icon: '📷' },
 ]
 
 // ─── Status & Stage helpers ───────────────────────────────────────────────
@@ -433,6 +454,94 @@ const weightRetentionPct = computed(() => {
                 </div>
             </div>
 
+            <!-- ─── Tab: Foto CCTV ──────────────────────────────────────── -->
+            <div v-if="activeTab === 'photos'" class="animate-fade-in">
+                <div class="rounded-2xl border border-border bg-card overflow-hidden">
+                    <div class="px-5 py-4 border-b border-border bg-muted/20 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-foreground">
+                            Foto CCTV
+                            <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                                {{ allPhotos.length }}
+                            </span>
+                        </h3>
+                        <span class="text-xs text-muted-foreground">Otomatis diambil saat RFID scan</span>
+                    </div>
+
+                    <div v-if="!allPhotos.length" class="py-16 text-center">
+                        <div class="inline-flex flex-col items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-muted/40 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                                </svg>
+                            </div>
+                            <p class="text-sm text-muted-foreground">Belum ada foto CCTV.</p>
+                            <p class="text-xs text-muted-foreground/70">Foto akan otomatis tersimpan saat RFID scan.</p>
+                        </div>
+                    </div>
+
+                    <div v-else class="p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        <button
+                            v-for="(photo, i) in allPhotos"
+                            :key="i"
+                            @click="openPhoto(photo.url)"
+                            class="group relative rounded-xl overflow-hidden border border-border hover:border-primary/40 transition-all duration-150 aspect-video bg-muted"
+                        >
+                            <img
+                                :src="photo.url"
+                                :alt="`Foto ${photo.stage}`"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                loading="lazy"
+                            />
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                            <div class="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <p class="text-xs text-white font-medium truncate">{{ photo.stage }}</p>
+                                <p class="text-xs text-gray-300">{{ formatDate(photo.date) }}</p>
+                            </div>
+                            <div class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                                </svg>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </div>
+
+        <!-- ─── Photo Modal ─────────────────────────────────────────────── -->
+        <Teleport to="body">
+            <Transition name="fade">
+                <div v-if="photoModal"
+                    class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+                    @click.self="closePhoto"
+                >
+                    <div class="relative max-w-5xl w-full max-h-[90vh]">
+                        <img
+                            :src="photoModal"
+                            alt="Foto CCTV"
+                            class="w-full h-full object-contain rounded-xl"
+                        />
+                        <button
+                            @click="closePhoto"
+                            class="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center transition-colors"
+                        >
+                            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </Transition>
+        </Teleport>
     </AppLayout>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

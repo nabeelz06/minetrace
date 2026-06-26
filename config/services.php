@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'cctv' => [
+        'rtsp_url'     => env('CCTV_RTSP_URL'),
+        'hls_base_url' => env('CCTV_HLS_BASE_URL'),
+    ],
+
 ];
