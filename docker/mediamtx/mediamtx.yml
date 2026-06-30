@@ -31,10 +31,20 @@ logDestinations: [stdout]
 
 # ── HLS ────────────────────────────────────────────────────────────────────────
 hls:                yes
-hlsSegmentCount:    3
+# mediamtx v1.9.0+ menggunakan Low-Latency HLS (LL-HLS) sebagai default.
+# LL-HLS membutuhkan hlsSegmentCount >= 7. Nilai 3 menyebabkan error:
+# "Low-Latency HLS requires at least 7 segments" → muxer instance destroyed → 500.
+hlsSegmentCount:    7
 hlsSegmentDuration: 1s
 hlsPartDuration:    200ms
-hlsAllowOrigin:     '*'
+#
+# hlsAllowOrigins (plural list) — canonical form sejak mediamtx v1.9.0.
+# hlsAllowOrigin (singular string) adalah deprecated dan DIABAIKAN oleh
+# v1.9.0+, menyebabkan mediamtx fallback ke ACAO: * yang tidak kompatibel
+# dengan withCredentials: true (CORS spec melarang ACAO:* + credentials).
+hlsAllowOrigins:
+  - 'http://localhost:8000'
+  - 'http://localhost:5173'
 hlsEncryption:      no
 
 # ── WebRTC ─────────────────────────────────────────────────────────────────────
@@ -88,7 +98,7 @@ paths:
 
   # ── PRODUCTION — Actual TP-Link Tapo C500 ──────────────────────────────────
   cam_gate1_real:
-    source:                       rtsp://admin_minetra:Tapo123!@192.168.0.8/stream2
+    source:                       rtsp://admin_minetra:Tapo123!@192.168.18.38/stream2
     sourceOnDemand:               yes
     sourceOnDemandStartTimeout:   15s
     sourceOnDemandCloseAfter:     60s

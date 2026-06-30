@@ -188,40 +188,67 @@ class CctvController extends Controller
     {
         $companyId = Auth::user()->company_id ?? 1;
 
-        $checkpoints = Checkpoint::with(['batch.productCode'])
-            ->whereHas('batch', fn ($q) => $q->where('company_id', $companyId))
-            ->whereNotNull('photos')
-            ->where('photos', '!=', '[]')
-            ->whereNotNull('rfid_scan_code')
-            ->latest('recorded_at')
-            ->limit(30)
-            ->get();
+        try {
+            // Gunakan whereRaw untuk perbandingan kolom json di PostgreSQL.
+            // `where('photos', '!=', '[]')` menghasilkan `"photos" != []` yang
+            // merupakan SQL tidak valid — PostgreSQL json type tidak punya operator !=
+            // dengan string literal ('unknown'). Cast ke ::text agar kompatibel.
+            $checkpoints = Checkpoint::with('batch')
+                ->whereHas('batch', fn ($q) => $q->where('company_id', $companyId))
+                ->whereNotNull('photos')
+                ->whereRaw("(photos)::text != '[]'")
+                ->whereNotNull('rfid_scan_code')
+                ->latest('recorded_at')
+                ->limit(30)
+                ->get();
 
-        $snapshots = $checkpoints
-            ->flatMap(function ($cp) {
-                $photos = $cp->photos ?? [];
-                return collect($photos)
-                    ->filter(fn ($p) => is_array($p) && isset($p['type']))
-                    ->filter(fn ($p) => in_array($p['type'], ['rfid_snapshot', 'departure_snapshot']))
-                    ->map(fn ($photo) => [
-                        'id'           => $cp->id,
-                        'batch_code'   => $cp->batch?->batch_code ?? '—',
-                        'stage'        => $photo['stage'] ?? $cp->checkpoint_data['scan_stage'] ?? null,
-                        'camera_name'  => $photo['camera_name'] ?? 'CCTV',
-                        'photo_url'    => $photo['url'] ?? null,
-                        'captured_at'  => $photo['captured_at'] ?? null,
-                        'rfid_uid'     => $photo['rfid_uid'] ?? $cp->rfid_scan_code,
-                        'scan_type'    => $photo['scan_type'] ?? 'scan_in',
-                        'filesize_kb'  => $photo['filesize_kb'] ?? null,
-                    ]);
-            })
-            ->take(5)
-            ->values();
+            $snapshots = $checkpoints
+                ->flatMap(function ($cp) {
+                    // photos di-cast sebagai array oleh Checkpoint model ($casts)
+                    $photos = is_array($cp->photos) ? $cp->photos : [];
 
-        return response()->json([
-            'success' => true,
-            'data'    => $snapshots,
-        ]);
+                    return collect($photos)
+                        ->filter(fn ($p) => is_array($p) && isset($p['type']))
+                        ->filter(fn ($p) => in_array($p['type'], [
+                            'rfid_snapshot',
+                            'departure_snapshot',
+                            'manual_trigger',
+                        ]))
+                        ->map(fn ($photo) => [
+                            'id'          => $cp->id,
+                            'batch_code'  => $cp->batch?->batch_code ?? '—',
+                            'stage'       => $photo['stage']
+                                          ?? $cp->checkpoint_data['scan_stage']
+                                          ?? $cp->checkpoint_stage
+                                          ?? null,
+                            'camera_name' => $photo['camera_name'] ?? 'CCTV',
+                            'photo_url'   => $photo['url'] ?? null,
+                            'captured_at' => $photo['captured_at'] ?? null,
+                            'rfid_uid'    => $photo['rfid_uid'] ?? $cp->rfid_scan_code,
+                            'scan_type'   => $photo['scan_type'] ?? 'scan_in',
+                            'filesize_kb' => $photo['filesize_kb'] ?? null,
+                        ]);
+                })
+                ->take(5)
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data'    => $snapshots,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('CctvController::recentSnapshots — query gagal.', [
+                'userId'    => Auth::id(),
+                'companyId' => $companyId,
+                'exception' => $e->getMessage(),
+            ]);
+
+            // Zero snapshots adalah state valid — jangan lempar 500 ke client.
+            return response()->json([
+                'success' => true,
+                'data'    => [],
+            ]);
+        }
     }
 
     /**

@@ -122,9 +122,22 @@ function initStream(camera) {
 
     if (Hls.isSupported()) {
         const hls = new Hls({
-            enableWorker:   true,
-            lowLatencyMode: true,
+            enableWorker:     true,
+            // lowLatencyMode dihapus: mediamtx dikonfigurasi dengan standard HLS
+            // (tanpa hlsPartDuration). LL-HLS menyebabkan muxer gagal initialize
+            // untuk stream RTSP/H.264 biasa.
             backBufferLength: 10,
+            // withCredentials diperlukan agar browser mengirim cookie sesi mediamtx
+            // (Set-Cookie: cookieCheck=1) saat redirect ke ?cookieCheck=1.
+            // mediamtx v1.9+ menggunakan cookie-based reader tracking; tanpa cookie
+            // ini, request manifest akan menghasilkan 500 "muxer instance not available".
+            xhrSetup: (xhr) => {
+                xhr.withCredentials = true
+            },
+            // Retry saat muxer mediamtx belum siap (biasa terjadi koneksi pertama).
+            manifestLoadingMaxRetry:      6,
+            manifestLoadingRetryDelay:    1000,
+            manifestLoadingMaxRetryTimeout: 8000,
         })
         hlsInstance.value = hls
         hls.loadSource(camera.hls_url)
