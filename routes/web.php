@@ -259,7 +259,7 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
             ->prefix('hardware/cctv')
             ->name('hardware.cctv.')
             ->group(function () {
-                Route::get('settings',            [CctvController::class, 'index'])->name('settings');
+                Route::get('settings',            [CctvController::class, 'settings'])->name('settings');
                 Route::post('/',                  [CctvController::class, 'store'])->name('store');
                 Route::put('{camera}',            [CctvController::class, 'update'])->name('update');
                 Route::delete('{camera}',         [CctvController::class, 'destroy'])->name('destroy');

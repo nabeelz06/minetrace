@@ -118,41 +118,30 @@ class CctvCamera extends Model
     }
 
     /**
-     * Nama path mediamtx yang mem-proxy kamera FISIK (live view HLS) untuk
-     * stage tertentu. Hanya terisi untuk stage yang benar-benar sudah punya
-     * kamera fisik terpasang dan dikonfigurasi di mediamtx.yml — BUKAN
-     * derivasi otomatis dari simulationStreamName(), karena path simulasi
-     * dan path live-view kamera asli sengaja dipisah agar tidak saling
-     * bentrok (lihat catatan di docker/mediamtx/mediamtx.yml).
+     * Untuk kamera REAL, hls_url adalah HASIL PROVISIONING yang sudah
+     * dihitung dan disimpan saat kamera dibuat/diedit — lihat
+     * CctvController::store()/update() dan MediaMtxPathService. Backend
+     * secara otomatis:
+     *   1. Mengecek apakah kamera lain (di company yang sama) sudah punya
+     *      rtsp_url_real yang IDENTIK — jika ya, hls_url-nya DIPAKAI ULANG
+     *      (beberapa stage/checkpoint boleh berbagi satu kamera fisik yang
+     *      sama tanpa membuka koneksi RTSP duplikat ke perangkat).
+     *   2. Jika benar-benar kamera baru, provisioning path mediamtx baru
+     *      via MediaMtxPathService::ensurePath(), lalu simpan hasil HLS
+     *      URL-nya ke kolom ini.
      *
-     * null berarti belum ada proxy live-view untuk stage ini — capture
-     * snapshot tetap bisa jalan (langsung ke rtsp_url_real, bypass
-     * mediamtx), tapi live HLS view di CctvMonitor.vue tidak tersedia
-     * sampai kamera fisiknya benar-benar dipasang dan path-nya ditambahkan.
+     * Accessor ini SENGAJA tidak lagi menurunkan nama path secara otomatis
+     * dari location_key (pendekatan lama, private liveStreamName()) —
+     * pendekatan itu mengasumsikan satu kamera fisik per stage, padahal
+     * armada bisa lebih sedikit dari jumlah stage (lihat changelog Bagian 12
+     * — kondisi saat ini: 1 kamera fisik melayani 5 checkpoint).
      */
-    private function liveStreamName(): ?string
-    {
-        $map = [
-            'receiving' => 'live_gate1',
-        ];
-        return $map[$this->location_key] ?? null;
-    }
-
     public function getEffectiveHlsUrlAttribute(): string
     {
         if ($this->isSimulationCamera()) {
             return $this->hls_url ?: $this->buildSimulationHlsUrl();
         }
 
-        $liveStream = $this->liveStreamName();
-        if ($liveStream) {
-            $base = rtrim(config('cctv.hls_base_url', 'http://localhost:8888'), '/');
-            return "{$base}/{$liveStream}/index.m3u8";
-        }
-
-        // Tidak ada proxy live-view mediamtx untuk kamera real ini —
-        // kembalikan hls_url manual jika di-set eksplisit, jika tidak
-        // kosongkan (frontend menampilkan "live view belum tersedia").
         return $this->hls_url ?: '';
     }
 
