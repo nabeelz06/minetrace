@@ -59,11 +59,32 @@ class CctvCamera extends Model
 
     // ─── Accessors ────────────────────────────────────────────────────────────
 
+    /**
+     * Apakah kamera INI (bukan flag global) berjalan dalam mode simulasi.
+     *
+     * PENTING — sumber kebenaran adalah kolom is_simulation PER-KAMERA, bukan
+     * env('CCTV_USE_REAL') global. Alasan: armada kamera bisa CAMPURAN —
+     * mis. Gate 1 sudah pakai kamera fisik TP-Link asli sementara Wet
+     * Process dan Warehouse masih simulasi karena hardware belum terpasang.
+     * Satu toggle global tidak bisa merepresentasikan kondisi ini dengan
+     * benar; kolom is_simulation memang sudah ada di skema sejak awal untuk
+     * tujuan ini, namun sebelumnya tidak pernah benar-benar dibaca oleh
+     * accessor manapun (dead column) — root cause laporan "kamera yang
+     * ditampilkan tidak sesuai dengan CCTV yang saya miliki" (lihat
+     * changelog Bagian 12).
+     *
+     * env('CCTV_USE_REAL') tetap dipertahankan sebagai DEFAULT saat seeding
+     * kamera baru (lihat PtTimahCctvCameraSeeder), bukan sebagai otoritas
+     * runtime untuk kamera yang sudah tersimpan di DB.
+     */
+    public function isSimulationCamera(): bool
+    {
+        return (bool) $this->is_simulation;
+    }
+
     public function getEffectiveRtspUrlAttribute(): string
     {
-        $useReal = env('CCTV_USE_REAL', false);
-
-        if (!$useReal) {
+        if ($this->isSimulationCamera()) {
             // Prefer explicit simulation column, then derive from stream map
             if ($this->rtsp_url_simulation) {
                 return $this->rtsp_url_simulation;
@@ -75,13 +96,13 @@ class CctvCamera extends Model
             }
         }
 
-        // Real mode: prefer explicit real column, then legacy rtsp_url, then env fallback
+        // Mode real: prefer kolom real eksplisit, lalu rtsp_url legacy, lalu env fallback
         return $this->rtsp_url_real ?: $this->rtsp_url ?: config('cctv.rtsp_url', '');
     }
 
     public function getCaptureMode(): string
     {
-        return env('CCTV_USE_REAL', false) ? 'real' : 'simulation';
+        return $this->isSimulationCamera() ? 'simulation' : 'real';
     }
 
     private function simulationStreamName(): string
@@ -96,20 +117,43 @@ class CctvCamera extends Model
         return $map[$this->location_key] ?? 'cam_gate1';
     }
 
+    /**
+     * Nama path mediamtx yang mem-proxy kamera FISIK (live view HLS) untuk
+     * stage tertentu. Hanya terisi untuk stage yang benar-benar sudah punya
+     * kamera fisik terpasang dan dikonfigurasi di mediamtx.yml — BUKAN
+     * derivasi otomatis dari simulationStreamName(), karena path simulasi
+     * dan path live-view kamera asli sengaja dipisah agar tidak saling
+     * bentrok (lihat catatan di docker/mediamtx/mediamtx.yml).
+     *
+     * null berarti belum ada proxy live-view untuk stage ini — capture
+     * snapshot tetap bisa jalan (langsung ke rtsp_url_real, bypass
+     * mediamtx), tapi live HLS view di CctvMonitor.vue tidak tersedia
+     * sampai kamera fisiknya benar-benar dipasang dan path-nya ditambahkan.
+     */
+    private function liveStreamName(): ?string
+    {
+        $map = [
+            'receiving' => 'live_gate1',
+        ];
+        return $map[$this->location_key] ?? null;
+    }
+
     public function getEffectiveHlsUrlAttribute(): string
     {
-        $simulationMode = !env('CCTV_USE_REAL', false) && $this->location_key;
-
-        if ($this->hls_url) {
-            return $simulationMode ? $this->buildSimulationHlsUrl() : $this->hls_url;
+        if ($this->isSimulationCamera()) {
+            return $this->hls_url ?: $this->buildSimulationHlsUrl();
         }
 
-        if ($simulationMode) {
-            return $this->buildSimulationHlsUrl();
+        $liveStream = $this->liveStreamName();
+        if ($liveStream) {
+            $base = rtrim(config('cctv.hls_base_url', 'http://localhost:8888'), '/');
+            return "{$base}/{$liveStream}/index.m3u8";
         }
 
-        $base = rtrim(config('cctv.hls_base_url', ''), '/');
-        return $base ? $base . '/stream.m3u8' : '';
+        // Tidak ada proxy live-view mediamtx untuk kamera real ini —
+        // kembalikan hls_url manual jika di-set eksplisit, jika tidak
+        // kosongkan (frontend menampilkan "live view belum tersedia").
+        return $this->hls_url ?: '';
     }
 
     private function buildSimulationHlsUrl(): string

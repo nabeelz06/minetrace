@@ -1,5 +1,6 @@
 # mediamtx.yml — MediaMTX config untuk MINETRA local dev
-# RTSP-to-HLS/WebRTC bridge dengan 3 CCTV simulation stream
+# RTSP-to-HLS/WebRTC bridge — 3 simulation stream (cam_gate1, cam_wet,
+# cam_warehouse) + 1 live proxy kamera fisik asli (live_gate1)
 # Image: bluenviron/mediamtx:latest-ffmpeg (ffmpeg built-in)
 
 # ── Ports ──────────────────────────────────────────────────────────────────────
@@ -84,10 +85,13 @@ paths:
   # ── SIMULATION STREAM 1 — Gate 1 / Receiving Area ──────────────────────────
   # CATATAN PENTING: path ini HARUS berupa lavfi loop mandiri (sama seperti
   # cam_wet dan cam_warehouse), BUKAN proxy ke kamera fisik. Kamera real
-  # (TP-Link Tapo) diakses langsung via CctvCamera.rtsp_url_real, TANPA
-  # melalui mediamtx, saat CCTV_USE_REAL=true (lihat
-  # CctvCamera::getEffectiveRtspUrlAttribute()). Jika path ini diarahkan ke
-  # RTSP kamera fisik yang tidak reachable di jaringan dev, seluruh snapshot
+  # (TP-Link Tapo) untuk snapshot capture diakses LANGSUNG via
+  # CctvCamera.rtsp_url_real, TANPA melalui mediamtx, ditentukan oleh kolom
+  # is_simulation PER-KAMERA (lihat CctvCamera::isSimulationCamera() dan
+  # ::getEffectiveRtspUrlAttribute()). Path live_gate1 di bawah adalah proxy
+  # TERPISAH khusus untuk live-view HLS kamera fisik — sengaja dipisah dari
+  # path ini agar tidak saling bentrok nama. Jika path cam_gate1 ini justru
+  # diarahkan ke RTSP kamera fisik yang tidak reachable, seluruh snapshot
   # simulasi utk stage receiving akan gagal/flaky (root cause insiden
   # rtsp_not_ready — lihat changelog Bagian 12).
   cam_gate1:
@@ -102,3 +106,21 @@ paths:
       -b:v 800k -maxrate 900k -bufsize 1600k -g 30
       -f rtsp rtsp://localhost:8554/cam_gate1
     runOnInitRestart: yes
+
+  # ── LIVE CAMERA — TP-Link Tapo C500 (Gate 1 / Receiving Area) ──────────────
+  # Proxy live-view HLS untuk kamera fisik ASLI — dipakai CctvMonitor.vue
+  # saat CctvCamera untuk stage 'receiving' punya is_simulation=false.
+  # Snapshot capture (CaptureCctvSnapshotJob) TIDAK melalui path ini — job
+  # tersebut konek langsung ke kredensial kamera (rtsp_url_real) dari host,
+  # bypass mediamtx sepenuhnya, agar snapshot tidak bergantung pada state
+  # proxy ini. Path ini SEMATA-MATA untuk live streaming di browser (HLS),
+  # karena browser tidak bisa memutar RTSP mentah secara langsung.
+  #
+  # sourceOnDemand: no → mediamtx menjaga koneksi tetap standby, mencegah
+  # 404 saat frontend memanggil index.m3u8 pertama kali.
+  live_gate1:
+    source:                       rtsp://admin_minetra:Tapo123!@192.168.18.38/stream2
+    sourceOnDemand:               no
+    sourceOnDemandStartTimeout:   15s
+    sourceOnDemandCloseAfter:     60s
+    sourceProtocol:               tcp

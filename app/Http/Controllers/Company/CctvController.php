@@ -27,18 +27,21 @@ class CctvController extends Controller
     public function monitor(): Response
     {
         $companyId = Auth::user()->company_id ?? 1;
-        $useReal   = (bool) env('CCTV_USE_REAL', false);
 
         $cameras = CctvCamera::where('company_id', $companyId)
             ->active()
             ->orderBy('id')
             ->get()
             ->map(fn ($cam) => [
-                'id'           => $cam->id,
-                'name'         => $cam->name,
-                'location_key' => $cam->location_key,
-                'hls_url'      => $cam->effective_hls_url,
-                'rtsp_url'     => $cam->effective_rtsp_url,
+                'id'            => $cam->id,
+                'name'          => $cam->name,
+                'location_key'  => $cam->location_key,
+                'hls_url'       => $cam->effective_hls_url,
+                'rtsp_url'      => $cam->effective_rtsp_url,
+                // Status per-kamera — armada bisa CAMPURAN (mis. Gate 1
+                // kamera fisik asli, Wet/Warehouse masih simulasi karena
+                // hardware belum terpasang). Lihat CctvCamera::isSimulationCamera().
+                'is_simulation' => $cam->isSimulationCamera(),
             ]);
 
         // Fallback ke default dari env jika belum ada kamera di DB
@@ -46,11 +49,12 @@ class CctvController extends Controller
             $hlsBase = rtrim(config('cctv.hls_base_url', ''), '/');
             if ($hlsBase) {
                 $cameras = collect([[
-                    'id'           => null,
-                    'name'         => 'CCTV Utama',
-                    'location_key' => null,
-                    'hls_url'      => $hlsBase . '/cam_gate1/index.m3u8',
-                    'rtsp_url'     => config('cctv.rtsp_url', ''),
+                    'id'            => null,
+                    'name'          => 'CCTV Utama',
+                    'location_key'  => null,
+                    'hls_url'       => $hlsBase . '/cam_gate1/index.m3u8',
+                    'rtsp_url'      => config('cctv.rtsp_url', ''),
+                    'is_simulation' => true,
                 ]]);
             }
         }
@@ -59,7 +63,10 @@ class CctvController extends Controller
             'cameras'      => $cameras,
             'hls_base_url' => config('cctv.hls_base_url', ''),
             'has_cctv'     => $cameras->isNotEmpty(),
-            'simulation'   => !$useReal,
+            // Badge "SIMULATION" global hanya tampil jika SELURUH armada
+            // masih simulasi — begitu ada satu kamera fisik asli aktif,
+            // badge ini disembunyikan agar tidak menyesatkan operator.
+            'simulation'   => $cameras->isNotEmpty() && $cameras->every(fn ($c) => $c['is_simulation']),
         ]);
     }
 
@@ -77,17 +84,18 @@ class CctvController extends Controller
 
         return Inertia::render('Company/Hardware/CctvMonitor', [
             'cameras'      => $cameras->map(fn ($cam) => [
-                'id'           => $cam->id,
-                'name'         => $cam->name,
-                'location_key' => $cam->location_key,
-                'hls_url'      => $cam->hls_url,
-                'rtsp_url'     => $cam->rtsp_url,
-                'is_active'    => $cam->is_active,
+                'id'                => $cam->id,
+                'name'              => $cam->name,
+                'location_key'      => $cam->location_key,
+                'hls_url'           => $cam->hls_url,
+                'rtsp_url'          => $cam->rtsp_url,
+                'is_active'         => $cam->is_active,
+                'is_simulation'     => $cam->isSimulationCamera(),
                 'hls_url_effective' => $cam->effective_hls_url,
             ]),
             'hls_base_url' => config('cctv.hls_base_url', ''),
             'has_cctv'     => $cameras->isNotEmpty(),
-            'simulation'   => !(bool) env('CCTV_USE_REAL', false),
+            'simulation'   => $cameras->isNotEmpty() && $cameras->every(fn ($c) => $c->isSimulationCamera()),
         ]);
     }
 
@@ -156,13 +164,22 @@ class CctvController extends Controller
     {
         $apiUrl = rtrim(config('cctv.mediamtx_api', 'http://localhost:9997'), '/');
 
+        // Sama seperti monitor()/index() — badge "simulation" merepresentasikan
+        // SELURUH armada company ini, bukan flag global env('CCTV_USE_REAL').
+        // Lihat CctvCamera::isSimulationCamera().
+        $companyId  = Auth::user()->company_id ?? 1;
+        $allSimulated = CctvCamera::where('company_id', $companyId)
+            ->active()
+            ->get()
+            ->every(fn ($c) => $c->isSimulationCamera());
+
         try {
             $response = Http::timeout(3)->get($apiUrl . '/v3/paths/list');
             if ($response->successful()) {
                 return response()->json([
                     'success'    => true,
                     'mediamtx'   => 'online',
-                    'simulation' => !(bool) env('CCTV_USE_REAL', false),
+                    'simulation' => $allSimulated,
                     'paths'      => $response->json('items', []),
                 ]);
             }
@@ -173,7 +190,7 @@ class CctvController extends Controller
         return response()->json([
             'success'    => false,
             'mediamtx'   => 'offline',
-            'simulation' => !(bool) env('CCTV_USE_REAL', false),
+            'simulation' => $allSimulated,
             'paths'      => [],
         ]);
     }

@@ -51,6 +51,7 @@ services:
   # ─── MediaMTX — RTSP-to-HLS bridge + CCTV simulation stream ─────────────
   # bluenviron/mediamtx:latest-ffmpeg sudah include ffmpeg built-in
   # Generates 3 test pattern streams (cam_gate1, cam_wet, cam_warehouse)
+  # + 1 live proxy kamera fisik asli (live_gate1 — TP-Link Tapo C500)
   # HLS: http://localhost:8888/{stream}/index.m3u8
   # API: http://localhost:9997/v3/paths/list
   mediamtx:
