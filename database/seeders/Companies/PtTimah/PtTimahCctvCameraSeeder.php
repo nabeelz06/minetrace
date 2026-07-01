@@ -3,7 +3,9 @@
 namespace Database\Seeders\Companies\PtTimah;
 
 use App\Models\CctvCamera;
+use App\Models\Company;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Log;
 
 /**
  * PtTimahCctvCameraSeeder — Seed kamera CCTV simulasi dan real untuk PT Timah.
@@ -14,13 +16,30 @@ use Illuminate\Database\Seeder;
  *   rtsp_url            → dipakai CctvCamera::effective_rtsp_url sebagai legacy fallback
  *
  * Selector: CCTV_USE_REAL=false (default) → simulation; true → real
+ *
+ * PENTING — company_id HARUS di-resolve dinamis via kode 'TIMAH', BUKAN
+ * di-hardcode. company_id tidak selalu 1: pada seed data ini, company_id=1
+ * adalah "Badan Industri Mineral" (BIM, regulator), sedangkan PT Timah Tbk
+ * sendiri ber-id 2. Seeder versi sebelumnya salah hardcode company_id=1,
+ * menyebabkan seluruh kamera ter-seed ke tenant BIM, bukan PT Timah — root
+ * cause insiden "snapshot CCTV tidak pernah muncul" untuk batch PT Timah
+ * yang sesungguhnya (lihat changelog Bagian 12).
  */
 class PtTimahCctvCameraSeeder extends Seeder
 {
     public function run(): void
     {
-        $hlsBase  = rtrim(env('CCTV_HLS_BASE_URL', 'http://localhost:8888'), '/');
-        $rtspBase = rtrim(env('CCTV_MEDIAMTX_RTSP', 'rtsp://127.0.0.1:8554'), '/');
+        $company = Company::where('code', 'TIMAH')->first();
+
+        if (!$company) {
+            Log::warning('PtTimahCctvCameraSeeder: company dengan code=TIMAH tidak ditemukan, seeding dibatalkan.');
+            $this->command->warn('  ⚠ Company dengan code=TIMAH tidak ditemukan — seeding CCTV dibatalkan.');
+            return;
+        }
+
+        $companyId = $company->id;
+        $hlsBase   = rtrim(env('CCTV_HLS_BASE_URL', 'http://localhost:8888'), '/');
+        $rtspBase  = rtrim(env('CCTV_MEDIAMTX_RTSP', 'rtsp://127.0.0.1:8554'), '/');
 
         $cameras = [
             [
@@ -51,7 +70,7 @@ class PtTimahCctvCameraSeeder extends Seeder
 
             CctvCamera::updateOrCreate(
                 [
-                    'company_id'   => 1,
+                    'company_id'   => $companyId,
                     'location_key' => $cam['location_key'],
                 ],
                 [

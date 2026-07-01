@@ -196,9 +196,23 @@ class CaptureCctvSnapshotJob implements ShouldQueue
                 usleep(self::PROBE_INTERVAL_US);
             }
 
+            // CATATAN PENTING — JANGAN gunakan flag ffmpeg "-timeout" di sini.
+            // Pada ffmpeg 4.4.x, opsi "-timeout" milik RTSP demuxer sudah
+            // deprecated dan semantiknya berubah menjadi "maximum timeout
+            // untuk MENUNGGU KONEKSI MASUK" (listen_timeout) — artinya
+            // ffmpeg mencoba menjadi RTSP SERVER (listen mode), BUKAN
+            // client yang connect keluar. Ini menyebabkan error
+            // "Unable to open RTSP for listening" / "Address already in
+            // use" karena ffmpeg mencoba bind ke port 8554 yang sudah
+            // dipakai mediamtx sendiri — root cause insiden rtsp_not_ready
+            // yang menyebabkan snapshot CCTV gagal total (lihat changelog
+            // Bagian 12). Timeout wall-clock cukup diserahkan ke wrapper
+            // shell "timeout %d" di depan perintah ini.
             $probePath = sys_get_temp_dir() . '/minetra_probe_' . $this->checkpointId . '.jpg';
             $cmd       = sprintf(
-                'timeout %d ffmpeg -loglevel error -rtsp_transport tcp -timeout 5000000 -i %s -frames:v 1 -q:v %d -y %s 2>&1',
+                'timeout %d ffmpeg -loglevel error -rtsp_transport tcp '
+                . '-analyzeduration 2000000 -probesize 2000000 '
+                . '-i %s -frames:v 1 -q:v %d -y %s 2>&1',
                 $timeout,
                 escapeshellarg($rtspUrl),
                 $quality,
@@ -298,8 +312,15 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         $quality = (int) config('cctv.ffmpeg_quality', 2);
         $scale   = config('cctv.ffmpeg_scale', '1280:720');
 
+        // Lihat catatan di probeRtspReady(): flag "-timeout" TIDAK dipakai
+        // karena semantiknya di-deprecate menjadi RTSP listen-mode pada
+        // ffmpeg 4.4.x, yang justru menyebabkan bind-conflict dengan
+        // mediamtx di port yang sama. Wall-clock timeout diserahkan
+        // sepenuhnya ke wrapper shell "timeout %d".
         $cmd = sprintf(
-            'timeout %d ffmpeg -loglevel error -rtsp_transport tcp -timeout 10000000 -i %s -frames:v 1 -q:v %d -vf scale=%s -y %s 2>&1',
+            'timeout %d ffmpeg -loglevel error -rtsp_transport tcp '
+            . '-analyzeduration 3000000 -probesize 3000000 '
+            . '-i %s -frames:v 1 -q:v %d -vf scale=%s -y %s 2>&1',
             $timeout,
             escapeshellarg($rtspUrl),
             $quality,

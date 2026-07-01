@@ -123,10 +123,16 @@ class ApiRfidController extends Controller
                 ->first();
 
             if ($checkpoint) {
+                // Multi-tenancy: gunakan company_id MILIK BATCH (dari hasil
+                // service), bukan $companyId hasil resolve request — batch
+                // bisa saja berbeda company dari default/header, terutama
+                // saat scan simulasi yang tidak mengirim X-Company-Code.
+                $captureCompanyId = (int) ($result['company_id'] ?? $companyId);
+
                 $checkpoint->update(['snapshot_status' => 'pending']);
                 dispatch(new CaptureCctvSnapshotJob(
                     checkpointId: $checkpoint->id,
-                    companyId:    $companyId,
+                    companyId:    $captureCompanyId,
                     stageName:    $result['scan_stage'] ?? null,
                     scanType:     'scan_in',
                     rfidUid:      $request->uid,
@@ -176,10 +182,14 @@ class ApiRfidController extends Controller
                 ->first();
 
             if ($checkpoint) {
+                // Multi-tenancy: gunakan company_id MILIK BATCH (dari hasil
+                // service), bukan $companyId hasil resolve request.
+                $captureCompanyId = (int) ($result['company_id'] ?? $companyId);
+
                 $checkpoint->update(['snapshot_status' => 'pending']);
                 dispatch(new CaptureCctvSnapshotJob(
                     checkpointId: $checkpoint->id,
-                    companyId:    $companyId,
+                    companyId:    $captureCompanyId,
                     stageName:    $result['scan_stage'] ?? null,
                     scanType:     'scan_out',
                     rfidUid:      $request->uid,
@@ -492,12 +502,38 @@ class ApiRfidController extends Controller
         ], $status)->withHeaders(self::CORS_HEADERS);
     }
 
+    /**
+     * Resolve company_id dari request.
+     *
+     * Prioritas:
+     *   1. Header X-Company-Code (dikirim ESP32 firmware ATAU simulasi browser)
+     *   2. RFID_DEFAULT_COMPANY_CODE dari .env (getenv() langsung — pola sama
+     *      dengan RfidService::validateToken(), lihat Section 0 arsitektur)
+     *   3. self::DEFAULT_COMPANY_ID sebagai fallback absolut terakhir
+     *
+     * PENTING: self::DEFAULT_COMPANY_ID=1 TIDAK selalu berarti "perusahaan
+     * operasional utama" — pada seed data proyek ini company_id=1 adalah
+     * "Badan Industri Mineral" (BIM, regulator, tidak punya kamera/batch
+     * operasional). Root cause insiden CCTV snapshot yang selalu gagal untuk
+     * scan tanpa header eksplisit adalah salah asumsi ini (lihat changelog
+     * Bagian 12). RFID_DEFAULT_COMPANY_CODE memastikan default yang benar
+     * bisa dikonfigurasi per-deployment tanpa hardcode ID numerik yang rapuh.
+     */
     private function resolveCompanyId(Request $request): int
     {
         if ($code = $request->header('X-Company-Code')) {
             $company = \App\Models\Company::where('code', $code)->first();
             if ($company) return $company->id;
         }
+
+        $defaultCode = trim((string) (getenv('RFID_DEFAULT_COMPANY_CODE') ?: ''));
+        if ($defaultCode !== '') {
+            $company = \App\Models\Company::where('code', $defaultCode)->first();
+            if ($company) return $company->id;
+
+            Log::warning("resolveCompanyId: RFID_DEFAULT_COMPANY_CODE={$defaultCode} tidak ditemukan di tabel companies, fallback ke DEFAULT_COMPANY_ID.");
+        }
+
         return self::DEFAULT_COMPANY_ID;
     }
 

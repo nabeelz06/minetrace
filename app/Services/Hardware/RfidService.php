@@ -327,6 +327,7 @@ class RfidService
             'detail'      => "Scan IN tercatat untuk {$batch->batch_code} ({$batch->productCode?->code}) di {$stageLabel} pukul {$timeWib} WIB. Operator konfirmasi via web.",
             'batch_id'    => $batch->id,
             'batch_code'  => $batch->batch_code,
+            'company_id'  => $resolvedCompanyId,
             'product'     => $batch->productCode?->code,
             'weight_kg'   => $batch->current_weight,
             'scan_stage'  => $scanStage,
@@ -437,6 +438,7 @@ class RfidService
             'detail'      => "Scan OUT tercatat untuk {$batch->batch_code} ({$batch->productCode?->code}) keluar {$stageLabel} pukul {$timeWib} WIB. Kirim ke stage berikutnya via web.",
             'batch_id'    => $batch->id,
             'batch_code'  => $batch->batch_code,
+            'company_id'  => $resolvedCompanyId,
             'product'     => $batch->productCode?->code,
             'weight_kg'   => $batch->current_weight,
             'scan_stage'  => $scanStage,
@@ -625,9 +627,23 @@ class RfidService
             ->value('value');
     }
 
-    /** Config untuk ESP32 saat boot */
+    /**
+     * Config untuk ESP32 saat boot.
+     *
+     * PENTING — company_code (string, mis. "TIMAH") WAJIB disertakan di
+     * setiap request scan_in/scan_out/register berikutnya sebagai header
+     * "X-Company-Code". company_id (integer) HANYA untuk referensi/logging
+     * di sisi firmware — endpoint scan (/api/rfid/login, /api/rfid/logout,
+     * /api/rfid/register) TIDAK menerima company_id numerik sebagai
+     * identifikasi tenant, hanya X-Company-Code string. Firmware yang hanya
+     * mengandalkan company_id tanpa mengirim header ini akan jatuh ke
+     * RFID_DEFAULT_COMPANY_CODE (.env) — lihat
+     * ApiRfidController::resolveCompanyId().
+     */
     public function getEspBootConfig(int $companyId): array
     {
+        $company = \App\Models\Company::find($companyId);
+
         return [
             'api_base_url'      => config('app.url'),
             'endpoint_register' => '/api/rfid/register',
@@ -635,6 +651,8 @@ class RfidService
             'endpoint_scan_out' => '/api/rfid/logout',   // endpoint sama, semantik berubah
             'api_token'         => '',
             'company_id'        => $companyId,
+            'company_code'      => $company?->code,
+            'company_header'    => 'X-Company-Code',   // firmware WAJIB kirim header ini
             'timeout_ms'        => 5000,
             'mode'              => 'manual',              // informasikan ke ESP32
             'firmware_note'     => 'Scan = audit trail only. Stage transition via web.',

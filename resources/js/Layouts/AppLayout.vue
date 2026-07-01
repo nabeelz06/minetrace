@@ -90,15 +90,14 @@ const cctvItem = {
     en:   'CCTV Monitor',
 }
 
-const mobileRfidItem = {
-    key:  'hardware_rfid_mobile',
-    href: '/company/hardware/rfid/mobile',
-    icon: '📱',
-    id:   'Mobile RFID Scan',
-    en:   'Mobile RFID Scan',
-}
-
 // ─── Roles yang boleh akses RFID panel ────────────────────────────────────────
+// CATATAN — Konsolidasi navigasi RFID (Section 3 Part B): hanya SATU item
+// nav "Hardware RFID" (rfidItem) yang tampil di sidebar. Mode Lapangan RFID
+// (RfidFieldMode.vue, sebelumnya "Mobile RFID Scan") TIDAK lagi punya nav
+// item sendiri — operator role yang mengakses dari perangkat mobile akan
+// di-redirect otomatis oleh HardwareController::rfidPanel() (server-side,
+// berbasis User-Agent), dan admin/auditor bisa membuka mode lapangan via
+// link manual "Buka Mode Lapangan" di dalam RfidPanel.vue.
 const hasRfidAccess = computed(() =>
     ['company_admin','operator_lab_station','operator_lab_ltj',
      'operator_wet','operator_dry','operator_warehouse'].includes(role.value)
@@ -117,9 +116,9 @@ const allProcessStages = [
 // ─── Navigation per role ──────────────────────────────────────────────────────
 const navigation = computed(() => {
 
-    // [Utility] Tambahkan rfidItem + cctvItem + mobileRfidItem jika hasRfidAccess
+    // [Utility] Tambahkan rfidItem + cctvItem jika hasRfidAccess
     const withRfid = (items) => hasRfidAccess.value
-        ? [...items, rfidItem, mobileRfidItem, cctvItem] : items
+        ? [...items, rfidItem, cctvItem] : items
 
     // ── SUPER ADMIN ──────────────────────────────────────────────────────────
     if (isSuperAdmin.value) return [

@@ -245,9 +245,13 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
                 Route::get('hardware/cctv', [CctvController::class, 'monitor'])
                     ->name('hardware.cctv');
 
-                // Mobile RFID Scan — Progressive Authorization interface
-                Route::get('hardware/rfid/mobile', [HardwareController::class, 'mobileRfidScan'])
-                    ->name('hardware.rfid.mobile');
+                // Mode Lapangan RFID — Progressive Authorization interface
+                // (sebelumnya 'hardware/rfid/mobile' — di-restrukturisasi
+                // sebagai bagian dari konsolidasi navigasi RFID, lihat
+                // HardwareController::rfidPanel() untuk redirect otomatis
+                // berbasis role + User-Agent)
+                Route::get('hardware/rfid/field', [HardwareController::class, 'rfidFieldMode'])
+                    ->name('hardware.rfid.field');
             });
 
         // CCTV Settings & CRUD — company_admin only

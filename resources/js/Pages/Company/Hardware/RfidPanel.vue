@@ -27,6 +27,7 @@ const props = defineProps({
     stats:            Object,
     user_role:        String,
     company_id:       Number,
+    company_code:     { type: String, default: null },
     current_time:     String,
 })
 
@@ -388,7 +389,12 @@ async function simulateRegister() {
         // Simulasi scan register
         const scanRes = await fetch('/api/rfid/register', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            headers: {
+                'Content-Type':     'application/json',
+                'Accept':           'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                ...(props.company_code ? { 'X-Company-Code': props.company_code } : {}),
+            },
             body: JSON.stringify({ uid: sanitizeUid(simUid.value) }),
         })
         const data = await scanRes.json()
@@ -442,7 +448,21 @@ async function simulateScan(action, stage) {
 
         const res = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            headers: {
+                'Content-Type':    'application/json',
+                'Accept':          'application/json',
+                // WAJIB: X-Requested-With menandai request ini sebagai
+                // simulasi browser (bukan ESP32 asli) — dipakai
+                // ApiRfidController::resolveOrigin() untuk mengisi
+                // rfid_origin secara akurat pada audit trail.
+                'X-Requested-With': 'XMLHttpRequest',
+                // WAJIB: X-Company-Code menentukan tenant yang benar.
+                // Endpoint /api/rfid/* berjalan tanpa session (stateless
+                // 'api' middleware group), jadi tanpa header ini request
+                // akan jatuh ke DEFAULT_COMPANY_ID di backend — yang BUKAN
+                // company milik admin yang sedang login.
+                ...(props.company_code ? { 'X-Company-Code': props.company_code } : {}),
+            },
             body: JSON.stringify({
                 uid:   sanitizeUid(simUid.value),
                 stage: stage,   // Kirim stage langsung agar tidak tergantung cache
@@ -595,14 +615,22 @@ if (props.esp32_ip) { esp32IpInput.value = props.esp32_ip; startEspPolling() }
                 </h1>
                 <p class="text-xs text-muted-foreground mt-0.5">{{ current_time }}</p>
             </div>
-            <!-- Active Mode Badge -->
-            <div v-if="activeModeInfo && activeModeInfo.mode !== 'idle'"
-                 class="flex items-center gap-2 px-3 py-1.5 rounded-xl border font-semibold text-xs"
-                 :class="activeModeStyle.border">
-                <div class="w-1.5 h-1.5 rounded-full animate-pulse" :class="activeModeStyle.dot"/>
-                {{ activeModeLabel }}
-                <button @click="activateMode('idle', null)"
-                        class="ml-1 opacity-50 hover:opacity-100 text-xs font-bold">✕</button>
+            <div class="flex items-center gap-2">
+                <!-- B3: Link ke Mode Lapangan — admin bisa preview/pakai versi mobile -->
+                <Link href="/company/hardware/rfid/field"
+                      class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                    <span>📱</span>
+                    {{ lang==='en' ? 'Open Field Mode' : 'Buka Mode Lapangan' }}
+                </Link>
+                <!-- Active Mode Badge -->
+                <div v-if="activeModeInfo && activeModeInfo.mode !== 'idle'"
+                     class="flex items-center gap-2 px-3 py-1.5 rounded-xl border font-semibold text-xs"
+                     :class="activeModeStyle.border">
+                    <div class="w-1.5 h-1.5 rounded-full animate-pulse" :class="activeModeStyle.dot"/>
+                    {{ activeModeLabel }}
+                    <button @click="activateMode('idle', null)"
+                            class="ml-1 opacity-50 hover:opacity-100 text-xs font-bold">✕</button>
+                </div>
             </div>
         </div>
 

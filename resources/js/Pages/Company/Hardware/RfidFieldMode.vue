@@ -1,10 +1,20 @@
 <script setup>
 /**
- * MobileRfidScan.vue — Progressive Authorization RFID Mobile Interface
+ * RfidFieldMode.vue — Mode Lapangan RFID (Progressive Authorization)
+ *
+ * Sebelumnya bernama MobileRfidScan.vue. Di-rename + diperluas sebagai
+ * bagian dari konsolidasi navigasi RFID (Section 3 Part B):
+ *   - RfidPanel.vue     → konsol admin/supervisor (desktop, konfigurasi penuh)
+ *   - RfidFieldMode.vue → interface operator lapangan (mobile, satu tujuan: scan)
+ *
+ * Operator role + mobile User-Agent di-redirect otomatis ke sini oleh
+ * HardwareController::rfidPanel() (lihat B2). company_admin/company_auditor
+ * tetap melihat RfidPanel.vue penuh, dengan link manual ke halaman ini
+ * ("Buka Mode Lapangan").
  *
  * Tampilan mobile-first untuk operator lapangan:
  *   1. Lihat mode otorisasi per stage (audit_only | scan_to_receive | scan_to_dispatch)
- *   2. Simulasi scan untuk testing di lapangan
+ *   2. Simulasi/eksekusi scan dengan live batch match + preview CCTV
  *   3. Admin: ubah mode otorisasi per stage
  *
  * Tiga mode otorisasi:
@@ -12,10 +22,10 @@
  *   scan_to_receive  → scan IN = otomatis terima batch ke stage ini
  *   scan_to_dispatch → scan OUT = otomatis kirim batch ke stage berikutnya
  */
-import { ref, computed } from 'vue'
-import { Head, router }  from '@inertiajs/vue3'
-import AppLayout         from '@/Layouts/AppLayout.vue'
-import { useI18n }       from '@/composables/core/useI18n.js'
+import { ref, computed, onUnmounted } from 'vue'
+import { Head, Link, router }         from '@inertiajs/vue3'
+import AppLayout                      from '@/Layouts/AppLayout.vue'
+import { useI18n }                    from '@/composables/core/useI18n.js'
 
 const { lang } = useI18n()
 
@@ -26,11 +36,39 @@ const props = defineProps({
     recent_activity:     { type: Array,   default: () => [] },
     user_role:           String,
     company_id:          Number,
+    // Kode company (mis. 'TIMAH') — WAJIB dikirim sebagai header
+    // X-Company-Code pada setiap panggilan /api/rfid/*. Endpoint ini
+    // berjalan di bawah middleware group 'api' (stateless, tanpa session),
+    // sehingga tanpa header ini request akan jatuh ke
+    // RFID_DEFAULT_COMPANY_CODE (.env) alih-alih company milik user login.
+    company_code:        { type: String, default: null },
+    // true jika user boleh melihat link balik ke panel penuh (B3)
+    can_view_full_panel: { type: Boolean, default: false },
     current_time:        String,
 })
 
 const isAdmin   = computed(() => props.user_role === 'company_admin')
 const activeTab = ref('modes')
+
+// ─── Bilingual labels (B5) ──────────────────────────────────────────────────
+const t = computed(() => ({
+    title:          lang.value === 'en' ? 'Field RFID Scan'            : 'Mode Lapangan RFID',
+    subtitle:       lang.value === 'en' ? 'Progressive Authorization Model' : 'Progressive Authorization Model',
+    openFullPanel:  lang.value === 'en' ? 'Open Full Panel'            : 'Buka Panel Lengkap',
+    tabModes:       lang.value === 'en' ? 'Mode'                       : 'Mode',
+    tabScan:        lang.value === 'en' ? 'Scan'                       : 'Scan',
+    tabLog:         lang.value === 'en' ? 'Log'                        : 'Log',
+    adminOnlyMode:  lang.value === 'en'
+        ? 'Only company_admin can change authorization mode.'
+        : 'Hanya company_admin yang dapat mengubah mode otorisasi.',
+    scanIn:         lang.value === 'en' ? 'Scan IN'  : 'Scan IN',
+    scanOut:        lang.value === 'en' ? 'Scan OUT' : 'Scan OUT',
+    processing:     lang.value === 'en' ? 'Processing...' : 'Memproses...',
+    noActivity:     lang.value === 'en' ? 'No RFID activity yet.' : 'Belum ada aktivitas RFID.',
+    cctvPreview:    lang.value === 'en' ? 'Latest CCTV Snapshot' : 'Snapshot CCTV Terbaru',
+    waitingSnapshot: lang.value === 'en' ? 'Waiting for snapshot capture...' : 'Menunggu snapshot terekam...',
+    area:           lang.value === 'en' ? 'Area' : 'Area',
+}))
 
 // ─── Stages ──────────────────────────────────────────────────────────────────
 const stages = [
@@ -41,8 +79,7 @@ const stages = [
     { key: 'project_plant', label: 'Lab Analisis LTJ', icon: '⚗️' },
 ]
 
-// ─── Mode change ──────────────────────────────────────────────────────────────
-const savingStage = ref(null)
+// ─── Toast ────────────────────────────────────────────────────────────────────
 const toastMsg    = ref(''); const toastType = ref('info'); const toastVisible = ref(false)
 let toastTimer    = null
 
@@ -52,20 +89,29 @@ function showToast(msg, type = 'info') {
     toastTimer = setTimeout(() => { toastVisible.value = false }, 4500)
 }
 
+// ─── Common request headers (X-Company-Code + X-Requested-With) ─────────────
+function scanHeaders() {
+    return {
+        'Content-Type':      'application/json',
+        'Accept':            'application/json',
+        'X-CSRF-TOKEN':      document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+        'X-Requested-With':  'XMLHttpRequest',
+        ...(props.company_code ? { 'X-Company-Code': props.company_code } : {}),
+    }
+}
+
+// ─── Mode change ──────────────────────────────────────────────────────────────
+const savingStage = ref(null)
+
 async function setMode(stage, mode) {
-    if (!isAdmin.value) { showToast('Hanya admin yang dapat mengubah mode.', 'error'); return }
+    if (!isAdmin.value) { showToast(t.value.adminOnlyMode, 'error'); return }
     savingStage.value = stage
 
     try {
         const res = await fetch('/api/v1/company/rfid/authorization-modes', {
             method: 'POST',
             credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
+            headers: scanHeaders(),
             body: JSON.stringify({ stage, mode }),
         })
         const data = await res.json()
@@ -82,7 +128,7 @@ async function setMode(stage, mode) {
     }
 }
 
-// ─── Simulation ───────────────────────────────────────────────────────────────
+// ─── Scan ─────────────────────────────────────────────────────────────────────
 const simUid       = ref('')
 const simStage     = ref('receiving')
 const simResult    = ref(null)
@@ -93,6 +139,12 @@ function generateUid() {
     simUid.value = Array.from({ length: 4 }, () =>
         Math.floor(Math.random() * 256).toString(16).padStart(2, '0')
     ).join('').toUpperCase()
+}
+
+/** Getarkan perangkat sebagai konfirmasi hasil scan (sukses vs gagal berbeda pola) */
+function vibrateResult(success) {
+    if (!('vibrate' in navigator)) return
+    navigator.vibrate(success ? [40, 60, 40] : [200])
 }
 
 async function simulateScan(action) {
@@ -106,23 +158,67 @@ async function simulateScan(action) {
     try {
         const res = await fetch(endpoint, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
+            headers: scanHeaders(),
             body: JSON.stringify({ uid: simUid.value.toUpperCase(), stage: simStage.value }),
         })
         const data = await res.json()
         simResult.value = { ...data, action, uid: simUid.value, stage: simStage.value }
         showToast(data.message, data.status === 'success' ? 'success' : 'error')
+        vibrateResult(data.status === 'success')
+
+        if (data.status === 'success') {
+            startSnapshotPolling(data.batch_id)
+            router.reload({ only: ['tagged_batches', 'recent_activity'] })
+        }
     } catch (e) {
         showToast('Error: ' + e.message, 'error')
+        vibrateResult(false)
     } finally {
         isSimulating.value = false
     }
 }
+
+// ─── CCTV Snapshot Preview (poll recent-snapshots setelah scan) ──────────────
+const latestSnapshot    = ref(null)
+const isPollingSnapshot = ref(false)
+let snapshotPollTimer    = null
+let snapshotPollAttempts = 0
+
+function startSnapshotPolling() {
+    stopSnapshotPolling()
+    latestSnapshot.value    = null
+    isPollingSnapshot.value = true
+    snapshotPollAttempts    = 0
+
+    snapshotPollTimer = setInterval(async () => {
+        snapshotPollAttempts++
+        try {
+            const res  = await fetch('/api/v1/company/cctv/recent-snapshots', {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+            const json  = await res.json()
+            const match = (json.data ?? []).find(s => s.rfid_uid === simUid.value.toUpperCase())
+            if (match) {
+                latestSnapshot.value = match
+                stopSnapshotPolling()
+            }
+        } catch {
+            // polling gagal diam-diam — tidak kritis, UI tetap tampilkan "menunggu"
+        }
+
+        // Batasi polling maksimum ~16 detik (job delay 2s + probe + capture)
+        if (snapshotPollAttempts >= 8) stopSnapshotPolling()
+    }, 2000)
+}
+
+function stopSnapshotPolling() {
+    if (snapshotPollTimer) clearInterval(snapshotPollTimer)
+    snapshotPollTimer       = null
+    isPollingSnapshot.value = false
+}
+
+onUnmounted(() => stopSnapshotPolling())
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function modeColor(mode) {
@@ -148,8 +244,8 @@ function modeLabel(mode) {
 
 <template>
 <AppLayout>
-    <Head title="Mobile RFID Scan"/>
-    <template #header>Mobile RFID — Progressive Authorization</template>
+    <Head :title="t.title"/>
+    <template #header>{{ t.title }} — Progressive Authorization</template>
 
     <!-- Toast -->
     <Transition name="toast">
@@ -165,9 +261,18 @@ function modeLabel(mode) {
     <div class="max-w-lg mx-auto space-y-4">
 
         <!-- Header -->
-        <div class="text-center py-2">
-            <h1 class="font-heading text-lg font-bold text-foreground">📱 Mobile RFID Scan</h1>
-            <p class="text-xs text-muted-foreground mt-0.5">Progressive Authorization Model</p>
+        <div class="text-center py-2 space-y-1">
+            <h1 class="font-heading text-lg font-bold text-foreground">📱 {{ t.title }}</h1>
+            <p class="text-xs text-muted-foreground">{{ t.subtitle }}</p>
+            <!-- B3: Link balik ke panel penuh — hanya untuk admin/auditor -->
+            <Link v-if="can_view_full_panel"
+                  href="/company/hardware/rfid"
+                  class="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline mt-1">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+                {{ t.openFullPanel }}
+            </Link>
         </div>
 
         <!-- Info Banner -->
@@ -194,17 +299,17 @@ function modeLabel(mode) {
             <button @click="activeTab='modes'"
                     class="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
                     :style="activeTab==='modes'?'background:hsl(var(--card));color:hsl(var(--foreground));box-shadow:0 1px 2px rgba(0,0,0,0.08);':'color:hsl(var(--muted-foreground));'">
-                🛡 Mode
+                🛡 {{ t.tabModes }}
             </button>
             <button @click="activeTab='scan'"
                     class="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
                     :style="activeTab==='scan'?'background:hsl(var(--card));color:hsl(var(--foreground));box-shadow:0 1px 2px rgba(0,0,0,0.08);':'color:hsl(var(--muted-foreground));'">
-                📡 Scan
+                📡 {{ t.tabScan }}
             </button>
             <button @click="activeTab='log'"
                     class="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
                     :style="activeTab==='log'?'background:hsl(var(--card));color:hsl(var(--foreground));box-shadow:0 1px 2px rgba(0,0,0,0.08);':'color:hsl(var(--muted-foreground));'">
-                📋 Log
+                📋 {{ t.tabLog }}
             </button>
         </div>
 
@@ -243,7 +348,7 @@ function modeLabel(mode) {
             </div>
 
             <p v-if="!isAdmin" class="text-center text-[11px] text-muted-foreground">
-                ℹ️ Hanya company_admin yang dapat mengubah mode otorisasi.
+                ℹ️ {{ t.adminOnlyMode }}
             </p>
         </div>
 
@@ -273,34 +378,37 @@ function modeLabel(mode) {
                 </div>
             </div>
 
-            <!-- Scan buttons -->
+            <!-- Scan buttons — target sentuh besar untuk penggunaan lapangan -->
             <div class="grid grid-cols-2 gap-3">
                 <button @click="simulateScan('scan_in')"
                         :disabled="!simUid||isSimulating"
-                        class="h-14 rounded-xl text-sm font-bold text-white disabled:opacity-50 active:scale-[0.97]"
+                        class="h-16 rounded-xl text-sm font-bold text-white disabled:opacity-50 active:scale-[0.97]"
                         style="background:linear-gradient(135deg,#059669,#047857)">
-                    <span v-if="isSimulating&&simAction==='scan_in'" class="text-xs">Memproses...</span>
-                    <span v-else>📥 Scan IN</span>
+                    <span v-if="isSimulating&&simAction==='scan_in'" class="text-xs">{{ t.processing }}</span>
+                    <span v-else>📥 {{ t.scanIn }}</span>
                 </button>
                 <button @click="simulateScan('scan_out')"
                         :disabled="!simUid||isSimulating"
-                        class="h-14 rounded-xl text-sm font-bold text-white disabled:opacity-50 active:scale-[0.97]"
+                        class="h-16 rounded-xl text-sm font-bold text-white disabled:opacity-50 active:scale-[0.97]"
                         style="background:linear-gradient(135deg,#dc2626,#b91c1c)">
-                    <span v-if="isSimulating&&simAction==='scan_out'" class="text-xs">Memproses...</span>
-                    <span v-else>📤 Scan OUT</span>
+                    <span v-if="isSimulating&&simAction==='scan_out'" class="text-xs">{{ t.processing }}</span>
+                    <span v-else>📤 {{ t.scanOut }}</span>
                 </button>
             </div>
 
-            <!-- Result -->
+            <!-- Result — indikator besar, jelas sukses/gagal -->
             <Transition name="slide">
-                <div v-if="simResult" class="rounded-xl border p-4"
-                     :class="simResult.status==='success'?'border-emerald-300 dark:border-emerald-700/50':'border-red-300 dark:border-red-700/50'">
-                    <div class="flex items-start gap-2 mb-2">
-                        <span class="text-xl">{{ simResult.status==='success' ? '✅' : '❌' }}</span>
+                <div v-if="simResult" class="rounded-xl border-2 p-4"
+                     :class="simResult.status==='success'?'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20':'border-red-400 bg-red-50 dark:bg-red-950/20'">
+                    <div class="flex items-start gap-3 mb-2">
+                        <span class="text-3xl leading-none">{{ simResult.status==='success' ? '✅' : '❌' }}</span>
                         <div class="flex-1">
-                            <p class="text-xs font-bold text-foreground">{{ simResult.message }}</p>
+                            <p class="text-sm font-bold text-foreground">{{ simResult.message }}</p>
+                            <p v-if="simResult.batch_code" class="text-xs font-mono font-semibold text-foreground mt-0.5">
+                                {{ simResult.batch_code }}
+                            </p>
                             <p v-if="simResult.stage_label" class="text-[10px] text-muted-foreground mt-0.5">
-                                Area: {{ simResult.stage_label }}
+                                {{ t.area }}: {{ simResult.stage_label }}
                             </p>
                         </div>
                     </div>
@@ -314,6 +422,29 @@ function modeLabel(mode) {
                                 : '⚠️ Transisi tidak berlaku: ' + simResult.transition_reason }}
                         </p>
                     </div>
+
+                    <!-- CCTV Snapshot Preview — poll recent-snapshots pasca scan sukses -->
+                    <div v-if="simResult.status==='success'" class="mt-3 pt-3 border-t border-border/50">
+                        <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-2">
+                            {{ t.cctvPreview }}
+                        </p>
+                        <div v-if="latestSnapshot" class="rounded-lg overflow-hidden border border-border">
+                            <img :src="latestSnapshot.photo_url" :alt="latestSnapshot.camera_name"
+                                 class="w-full aspect-video object-cover"/>
+                            <div class="px-2 py-1.5 bg-muted/40 flex items-center justify-between">
+                                <span class="text-[10px] font-semibold text-foreground">{{ latestSnapshot.camera_name }}</span>
+                                <span class="text-[9px] text-muted-foreground">{{ latestSnapshot.captured_at }}</span>
+                            </div>
+                        </div>
+                        <div v-else-if="isPollingSnapshot"
+                             class="rounded-lg border border-dashed border-border p-4 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
+                            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                            </svg>
+                            {{ t.waitingSnapshot }}
+                        </div>
+                    </div>
                 </div>
             </Transition>
         </div>
@@ -321,7 +452,7 @@ function modeLabel(mode) {
         <!-- ── TAB: LOG ──────────────────────────────────────────────── -->
         <div v-show="activeTab==='log'" class="space-y-2">
             <p v-if="!recent_activity.length" class="text-center text-xs text-muted-foreground py-8">
-                Belum ada aktivitas RFID.
+                {{ t.noActivity }}
             </p>
             <div v-for="act in recent_activity.slice(0, 20)" :key="act.id"
                  class="rounded-xl border border-border bg-card p-3">

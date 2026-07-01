@@ -12,20 +12,21 @@ return Application::configure(basePath: dirname(__DIR__))
         health:     '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        
+        $middleware->validateCsrfTokens(except: [
+            'api/*', // Mengecualikan semua rute yang berawalan /api/
+        ]);
 
-        // ─── Inertia + Asset headers ──────────────────────────────────────
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
-        // ─── Spatie Permission aliases ────────────────────────────────────
         $middleware->alias([
             'role'               => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission'         => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
 
-            // Middleware custom untuk set team context sebelum cek role
             'set.team'           => \App\Http\Middleware\SetPermissionsTeamId::class,
         ]);
     })

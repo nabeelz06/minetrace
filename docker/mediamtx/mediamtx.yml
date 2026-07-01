@@ -81,10 +81,24 @@ paths:
       -f rtsp rtsp://localhost:8554/cam_warehouse
     runOnInitRestart: yes
 
-  # ── PRODUCTION — Actual TP-Link Tapo C500 ──────────────────────────────────
+  # ── SIMULATION STREAM 1 — Gate 1 / Receiving Area ──────────────────────────
+  # CATATAN PENTING: path ini HARUS berupa lavfi loop mandiri (sama seperti
+  # cam_wet dan cam_warehouse), BUKAN proxy ke kamera fisik. Kamera real
+  # (TP-Link Tapo) diakses langsung via CctvCamera.rtsp_url_real, TANPA
+  # melalui mediamtx, saat CCTV_USE_REAL=true (lihat
+  # CctvCamera::getEffectiveRtspUrlAttribute()). Jika path ini diarahkan ke
+  # RTSP kamera fisik yang tidak reachable di jaringan dev, seluruh snapshot
+  # simulasi utk stage receiving akan gagal/flaky (root cause insiden
+  # rtsp_not_ready — lihat changelog Bagian 12).
   cam_gate1:
-    source:                       rtsp://admin_minetra:Tapo123!@192.168.18.38/stream2
-    sourceOnDemand:               no
-    sourceOnDemandStartTimeout:   15s
-    sourceOnDemandCloseAfter:     60s
-    sourceProtocol:               tcp
+    source:          publisher
+    sourceOnDemand:  no
+    runOnInit: >-
+      ffmpeg -f lavfi
+      -i testsrc2=size=1280x720:rate=15
+      -vf "drawbox=x=0:y=0:w=iw:h=60:color=blue@0.6:t=fill,
+           drawbox=x=0:y=0:w=iw:h=60:color=black@0.4:t=fill"
+      -c:v libx264 -preset ultrafast -tune zerolatency
+      -b:v 800k -maxrate 900k -bufsize 1600k -g 30
+      -f rtsp rtsp://localhost:8554/cam_gate1
+    runOnInitRestart: yes
