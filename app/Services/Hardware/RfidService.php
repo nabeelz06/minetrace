@@ -449,6 +449,32 @@ class RfidService
         ];
     }
 
+    /**
+     * Tentukan stage konteks scan — dari parameter request, lalu cache mode
+     * aktif, lalu fallback ke process_stage batch saat ini jika tidak valid.
+     *
+     * Logika IDENTIK dengan yang dulu duplikat inline di checkpointIn() dan
+     * checkpointOut() — diekstrak jadi method publik agar bisa dipakai
+     * ApiRfidController SEBELUM mendelegasikan ke ScanAuthorizationStrategy
+     * (strategy butuh tahu stage konteks yang sudah final sebelum
+     * memvalidasi process_stage batch terhadap PREV_STAGE/NEXT_STAGE-nya).
+     */
+    public function resolveScanStage(Batch $batch, ?string $requestedStage): string
+    {
+        $scanStage = $requestedStage;
+
+        if (!$scanStage) {
+            $activeMode = $this->getActiveMode($batch->company_id);
+            $scanStage  = $activeMode['stage'] ?? $batch->process_stage;
+        }
+
+        if (!isset(self::STAGE_FLOW[$scanStage])) {
+            $scanStage = $batch->process_stage;
+        }
+
+        return $scanStage;
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // ACTIVE MODE MANAGEMENT
     // ═══════════════════════════════════════════════════════════════════
@@ -787,8 +813,15 @@ class RfidService
     /**
      * Cari batch berdasarkan rfid_tag UID.
      * Per-company dulu → global fallback (fix company_id mismatch ESP32).
+     *
+     * PUBLIC — dipanggil ApiRfidController untuk resolve batch SEBELUM
+     * mendelegasikan ke ScanAuthorizationStrategy yang sesuai (lihat
+     * RfidAuthorizationService::getStrategy()). Strategy butuh objek Batch
+     * yang sudah di-resolve, bukan UID mentah, karena beberapa strategy
+     * (ScanToReceiveStrategy/ScanToDispatchStrategy) perlu memvalidasi
+     * process_stage batch SEBELUM mencatat checkpoint apapun.
      */
-    private function findBatchByUid(string $uid, int $companyId): ?Batch
+    public function findBatchByUid(string $uid, int $companyId): ?Batch
     {
         $batch = Batch::with(['productCode', 'currentLocation'])
             ->where('rfid_tag', $uid)
@@ -819,8 +852,13 @@ class RfidService
     /**
      * Sanitasi UID dari RC522.
      * Handle: "A3B2C1D0" | "a3b2c1d0" | "A3 B2 C1 D0" | "A3:B2:C1:D0"
+     *
+     * PUBLIC — dipanggil ApiRfidController sebelum findBatchByUid() agar
+     * aturan sanitasi identik dengan yang dipakai checkpointIn()/checkpointOut()
+     * secara internal (termasuk strip karakter '.', bukan hanya spasi/':'/'-'
+     * seperti sanitasi level-controller yang lama).
      */
-    private function sanitizeUid(string $uid): string
+    public function sanitizeUid(string $uid): string
     {
         return strtoupper(str_replace([' ', ':', '-', '.'], '', trim($uid)));
     }

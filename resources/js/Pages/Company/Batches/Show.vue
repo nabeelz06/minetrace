@@ -13,27 +13,45 @@ const photoModal = ref(null)
 function openPhoto(url) { photoModal.value = url }
 function closePhoto()   { photoModal.value = null }
 
-// Kumpulkan semua foto dari semua checkpoint
+// Kumpulkan semua foto dari SEMUA checkpoint MILIK BATCH INI SAJA.
+// props.batch.checkpoints datang dari relasi Batch::checkpoints() (hasMany,
+// discope otomatis oleh foreign key batch_id) — jadi galeri ini TIDAK PERNAH
+// mengakumulasi foto dari batch lain, sekalipun batch ini punya banyak
+// riwayat scan (lihat BatchController::show()). Galeri "Riwayat Batch Induk"
+// (parent_batch.checkpoints) sengaja dipisah di tab lain, tidak ikut di sini.
+//
+// Urutan: TERBARU DI DEPAN. checkpoint_id dipakai sebagai kunci sortir
+// (bukan parsing string tanggal "dd/mm/yyyy" yang rapuh) karena checkpoint
+// dibuat via auto-increment ID sesuai urutan waktu perekamannya — index foto
+// dalam satu checkpoint.photos[] juga dibalik untuk kasus >1 foto per
+// checkpoint (jarang terjadi, tapi tetap benar urutannya jika ada).
 const allPhotos = computed(() => {
     const items = []
     for (const cp of props.batch?.checkpoints ?? []) {
-        for (const photo of cp.photos ?? []) {
-            if (!photo?.url) continue
+        const photos = cp.photos ?? []
+        photos.forEach((photo, photoIndex) => {
+            if (!photo?.url) return
             items.push({
-                url:             photo.url,
-                stage:           photo.stage || cp.checkpoint_stage,
-                stage_label:     cp.stage_label || cp.checkpoint_stage?.replace(/_/g, ' '),
-                date:            photo.captured_at || cp.recorded_at,
-                scan_type:       photo.scan_type,
-                camera_name:     photo.camera_name,
-                filesize_kb:     photo.filesize_kb,
-                sha256:          photo.sha256,
-                rfid_uid:        photo.rfid_uid,
-                snapshot_status: cp.snapshot_status,
+                url:              photo.url,
+                stage:            photo.stage || cp.checkpoint_stage,
+                stage_label:      cp.stage_label || cp.checkpoint_stage?.replace(/_/g, ' '),
+                date:             photo.captured_at || cp.recorded_at,
+                date_diff:        cp.recorded_at_diff,
+                scan_type:        photo.scan_type,
+                camera_name:      photo.camera_name,
+                filesize_kb:      photo.filesize_kb,
+                sha256:           photo.sha256,
+                rfid_uid:         photo.rfid_uid,
+                snapshot_status:  cp.snapshot_status,
+                checkpoint_id:    cp.id,
+                photo_index:      photoIndex,
             })
-        }
+        })
     }
-    return items
+    return items.sort((a, b) => {
+        if (b.checkpoint_id !== a.checkpoint_id) return b.checkpoint_id - a.checkpoint_id
+        return b.photo_index - a.photo_index
+    })
 })
 
 function snapshotStatusBadge(status) {
@@ -120,8 +138,28 @@ function timelineColor(item) {
     return 'bg-emerald-500'
 }
 
+/**
+ * Backend selalu mengirim tanggal dalam format "dd/mm/yyyy HH:mm:ss WIB"
+ * (Carbon::format('d/m/Y H:i:s')). JS `new Date()` TIDAK BOLEH dipakai
+ * untuk parsing string ini langsung — constructor Date bawaan menafsirkan
+ * string bertitik-dua slash sebagai MM/DD/YYYY (format AS), sehingga
+ * "01/07/2026" (1 Juli) salah terbaca sebagai 7 Januari. Regex eksplisit
+ * di bawah menghindari ambiguitas ini sepenuhnya.
+ */
 function formatDate(d) {
     if (!d) return '—'
+
+    const match = String(d).match(/^(\d{2})\/(\d{2})\/(\d{4})[ ,]+(\d{2}):(\d{2})(?::(\d{2}))?/)
+    if (match) {
+        const [, day, month, year, hour, minute] = match
+        const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
+        return parsed.toLocaleString('id-ID', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        })
+    }
+
+    // Fallback untuk nilai ISO/lain yang mungkin tidak ambigu
     return new Date(d).toLocaleString('id-ID', {
         day:'2-digit', month:'short', year:'numeric',
         hour:'2-digit', minute:'2-digit'
@@ -539,9 +577,10 @@ const weightRetentionPct = computed(() => {
                     <div v-else class="p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                         <button
                             v-for="(photo, i) in allPhotos"
-                            :key="i"
+                            :key="photo.checkpoint_id + '-' + photo.photo_index"
                             @click="openPhoto(photo.url)"
-                            class="group relative rounded-xl overflow-hidden border border-border hover:border-primary/40 transition-all duration-150 bg-muted"
+                            class="group relative rounded-xl overflow-hidden border transition-all duration-150 bg-muted"
+                            :class="i === 0 ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border hover:border-primary/40'"
                         >
                             <div class="aspect-video relative overflow-hidden">
                                 <img
@@ -550,12 +589,17 @@ const weightRetentionPct = computed(() => {
                                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                     loading="lazy"
                                 />
-                                <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
-                                <!-- Scan type badge -->
-                                <div class="absolute top-1.5 left-1.5">
+                                <!-- Scan type + latest badge -->
+                                <div class="absolute top-1.5 left-1.5 flex items-center gap-1">
                                     <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white">
                                         {{ scanTypeLabel(photo.scan_type) }}
+                                    </span>
+                                    <span v-if="i === 0"
+                                          class="text-[9px] font-bold px-1.5 py-0.5 rounded text-white"
+                                          style="background: hsl(var(--primary));">
+                                        ● TERBARU
                                     </span>
                                 </div>
 
@@ -567,10 +611,14 @@ const weightRetentionPct = computed(() => {
                                     </svg>
                                 </div>
 
-                                <!-- Stage + time overlay -->
-                                <div class="absolute bottom-0 left-0 right-0 p-2">
-                                    <p class="text-xs text-white font-medium truncate">{{ photo.stage_label }}</p>
-                                    <p class="text-[10px] text-gray-300">{{ formatDate(photo.date) }}</p>
+                                <!-- Stage + time overlay — timestamp mentah dari backend
+                                     ditampilkan langsung (SUDAH terformat dd/mm/yyyy HH:mm:ss WIB),
+                                     TIDAK di-reparse via `new Date()` yang keliru menafsirkan
+                                     format dd/mm sebagai mm/dd (ambigu di JS Date constructor). -->
+                                <div class="absolute bottom-0 left-0 right-0 p-2 space-y-0.5">
+                                    <p class="text-xs text-white font-semibold truncate">{{ photo.stage_label }}</p>
+                                    <p class="text-[11px] text-white font-mono font-medium">{{ photo.date || '—' }}</p>
+                                    <p v-if="photo.date_diff" class="text-[10px] text-gray-300">{{ photo.date_diff }}</p>
                                 </div>
                             </div>
 

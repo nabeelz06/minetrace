@@ -86,11 +86,19 @@ class ApiRfidController extends Controller
     }
 
     /**
-     * SCAN IN: Rekam scan masuk area — AUDIT TRAIL ONLY.
+     * SCAN IN: Rekam scan masuk area.
      *
-     * ✅ MANUAL MODE: Tidak ada perpindahan stage otomatis.
-     * Hanya mencatat Checkpoint dengan rfid_scan_code.
-     * Operator konfirmasi penerimaan via web panel.
+     * Perilaku bergantung pada Progressive Authorization mode yang aktif
+     * untuk stage ini (lihat RfidAuthorizationService::getStrategy()):
+     *   audit_only        → hanya mencatat Checkpoint, TIDAK memindah stage.
+     *                        Operator konfirmasi penerimaan via web panel.
+     *   scan_to_receive    → checkpoint audit trail SAMA seperti audit_only,
+     *                        LALU mencoba men-transisi batch ke stage ini —
+     *                        HANYA jika batch benar-benar berada di stage
+     *                        sebelumnya yang valid (Chain-of-Responsibility
+     *                        guard identik ProcessController::receiveBatch()).
+     *                        Scan di stage yang salah urutan akan DITOLAK
+     *                        transisinya (checkpoint audit tetap tercatat).
      *
      * POST /api/rfid/login
      * Body: { "uid": "A3B2C1D0", "stage": "wet_process" }
@@ -109,12 +117,27 @@ class ApiRfidController extends Controller
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
         $companyId  = $this->resolveCompanyId($request);
-        $scanStage  = $request->input('stage');
         $rfidOrigin = $this->resolveOrigin($request);
+        $sanitizedUid = $this->rfid->sanitizeUid($request->uid);
 
-        $result = $this->rfid->checkpointIn($request->uid, $companyId, $scanStage, $rfidOrigin);
+        $batch = $this->rfid->findBatchByUid($sanitizedUid, $companyId);
 
-        Log::info("RFID /login (SCAN IN, audit only) → uid:{$request->uid} stage:{$scanStage} origin:{$rfidOrigin} status:{$result['status']} ip:{$request->ip()}");
+        if (!$batch) {
+            Log::warning("RFID /login → uid:{$sanitizedUid} tidak terdaftar pada batch manapun ip:{$request->ip()}");
+            return $this->hardwareResponse([
+                'status'  => 'failed',
+                'name'    => 'Tag Asing',
+                'message' => 'Tag tidak dikenal',
+                'detail'  => "UID {$sanitizedUid} tidak terdaftar. Lakukan registrasi terlebih dahulu.",
+            ]);
+        }
+
+        $scanStage = $this->rfid->resolveScanStage($batch, $request->input('stage'));
+        $strategy  = $this->authorization->getStrategy($batch->company_id, $scanStage);
+
+        $result = $strategy->handleScanIn($batch, $scanStage, ['rfid_origin' => $rfidOrigin]);
+
+        Log::info("RFID /login (SCAN IN, mode:{$strategy->getMode()}) → uid:{$sanitizedUid} stage:{$scanStage} origin:{$rfidOrigin} status:{$result['status']} transition_attempted:" . (($result['transition_attempted'] ?? false) ? '1' : '0') . " transition_success:" . (($result['transition_success'] ?? false) ? '1' : '0') . " ip:{$request->ip()}");
 
         if ($result['status'] === 'success' && !empty($result['batch_id'])) {
             $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
@@ -135,7 +158,7 @@ class ApiRfidController extends Controller
                     companyId:    $captureCompanyId,
                     stageName:    $result['scan_stage'] ?? null,
                     scanType:     'scan_in',
-                    rfidUid:      $request->uid,
+                    rfidUid:      $sanitizedUid,
                 ))->onQueue(config('cctv.queue', 'default'))
                   ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
             }
@@ -145,11 +168,21 @@ class ApiRfidController extends Controller
     }
 
     /**
-     * SCAN OUT: Rekam scan keluar area — AUDIT TRAIL ONLY.
+     * SCAN OUT: Rekam scan keluar area.
      *
-     * ✅ MANUAL MODE: Tidak ada perubahan status batch.
-     * Hanya mencatat Checkpoint dengan rfid_scan_code.
-     * Operator kirim batch ke stage berikutnya via web panel.
+     * Perilaku bergantung pada Progressive Authorization mode yang aktif
+     * untuk stage ini (lihat RfidAuthorizationService::getStrategy()):
+     *   audit_only        → hanya mencatat Checkpoint, TIDAK mengubah status
+     *                        batch. Operator kirim ke stage berikutnya via
+     *                        web panel.
+     *   scan_to_dispatch   → checkpoint audit trail SAMA seperti audit_only,
+     *                        LALU mencoba men-dispatch batch ke stage
+     *                        berikutnya — HANYA jika batch benar-benar
+     *                        berada di stage ini saat ini (Chain-of-
+     *                        Responsibility guard identik
+     *                        ProcessController::forwardBatch()). dry_process
+     *                        selalu ditolak (butuh transformasi produk via
+     *                        web panel).
      *
      * POST /api/rfid/logout
      * Body: { "uid": "A3B2C1D0", "stage": "wet_process" }
@@ -168,12 +201,27 @@ class ApiRfidController extends Controller
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
         $companyId  = $this->resolveCompanyId($request);
-        $scanStage  = $request->input('stage');
         $rfidOrigin = $this->resolveOrigin($request);
+        $sanitizedUid = $this->rfid->sanitizeUid($request->uid);
 
-        $result = $this->rfid->checkpointOut($request->uid, $companyId, $scanStage, $rfidOrigin);
+        $batch = $this->rfid->findBatchByUid($sanitizedUid, $companyId);
 
-        Log::info("RFID /logout (SCAN OUT, audit only) → uid:{$request->uid} stage:{$scanStage} origin:{$rfidOrigin} status:{$result['status']} ip:{$request->ip()}");
+        if (!$batch) {
+            Log::warning("RFID /logout → uid:{$sanitizedUid} tidak terdaftar ip:{$request->ip()}");
+            return $this->hardwareResponse([
+                'status'  => 'failed',
+                'name'    => 'Tag Asing',
+                'message' => 'Tag tidak dikenal',
+                'detail'  => "UID {$sanitizedUid} tidak terdaftar.",
+            ]);
+        }
+
+        $scanStage = $this->rfid->resolveScanStage($batch, $request->input('stage'));
+        $strategy  = $this->authorization->getStrategy($batch->company_id, $scanStage);
+
+        $result = $strategy->handleScanOut($batch, $scanStage, ['rfid_origin' => $rfidOrigin]);
+
+        Log::info("RFID /logout (SCAN OUT, mode:{$strategy->getMode()}) → uid:{$sanitizedUid} stage:{$scanStage} origin:{$rfidOrigin} status:{$result['status']} transition_attempted:" . (($result['transition_attempted'] ?? false) ? '1' : '0') . " transition_success:" . (($result['transition_success'] ?? false) ? '1' : '0') . " ip:{$request->ip()}");
 
         if ($result['status'] === 'success' && !empty($result['batch_id'])) {
             $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
@@ -192,7 +240,7 @@ class ApiRfidController extends Controller
                     companyId:    $captureCompanyId,
                     stageName:    $result['scan_stage'] ?? null,
                     scanType:     'scan_out',
-                    rfidUid:      $request->uid,
+                    rfidUid:      $sanitizedUid,
                 ))->onQueue(config('cctv.queue', 'default'))
                   ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
             }
