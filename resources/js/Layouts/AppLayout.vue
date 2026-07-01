@@ -90,6 +90,14 @@ const cctvItem = {
     en:   'CCTV Monitor',
 }
 
+const mobileRfidItem = {
+    key:  'hardware_rfid_mobile',
+    href: '/company/hardware/rfid/mobile',
+    icon: '📱',
+    id:   'Mobile RFID Scan',
+    en:   'Mobile RFID Scan',
+}
+
 // ─── Roles yang boleh akses RFID panel ────────────────────────────────────────
 const hasRfidAccess = computed(() =>
     ['company_admin','operator_lab_station','operator_lab_ltj',
@@ -109,8 +117,9 @@ const allProcessStages = [
 // ─── Navigation per role ──────────────────────────────────────────────────────
 const navigation = computed(() => {
 
-    // [Utility] Tambahkan rfidItem + cctvItem jika hasRfidAccess
-    const withRfid = (items) => hasRfidAccess.value ? [...items, rfidItem, cctvItem] : items
+    // [Utility] Tambahkan rfidItem + cctvItem + mobileRfidItem jika hasRfidAccess
+    const withRfid = (items) => hasRfidAccess.value
+        ? [...items, rfidItem, mobileRfidItem, cctvItem] : items
 
     // ── SUPER ADMIN ──────────────────────────────────────────────────────────
     if (isSuperAdmin.value) return [

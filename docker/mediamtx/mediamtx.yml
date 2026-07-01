@@ -53,21 +53,6 @@ webrtc: yes
 # ── Camera Paths ───────────────────────────────────────────────────────────────
 paths:
 
-  # ── SIMULATION STREAM 1 — Gate Receiving Area ──────────────────────────────
-  # testsrc2 dengan warna berbeda per kamera (no font deps)
-  cam_gate1:
-    source:          publisher
-    sourceOnDemand:  no
-    runOnInit: >-
-      ffmpeg -f lavfi
-      -i testsrc2=size=1280x720:rate=15
-      -vf "drawbox=x=0:y=0:w=iw:h=60:color=blue@0.6:t=fill,
-           drawbox=x=0:y=0:w=iw:h=60:color=black@0.4:t=fill"
-      -c:v libx264 -preset ultrafast -tune zerolatency
-      -b:v 800k -maxrate 900k -bufsize 1600k -g 30
-      -f rtsp rtsp://localhost:8554/cam_gate1
-    runOnInitRestart: yes
-
   # ── SIMULATION STREAM 2 — Wet Process Area ─────────────────────────────────
   cam_wet:
     source:          publisher
@@ -97,9 +82,9 @@ paths:
     runOnInitRestart: yes
 
   # ── PRODUCTION — Actual TP-Link Tapo C500 ──────────────────────────────────
-  cam_gate1_real:
+  cam_gate1:
     source:                       rtsp://admin_minetra:Tapo123!@192.168.18.38/stream2
-    sourceOnDemand:               yes
+    sourceOnDemand:               no
     sourceOnDemandStartTimeout:   15s
     sourceOnDemandCloseAfter:     60s
     sourceProtocol:               tcp

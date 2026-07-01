@@ -51,12 +51,28 @@ function scanTypeLabel(type) {
 
 // ─── Tab active ───────────────────────────────────────────────────────────
 const activeTab = ref('overview')
-const tabs = [
-    { id: 'overview',    label: 'Ringkasan', icon: '📊' },
-    { id: 'timeline',    label: 'Timeline', icon: '⏱' },
-    { id: 'checkpoints', label: 'Checkpoint', icon: '📍' },
-    { id: 'photos',      label: 'Foto CCTV', icon: '📷' },
-]
+const tabs = computed(() => {
+    const base = [
+        { id: 'overview',    label: 'Ringkasan',   icon: '📊' },
+        { id: 'timeline',    label: 'Timeline',     icon: '⏱' },
+        { id: 'checkpoints', label: 'Checkpoint',   icon: '📍' },
+        { id: 'photos',      label: 'Galeri Foto',  icon: '📷' },
+    ]
+    if (props.batch?.lab_analyses?.length) {
+        base.push({ id: 'lab',    label: 'Lab Analisis', icon: '🧬' })
+    }
+    if (props.batch?.parent_batch?.checkpoints?.length) {
+        base.push({ id: 'parent', label: 'Batch Induk',  icon: '🔗' })
+    }
+    return base
+})
+
+function rfidOriginBadge(origin) {
+    if (origin === 'real_esp32')  return { label: 'ESP32',       cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
+    if (origin === 'simulation')  return { label: 'Simulasi',    cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+    if (origin === 'api')         return { label: 'API',         cls: 'bg-muted text-muted-foreground' }
+    return null
+}
 
 // ─── Status & Stage helpers ───────────────────────────────────────────────
 function statusClass(s) {
@@ -464,6 +480,17 @@ const weightRetentionPct = computed(() => {
                                                   :class="snapshotStatusBadge(cp.snapshot_status)?.cls">
                                                 📷 {{ snapshotStatusBadge(cp.snapshot_status)?.label }}
                                             </span>
+                                            <!-- RFID origin badge -->
+                                            <span v-if="rfidOriginBadge(cp.rfid_origin)"
+                                                  class="text-xs font-semibold px-1.5 py-0.5 rounded"
+                                                  :class="rfidOriginBadge(cp.rfid_origin)?.cls">
+                                                📡 {{ rfidOriginBadge(cp.rfid_origin)?.label }}
+                                            </span>
+                                            <!-- Capture failed indicator -->
+                                            <span v-if="cp.capture_attempted && !cp.capture_succeeded"
+                                                  class="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                                                ⚠ Capture Gagal
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -567,6 +594,187 @@ const weightRetentionPct = computed(() => {
                                 </p>
                             </div>
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Tab: Lab Analisis ─────────────────────────────────────── -->
+            <div v-if="activeTab === 'lab'" class="animate-fade-in">
+                <div class="rounded-2xl border border-border bg-card overflow-hidden">
+                    <div class="px-5 py-4 border-b border-border bg-muted/20 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-foreground">
+                            Hasil Analisis Lab LTJ
+                            <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                                {{ batch.lab_analyses?.length ?? 0 }}
+                            </span>
+                        </h3>
+                        <span class="text-xs text-muted-foreground">Analisis komposisi REO per batch</span>
+                    </div>
+                    <div class="divide-y divide-border">
+                        <div v-for="(la, i) in batch.lab_analyses" :key="la.id"
+                             class="p-5 space-y-4">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                        #{{ i + 1 }}
+                                    </span>
+                                    <span v-if="la.is_validated"
+                                          class="text-xs font-semibold px-2 py-0.5 rounded badge-active">
+                                        ✓ Divalidasi
+                                    </span>
+                                    <span v-else class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-semibold">
+                                        Belum Divalidasi
+                                    </span>
+                                    <span v-if="la.lab_method" class="text-xs text-muted-foreground">
+                                        Metode: {{ la.lab_method }}
+                                    </span>
+                                </div>
+                                <div class="text-right text-xs text-muted-foreground">
+                                    <p>{{ la.analyzed_by ?? '—' }}</p>
+                                    <p>{{ la.analyzed_at ?? '—' }}</p>
+                                    <p v-if="la.validated_at" class="text-emerald-600 dark:text-emerald-400 mt-0.5">✓ {{ la.validated_at }}</p>
+                                </div>
+                            </div>
+
+                            <!-- REO composition grid -->
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div v-for="elem in [
+                                    { key: 'la', label: 'La' },
+                                    { key: 'ce', label: 'Ce' },
+                                    { key: 'pr', label: 'Pr' },
+                                    { key: 'nd', label: 'Nd' },
+                                    { key: 'y',  label: 'Y' },
+                                ]" :key="elem.key"
+                                     class="rounded-xl bg-muted/40 p-3 space-y-1"
+                                >
+                                    <p class="text-[10px] text-muted-foreground font-medium">{{ elem.label }}</p>
+                                    <p class="text-sm font-bold text-foreground font-mono">
+                                        {{ la[elem.key + '_pct'] != null ? la[elem.key + '_pct'].toFixed(3) + '%' : '—' }}
+                                    </p>
+                                    <p class="text-[10px] text-muted-foreground">
+                                        {{ la[elem.key + '_kg'] != null ? formatWeight(la[elem.key + '_kg']) : '' }}
+                                    </p>
+                                </div>
+
+                                <!-- Radioactive elements -->
+                                <div class="rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 p-3 space-y-1">
+                                    <p class="text-[10px] text-red-600 dark:text-red-400 font-semibold">ThO₂ ☢</p>
+                                    <p class="text-sm font-bold text-red-700 dark:text-red-400 font-mono">
+                                        {{ la.tho2_pct != null ? la.tho2_pct.toFixed(4) + '%' : '—' }}
+                                    </p>
+                                </div>
+                                <div class="rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 p-3 space-y-1">
+                                    <p class="text-[10px] text-red-600 dark:text-red-400 font-semibold">U₃O₈ ☢</p>
+                                    <p class="text-sm font-bold text-red-700 dark:text-red-400 font-mono">
+                                        {{ la.u3o8_pct != null ? la.u3o8_pct.toFixed(4) + '%' : '—' }}
+                                    </p>
+                                </div>
+                                <!-- Total REO -->
+                                <div class="rounded-xl border-2 border-primary/20 bg-primary/5 p-3 space-y-1 col-span-2 sm:col-span-2">
+                                    <p class="text-[10px] text-primary font-semibold">Total REO</p>
+                                    <p class="text-lg font-extrabold text-primary font-mono">
+                                        {{ la.total_reo_pct != null ? la.total_reo_pct.toFixed(3) + '%' : '—' }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p v-if="la.notes" class="text-xs text-muted-foreground italic border-l-2 border-border pl-3">
+                                {{ la.notes }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Tab: Batch Induk ─────────────────────────────────────── -->
+            <div v-if="activeTab === 'parent'" class="animate-fade-in">
+                <div class="rounded-2xl border border-border bg-card overflow-hidden">
+                    <div class="px-5 py-4 border-b border-border bg-muted/20 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <h3 class="text-sm font-semibold text-foreground">
+                                Riwayat Batch Induk
+                            </h3>
+                            <Link
+                                :href="`/company/batches/${batch.parent_batch?.id}`"
+                                class="text-xs font-mono font-semibold text-primary hover:underline flex items-center gap-1"
+                            >
+                                {{ batch.parent_batch?.batch_code }}
+                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+                                </svg>
+                            </Link>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            {{ batch.parent_batch?.checkpoints?.length ?? 0 }} checkpoint
+                        </span>
+                    </div>
+
+                    <div v-if="!batch.parent_batch?.checkpoints?.length" class="py-12 text-center text-muted-foreground text-sm">
+                        Tidak ada checkpoint dari batch induk.
+                    </div>
+
+                    <div v-else class="divide-y divide-border">
+                        <div
+                            v-for="(cp, i) in batch.parent_batch.checkpoints"
+                            :key="cp.id"
+                            class="px-5 py-4 hover:bg-muted/20 transition-colors"
+                        >
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5 bg-muted text-muted-foreground">
+                                        {{ i + 1 }}
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-foreground">
+                                            {{ cp.stage_label || cp.checkpoint_stage?.replace(/_/g, ' ') }}
+                                        </p>
+                                        <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                                            <span v-if="cp.weight_recorded" class="text-xs font-semibold text-foreground">
+                                                {{ formatWeight(cp.weight_recorded) }}
+                                            </span>
+                                            <span v-if="cp.location" class="text-xs text-muted-foreground">
+                                                📍 {{ cp.location }}
+                                            </span>
+                                            <!-- RFID origin badge -->
+                                            <span v-if="rfidOriginBadge(cp.rfid_origin)"
+                                                  class="text-xs font-semibold px-1.5 py-0.5 rounded"
+                                                  :class="rfidOriginBadge(cp.rfid_origin)?.cls">
+                                                📡 {{ rfidOriginBadge(cp.rfid_origin)?.label }}
+                                            </span>
+                                            <!-- Snapshot status -->
+                                            <span v-if="snapshotStatusBadge(cp.snapshot_status)"
+                                                  class="text-xs font-semibold px-1.5 py-0.5 rounded"
+                                                  :class="snapshotStatusBadge(cp.snapshot_status)?.cls">
+                                                📷 {{ snapshotStatusBadge(cp.snapshot_status)?.label }}
+                                            </span>
+                                        </div>
+                                        <!-- Thumbnail row for parent checkpoint photos -->
+                                        <div v-if="cp.photos?.length" class="flex gap-2 mt-2">
+                                            <button
+                                                v-for="(ph, pi) in cp.photos.slice(0, 4)"
+                                                :key="pi"
+                                                @click="openPhoto(ph.url)"
+                                                class="w-14 h-10 rounded-lg overflow-hidden border border-border hover:border-primary/40 transition-all flex-shrink-0"
+                                                :title="ph.camera_name"
+                                            >
+                                                <img :src="ph.url" class="w-full h-full object-cover" loading="lazy" />
+                                            </button>
+                                            <span v-if="cp.photos.length > 4"
+                                                  class="w-14 h-10 rounded-lg border border-border bg-muted flex items-center justify-center text-xs text-muted-foreground font-semibold">
+                                                +{{ cp.photos.length - 4 }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-right flex-shrink-0">
+                                    <p class="text-xs text-muted-foreground">{{ cp.recorded_at }}</p>
+                                    <p v-if="cp.recorded_at_diff" class="text-[10px] text-muted-foreground/70 mt-0.5">{{ cp.recorded_at_diff }}</p>
+                                    <p v-if="cp.rfid_scan_code" class="text-[10px] font-mono text-muted-foreground/60 mt-0.5">
+                                        UID: {{ cp.rfid_scan_code }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

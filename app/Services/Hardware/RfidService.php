@@ -248,7 +248,7 @@ class RfidService
      * @param  int         $companyId  Company ID
      * @param  string|null $scanStage  Stage dimana scan IN terjadi
      */
-    public function checkpointIn(string $uid, int $companyId = 1, ?string $scanStage = null): array
+    public function checkpointIn(string $uid, int $companyId = 1, ?string $scanStage = null, string $rfidOrigin = 'real_esp32'): array
     {
         $uid = $this->sanitizeUid($uid);
 
@@ -291,13 +291,13 @@ class RfidService
         Checkpoint::create([
             'batch_id'         => $batch->id,
             'location_id'      => $batch->current_location_id,
-            'checkpoint_stage' => $inCheckpoint,   // ENUM valid dari STAGE_FLOW
+            'checkpoint_stage' => $inCheckpoint,
             'weight_recorded'  => $batch->current_weight,
             'weight_previous'  => $batch->current_weight,
             'weight_loss'      => 0,
             'weight_loss_pct'  => 0,
             'has_discrepancy'  => false,
-            'is_verified'      => false,  // Belum diverifikasi — menunggu konfirmasi manual
+            'is_verified'      => false,
             'notes'            => "📡 RFID Scan IN di {$stageLabel} — {$timeWib} WIB (menunggu konfirmasi operator)",
             'checkpoint_data'  => [
                 'action'              => 'rfid_scan_in',
@@ -310,9 +310,12 @@ class RfidService
                 'note'                => 'Audit trail RFID. Konfirmasi penerimaan dilakukan via web panel.',
                 'timestamp_wib'       => $timeDisplay . ' WIB',
             ],
-            'rfid_scan_code' => $uid,
-            'recorded_by'    => null,
-            'recorded_at'    => now(),
+            'rfid_scan_code'    => $uid,
+            'rfid_origin'       => $rfidOrigin,
+            'capture_attempted' => false,
+            'capture_succeeded' => false,
+            'recorded_by'       => null,
+            'recorded_at'       => now(),
         ]);
 
         Log::info("RFID SCAN IN (audit only): Batch={$batch->batch_code} UID={$uid} area={$scanStage}");
@@ -356,7 +359,7 @@ class RfidService
      * @param  int         $companyId  Company ID
      * @param  string|null $scanStage  Stage dimana scan OUT terjadi
      */
-    public function checkpointOut(string $uid, int $companyId = 1, ?string $scanStage = null): array
+    public function checkpointOut(string $uid, int $companyId = 1, ?string $scanStage = null, string $rfidOrigin = 'real_esp32'): array
     {
         $uid = $this->sanitizeUid($uid);
 
@@ -398,13 +401,13 @@ class RfidService
         Checkpoint::create([
             'batch_id'         => $batch->id,
             'location_id'      => $batch->current_location_id,
-            'checkpoint_stage' => $outCheckpoint,   // ENUM valid dari STAGE_FLOW
+            'checkpoint_stage' => $outCheckpoint,
             'weight_recorded'  => $batch->current_weight,
             'weight_previous'  => $batch->current_weight,
             'weight_loss'      => 0,
             'weight_loss_pct'  => 0,
             'has_discrepancy'  => false,
-            'is_verified'      => false,  // Belum dikonfirmasi — menunggu operator
+            'is_verified'      => false,
             'notes'            => "📡 RFID Scan OUT dari {$stageLabel} — {$timeWib} WIB (menunggu konfirmasi operator)",
             'checkpoint_data'  => [
                 'action'              => 'rfid_scan_out',
@@ -417,9 +420,12 @@ class RfidService
                 'note'                => 'Audit trail RFID. Pengiriman resmi dilakukan via web panel.',
                 'timestamp_wib'       => $timeDisplay . ' WIB',
             ],
-            'rfid_scan_code' => $uid,
-            'recorded_by'    => null,
-            'recorded_at'    => now(),
+            'rfid_scan_code'    => $uid,
+            'rfid_origin'       => $rfidOrigin,
+            'capture_attempted' => false,
+            'capture_succeeded' => false,
+            'recorded_by'       => null,
+            'recorded_at'       => now(),
         ]);
 
         Log::info("RFID SCAN OUT (audit only): Batch={$batch->batch_code} UID={$uid} area={$scanStage}");

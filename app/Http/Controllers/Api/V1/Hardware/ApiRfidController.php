@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\CaptureCctvSnapshotJob;
 use App\Models\Batch;
 use App\Models\Checkpoint;
+use App\Services\Hardware\RfidAuthorizationService;
 use App\Services\Hardware\RfidService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,7 +52,8 @@ class ApiRfidController extends Controller
     ];
 
     public function __construct(
-        private RfidService $rfid
+        private RfidService             $rfid,
+        private RfidAuthorizationService $authorization,
     ) {}
 
     // ═══════════════════════════════════════════════════════════════════
@@ -106,12 +108,13 @@ class ApiRfidController extends Controller
         ]);
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
-        $companyId = $this->resolveCompanyId($request);
-        $scanStage = $request->input('stage');
+        $companyId  = $this->resolveCompanyId($request);
+        $scanStage  = $request->input('stage');
+        $rfidOrigin = $this->resolveOrigin($request);
 
-        $result = $this->rfid->checkpointIn($request->uid, $companyId, $scanStage);
+        $result = $this->rfid->checkpointIn($request->uid, $companyId, $scanStage, $rfidOrigin);
 
-        Log::info("RFID /login (SCAN IN, audit only) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
+        Log::info("RFID /login (SCAN IN, audit only) → uid:{$request->uid} stage:{$scanStage} origin:{$rfidOrigin} status:{$result['status']} ip:{$request->ip()}");
 
         if ($result['status'] === 'success' && !empty($result['batch_id'])) {
             $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
@@ -158,12 +161,13 @@ class ApiRfidController extends Controller
         ]);
         $request->validate(['uid' => 'required|string|min:4|max:50']);
 
-        $companyId = $this->resolveCompanyId($request);
-        $scanStage = $request->input('stage');
+        $companyId  = $this->resolveCompanyId($request);
+        $scanStage  = $request->input('stage');
+        $rfidOrigin = $this->resolveOrigin($request);
 
-        $result = $this->rfid->checkpointOut($request->uid, $companyId, $scanStage);
+        $result = $this->rfid->checkpointOut($request->uid, $companyId, $scanStage, $rfidOrigin);
 
-        Log::info("RFID /logout (SCAN OUT, audit only) → uid:{$request->uid} stage:{$scanStage} status:{$result['status']} ip:{$request->ip()}");
+        Log::info("RFID /logout (SCAN OUT, audit only) → uid:{$request->uid} stage:{$scanStage} origin:{$rfidOrigin} status:{$result['status']} ip:{$request->ip()}");
 
         if ($result['status'] === 'success' && !empty($result['batch_id'])) {
             $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
@@ -421,6 +425,55 @@ class ApiRfidController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // PROGRESSIVE AUTHORIZATION MODE
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * GET /api/v1/company/rfid/authorization-modes
+     * Semua mode authorization per stage untuk company ini.
+     */
+    public function getAuthorizationModes(Request $request): JsonResponse
+    {
+        $companyId = Auth::user()?->company_id ?? self::DEFAULT_COMPANY_ID;
+
+        return response()->json([
+            'success'      => true,
+            'data'         => $this->authorization->getAllModes($companyId),
+            'valid_modes'  => $this->authorization->getValidModes(),
+        ]);
+    }
+
+    /**
+     * POST /api/v1/company/rfid/authorization-modes
+     * Set authorization mode untuk stage tertentu. company_admin only.
+     */
+    public function setAuthorizationMode(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->hasRole('company_admin'), 403,
+            'Hanya company_admin yang dapat mengubah mode otorisasi RFID.');
+
+        $validated = $request->validate([
+            'stage' => 'required|string|in:receiving,wet_process,dry_process,warehouse,project_plant',
+            'mode'  => 'required|string|in:audit_only,scan_to_receive,scan_to_dispatch',
+        ]);
+
+        $companyId = Auth::user()->company_id;
+
+        $this->authorization->setMode(
+            $companyId,
+            $validated['stage'],
+            $validated['mode'],
+            Auth::id()
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Mode RFID untuk stage {$validated['stage']} diubah ke {$validated['mode']}.",
+            'data'    => $this->authorization->getAllModes($companyId),
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // HELPERS
     // ═══════════════════════════════════════════════════════════════════
 
@@ -446,5 +499,17 @@ class ApiRfidController extends Controller
             if ($company) return $company->id;
         }
         return self::DEFAULT_COMPANY_ID;
+    }
+
+    /**
+     * Detect scan origin: web simulation vs real ESP32.
+     * Browser sets X-Requested-With; ESP32 firmware does not.
+     */
+    private function resolveOrigin(Request $request): string
+    {
+        if ($request->hasHeader('X-Requested-With') || $request->hasHeader('X-CSRF-TOKEN')) {
+            return 'simulation';
+        }
+        return 'real_esp32';
     }
 }

@@ -48,6 +48,7 @@ const props = defineProps({
     // Warehouse inventory data
     warehouse_inventory:  { type: Array,  default: () => [] },
     warehouse_by_export:  { type: Object, default: () => ({}) },
+    rfid_auth_mode:       { type: String, default: 'audit_only' },
 })
 
 // ─── Stage identity ───────────────────────────────────────────────────────────
@@ -422,6 +423,19 @@ const exportPieData = computed(() => {
                     <h1 class="font-heading text-xl font-bold text-foreground">
                         {{ lang === 'en' ? stage_config?.label_en : stage_config?.label }}
                     </h1>
+                    <!-- RFID Authorization Mode Badge (C4) -->
+                    <span v-if="rfid_auth_mode === 'scan_to_receive'"
+                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
+                        <span>📡</span> RFID Auto-Terima
+                    </span>
+                    <span v-else-if="rfid_auth_mode === 'scan_to_dispatch'"
+                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">
+                        <span>📡</span> RFID Auto-Kirim
+                    </span>
+                    <span v-else
+                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-muted text-muted-foreground border border-border">
+                        <span>📡</span> RFID Audit Only
+                    </span>
                 </div>
                 <p class="text-sm text-muted-foreground mt-0.5">
                     {{ lang === 'en' ? stage_config?.desc_en : stage_config?.desc }}

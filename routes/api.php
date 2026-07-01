@@ -216,8 +216,15 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             ->name('active-mode');
 
         // Daftar stage yang tersedia (untuk dropdown Vue)
-        Route::get('stages',      [ApiRfidController::class, 'getAvailableStages'])
+        Route::get('stages', [ApiRfidController::class, 'getAvailableStages'])
             ->name('stages');
+
+        // Progressive Authorization Mode — baca dan set mode per stage
+        Route::get('authorization-modes',  [ApiRfidController::class, 'getAuthorizationModes'])
+            ->name('authorization-modes.index');
+
+        Route::post('authorization-modes', [ApiRfidController::class, 'setAuthorizationMode'])
+            ->name('authorization-modes.set');
 
     });
 

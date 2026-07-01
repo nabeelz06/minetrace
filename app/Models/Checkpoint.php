@@ -15,8 +15,9 @@ class Checkpoint extends Model
         'batch_id', 'location_id', 'checkpoint_stage',
         'weight_recorded', 'weight_previous', 'weight_loss', 'weight_loss_pct',
         'has_discrepancy', 'is_verified', 'verified_at', 'verified_by',
-        'next_stage', 'checkpoint_data', 'photos', 'snapshot_status', 'notes',
-        'rfid_scan_code', 'qr_scan_code', 'scan_timestamp',
+        'next_stage', 'checkpoint_data', 'photos', 'snapshot_status',
+        'rfid_origin', 'capture_attempted', 'capture_succeeded',
+        'notes', 'rfid_scan_code', 'qr_scan_code', 'scan_timestamp',
         'recorded_by', 'recorded_at',
     ];
 
@@ -32,8 +33,9 @@ class Checkpoint extends Model
         'verified_at'      => 'datetime',
         'scan_timestamp'   => 'datetime',
         'recorded_at'      => 'datetime',
-        // snapshot_status: null|'pending'|'captured'|'failed'
-        'snapshot_status'  => 'string',
+        'snapshot_status'   => 'string',
+        'capture_attempted' => 'boolean',
+        'capture_succeeded' => 'boolean',
     ];
 
     // ─── Relationships ─────────────────────────────────────────────────────

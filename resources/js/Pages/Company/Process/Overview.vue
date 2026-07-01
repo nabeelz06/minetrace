@@ -77,6 +77,65 @@ function stageLabel(stage) {
                 </div>
             </div>
 
+            <!-- Pipeline Flow Visualization -->
+            <div class="rounded-2xl border border-border bg-card p-5 overflow-x-auto animate-fade-in delay-150">
+                <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+                    {{ lang === 'en' ? 'Pipeline Flow' : 'Alur Pipeline' }}
+                </p>
+                <div class="flex items-center gap-1 min-w-max">
+                    <template v-for="(stage, i) in stage_summaries" :key="stage.stage">
+                        <!-- Stage bubble -->
+                        <Link :href="stage.href"
+                              class="flex flex-col items-center gap-1.5 group min-w-[72px]">
+                            <div class="relative">
+                                <div class="w-14 h-14 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 group-hover:scale-110 group-hover:shadow-md border"
+                                     :class="[getColor(stage.color).bg, getColor(stage.color).border]">
+                                    <span class="text-xl leading-none">{{ stage.icon }}</span>
+                                    <span class="text-xs font-bold mt-0.5" :class="getColor(stage.color).text">{{ stage.count }}</span>
+                                </div>
+                                <!-- Alert badge -->
+                                <div v-if="stage.alert_count > 0"
+                                     class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 flex items-center justify-center">
+                                    <span class="text-[10px] font-bold text-white px-1">{{ stage.alert_count }}</span>
+                                </div>
+                                <!-- Active pulse -->
+                                <div v-if="stage.count > 0"
+                                     class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full animate-pulse"
+                                     :class="getColor(stage.color).dot"/>
+                            </div>
+                            <p class="text-[10px] font-medium text-center text-muted-foreground leading-tight max-w-[72px]">
+                                {{ lang === 'en' ? stage.label_en : stage.label }}
+                            </p>
+                        </Link>
+                        <!-- Arrow connector -->
+                        <div v-if="i < stage_summaries.length - 1" class="flex-shrink-0 flex flex-col items-center pb-4">
+                            <svg class="w-6 h-4 text-border" fill="none" viewBox="0 0 24 16">
+                                <path d="M2 8h16M14 4l6 4-6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <!-- Export terminal -->
+                        <template v-if="i === stage_summaries.length - 1">
+                            <div class="flex-shrink-0 flex flex-col items-center pb-4">
+                                <svg class="w-6 h-4 text-border" fill="none" viewBox="0 0 24 16">
+                                    <path d="M2 8h16M14 4l6 4-6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <div class="flex flex-col items-center gap-1.5 min-w-[72px]">
+                                <div class="w-14 h-14 rounded-2xl flex flex-col items-center justify-center border border-dashed border-border bg-muted/30">
+                                    <span class="text-xl leading-none">🚢</span>
+                                    <span class="text-xs font-bold mt-0.5 text-muted-foreground">
+                                        {{ global_stats?.total_exported ?? 0 }}
+                                    </span>
+                                </div>
+                                <p class="text-[10px] font-medium text-center text-muted-foreground">
+                                    {{ lang === 'en' ? 'Exported' : 'Diekspor' }}
+                                </p>
+                            </div>
+                        </template>
+                    </template>
+                </div>
+            </div>
+
             <!-- Stage Cards Grid -->
             <div>
                 <h2 class="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">

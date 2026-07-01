@@ -244,6 +244,10 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
                 // CCTV Monitor — semua hardware roles boleh lihat
                 Route::get('hardware/cctv', [CctvController::class, 'monitor'])
                     ->name('hardware.cctv');
+
+                // Mobile RFID Scan — Progressive Authorization interface
+                Route::get('hardware/rfid/mobile', [HardwareController::class, 'mobileRfidScan'])
+                    ->name('hardware.rfid.mobile');
             });
 
         // CCTV Settings & CRUD — company_admin only

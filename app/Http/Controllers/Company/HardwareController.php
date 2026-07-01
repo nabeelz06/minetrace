@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Company;
 
 use App\Http\Controllers\Controller;
+use App\Services\Hardware\RfidAuthorizationService;
 use App\Services\Hardware\RfidService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -16,8 +17,26 @@ use Inertia\Response;
 class HardwareController extends Controller
 {
     public function __construct(
-        private RfidService $rfid
+        private RfidService             $rfid,
+        private RfidAuthorizationService $authorization,
     ) {}
+
+    public function mobileRfidScan(): Response
+    {
+        $user      = Auth::user();
+        $companyId = $user->company_id ?? 1;
+        $tz        = 'Asia/Jakarta';
+
+        return Inertia::render('Company/Hardware/MobileRfidScan', [
+            'authorization_modes' => $this->authorization->getAllModes($companyId),
+            'valid_modes'         => $this->authorization->getValidModes(),
+            'tagged_batches'      => $this->rfid->getTaggedBatches($companyId),
+            'recent_activity'     => $this->rfid->getRecentRfidActivity($companyId),
+            'user_role'           => $user->getRoleNames()->first() ?? 'company_admin',
+            'company_id'          => $companyId,
+            'current_time'        => Carbon::now($tz)->format('d/m/Y H:i:s') . ' WIB',
+        ]);
+    }
 
     public function rfidPanel(): Response
     {

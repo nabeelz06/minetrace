@@ -9,6 +9,7 @@ use App\Models\Checkpoint;
 use App\Models\Location;
 use App\Models\MassBalanceThreshold;
 use App\Models\ProductCode;
+use App\Services\Hardware\RfidAuthorizationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -176,22 +177,25 @@ class ProcessController extends Controller
                 'recorded_at_diff' => $cp->recorded_at?->diffForHumans(),
             ]);
 
-        $totalActive = Batch::where('company_id', $companyId)
+        $totalActive   = Batch::where('company_id', $companyId)
             ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count();
-        $totalAlerts = Batch::where('company_id', $companyId)
+        $totalAlerts   = Batch::where('company_id', $companyId)
             ->where('has_discrepancy', true)
             ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count();
-        $totalWeight = Batch::where('company_id', $companyId)
+        $totalWeight   = Batch::where('company_id', $companyId)
             ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->sum('current_weight');
+        $totalExported = Batch::where('company_id', $companyId)
+            ->where('status', 'exported')->count();
 
         return Inertia::render('Company/Process/Overview', [
             'stage_summaries'    => $stageSummaries,
             'recent_checkpoints' => $recentCheckpoints,
             'global_stats'       => [
-                'total_active'  => $totalActive,
-                'total_alerts'  => $totalAlerts,
-                'total_weight'  => round($totalWeight, 2),
-                'stage_count'   => count(self::STAGES),
+                'total_active'   => $totalActive,
+                'total_alerts'   => $totalAlerts,
+                'total_weight'   => round($totalWeight, 2),
+                'stage_count'    => count(self::STAGES),
+                'total_exported' => $totalExported,
             ],
             'current_time' => Carbon::now($tz)->format('l, d F Y — H:i:s') . ' WIB',
         ]);
@@ -201,7 +205,7 @@ class ProcessController extends Controller
     // STAGE DETAIL
     // ═══════════════════════════════════════════════════════════════════
 
-    public function stage(Request $request, string $stage): Response
+    public function stage(Request $request, string $stage, RfidAuthorizationService $rfidAuth): Response
     {
         abort_unless(array_key_exists($stage, self::STAGES), 404);
 
@@ -389,6 +393,7 @@ class ProcessController extends Controller
             'current_time'         => Carbon::now($tz)->format('d/m/Y H:i:s') . ' WIB',
             'warehouse_inventory'  => $warehouseInventory,
             'warehouse_by_export'  => $warehouseByExport,
+            'rfid_auth_mode'       => $rfidAuth->getMode($companyId, $stage),
         ]);
     }
 

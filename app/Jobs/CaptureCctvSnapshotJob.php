@@ -16,30 +16,25 @@ use Illuminate\Support\Facades\Storage;
 /**
  * CaptureCctvSnapshotJob — Ambil CCTV snapshot via ffmpeg saat RFID scan.
  *
- * ═══════════════════════════════════════════════════════════════════════════
- * MINING INDUSTRY STANDARD — ISO 9001 Audit Trail
- *
- * RFID Scan IN/OUT → CCTV snapshot diambil (bukti fisik keberadaan batch)
- * Foto disimpan ke storage → path+metadata ditambahkan ke Checkpoint.photos[]
- * Foto = bukti legal bahwa batch benar ada secara fisik di titik scan
- *
- * DESIGN PATTERNS:
- * - Strategy Pattern  : CameraResolver memilih kamera berdasarkan stage
- * - Builder Pattern   : Filename generator dengan format deterministik
- * - Observer Pattern  : Update Checkpoint.photos[] setelah capture
- * - Resilience Pattern: Multi-frame capture, ambil frame terbaik
- * ═══════════════════════════════════════════════════════════════════════════
+ * IMPROVEMENTS over Phase 2:
+ *   A3 — MediaMTX readiness probe (5 retries × 500ms) before first ffmpeg call
+ *   A4 — Structured failure entry written to photos[] on exhaustion
+ *   A5 — "mode": "simulation"|"real" persisted in every photo entry
  */
 class CaptureCctvSnapshotJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int   $tries   = 3;
-    public int   $timeout = 45;
+    public int   $timeout = 60;
     public array $backoff  = [5, 15, 30];
 
-    private const TZ         = 'Asia/Jakarta';
+    private const TZ           = 'Asia/Jakarta';
     private const SNAPSHOT_DIR = 'cctv-snapshots';
+
+    // A3: readiness probe constants
+    private const PROBE_RETRIES      = 5;
+    private const PROBE_INTERVAL_US  = 500_000; // 0.5 s
 
     public function __construct(
         private int     $checkpointId,
@@ -53,53 +48,78 @@ class CaptureCctvSnapshotJob implements ShouldQueue
     {
         $checkpoint = Checkpoint::find($this->checkpointId);
         if (!$checkpoint) {
-            Log::warning('CaptureCctvSnapshotJob: Checkpoint tidak ditemukan.', [
+            Log::warning('CaptureCctvSnapshotJob: checkpoint tidak ditemukan.', [
                 'checkpoint_id' => $this->checkpointId,
             ]);
             return;
         }
 
-        // ── [Strategy Pattern] Resolve kamera yang akan digunakan ───────────
-        $camera   = $this->resolveCamera();
-        $rtspUrl  = $camera?->effective_rtsp_url ?? config('cctv.rtsp_url');
+        $camera  = $this->resolveCamera();
+        $rtspUrl = $camera?->effective_rtsp_url ?? config('cctv.rtsp_url');
 
         if (!$rtspUrl) {
-            Log::debug('CaptureCctvSnapshotJob: Tidak ada RTSP URL tersedia, skip.', [
+            Log::debug('CaptureCctvSnapshotJob: tidak ada RTSP URL, skip.', [
                 'company_id' => $this->companyId,
                 'stage'      => $this->stageName,
             ]);
-            $checkpoint->update(['snapshot_status' => 'failed']);
+            $this->writeFailureEntry($checkpoint, 'no_rtsp_url', $camera);
+            $checkpoint->update([
+                'snapshot_status'   => 'failed',
+                'capture_attempted' => true,
+                'capture_succeeded' => false,
+            ]);
             return;
         }
 
-        $cameraName = $camera?->name ?? 'CCTV Utama';
+        $cameraName  = $camera?->name ?? 'CCTV Utama';
+        $captureMode = $camera?->getCaptureMode() ?? (env('CCTV_USE_REAL', false) ? 'real' : 'simulation');
 
-        // ── [Builder Pattern] Buat direktori dan ambil multi-frame ──────────
-        $storageDir   = self::SNAPSHOT_DIR . '/' . $this->companyId;
-        $absoluteDir  = Storage::disk('public')->path($storageDir);
+        // A3 — Probe mediamtx readiness before committing ffmpeg resources
+        if (!$this->probeRtspReady($rtspUrl)) {
+            Log::warning('CaptureCctvSnapshotJob: RTSP tidak siap setelah probe.', [
+                'rtsp_url'      => $rtspUrl,
+                'checkpoint_id' => $this->checkpointId,
+            ]);
+            $this->writeFailureEntry($checkpoint, 'rtsp_not_ready', $camera, $captureMode);
+            $checkpoint->update([
+                'snapshot_status'   => 'failed',
+                'capture_attempted' => true,
+                'capture_succeeded' => false,
+            ]);
+            return;
+        }
+
+        $storageDir  = self::SNAPSHOT_DIR . '/' . $this->companyId;
+        $absoluteDir = Storage::disk('public')->path($storageDir);
 
         if (!is_dir($absoluteDir)) {
             mkdir($absoluteDir, 0755, true);
         }
 
-        $startMs   = (int) (microtime(true) * 1000);
-        $bestPath  = $this->captureMultipleFrames($rtspUrl, $absoluteDir);
+        $startMs  = (int) (microtime(true) * 1000);
+        $bestPath = $this->captureMultipleFrames($rtspUrl, $absoluteDir);
 
         if (!$bestPath || !file_exists($bestPath)) {
-            Log::warning('CaptureCctvSnapshotJob: Semua percobaan ffmpeg gagal.', [
+            Log::warning('CaptureCctvSnapshotJob: semua percobaan ffmpeg gagal.', [
                 'checkpoint_id' => $this->checkpointId,
                 'rtsp_url'      => $rtspUrl,
+            ]);
+            $this->writeFailureEntry($checkpoint, 'ffmpeg_failed', $camera, $captureMode);
+            $checkpoint->update([
+                'snapshot_status'   => 'failed',
+                'capture_attempted' => true,
+                'capture_succeeded' => false,
             ]);
             return;
         }
 
-        $durationMs  = (int) (microtime(true) * 1000) - $startMs;
-        $filesizeKb  = round(filesize($bestPath) / 1024, 1);
+        $durationMs   = (int) (microtime(true) * 1000) - $startMs;
+        $filesizeKb   = round(filesize($bestPath) / 1024, 1);
         $relativePath = $storageDir . '/' . basename($bestPath);
         $publicUrl    = '/storage/' . $relativePath;
         $capturedAt   = Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB';
 
-        // ── [Observer Pattern] Update Checkpoint.photos[] dengan metadata ───
+        // A5 — persist mode in every photo entry
         $photoEntry = [
             'url'          => $publicUrl,
             'path'         => $relativePath,
@@ -112,6 +132,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             'captured_at'  => $capturedAt,
             'duration_ms'  => $durationMs,
             'sha256'       => hash_file('sha256', $bestPath),
+            'mode'         => $captureMode,  // A5
         ];
 
         $photos   = $checkpoint->photos ?? [];
@@ -119,62 +140,128 @@ class CaptureCctvSnapshotJob implements ShouldQueue
 
         $checkpointData = $checkpoint->checkpoint_data ?? [];
         $checkpointData['snapshot_captured'] = true;
-        $checkpointData['snapshot_at']       = Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB';
+        $checkpointData['snapshot_at']       = $capturedAt;
 
         $checkpoint->update([
-            'photos'          => $photos,
-            'checkpoint_data' => $checkpointData,
-            'snapshot_status' => 'captured',
+            'photos'            => $photos,
+            'checkpoint_data'   => $checkpointData,
+            'snapshot_status'   => 'captured',
+            'capture_attempted' => true,
+            'capture_succeeded' => true,
         ]);
 
-        Log::info('CaptureCctvSnapshotJob: Snapshot berhasil tersimpan.', [
+        Log::info('CaptureCctvSnapshotJob: snapshot berhasil.', [
             'checkpoint_id' => $this->checkpointId,
             'path'          => $relativePath,
             'filesize_kb'   => $filesizeKb,
             'duration_ms'   => $durationMs,
             'camera'        => $cameraName,
+            'mode'          => $captureMode,
         ]);
     }
 
     public function failed(\Throwable $e): void
     {
-        Log::error('CaptureCctvSnapshotJob: Job gagal setelah semua retry.', [
+        Log::error('CaptureCctvSnapshotJob: job gagal setelah semua retry.', [
             'checkpoint_id' => $this->checkpointId,
-            'company_id'    => $this->companyId,
-            'scan_type'     => $this->scanType,
             'error'         => $e->getMessage(),
         ]);
-        Checkpoint::where('id', $this->checkpointId)
-            ->update(['snapshot_status' => 'failed']);
+
+        $checkpoint = Checkpoint::find($this->checkpointId);
+        if ($checkpoint) {
+            // A4 — write structured failure entry to photos[] on total exhaustion
+            $this->writeFailureEntry($checkpoint, 'job_exhausted');
+            $checkpoint->update([
+                'snapshot_status'   => 'failed',
+                'capture_attempted' => true,
+                'capture_succeeded' => false,
+            ]);
+        }
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // STRATEGY PATTERN — Camera Resolution
-    // Priority: stage-specific → first active camera → env fallback
-    // ═════════════════════════════════════════════════════════════════════════
+    // ─── A3: MediaMTX readiness probe ────────────────────────────────────────
+
+    private function probeRtspReady(string $rtspUrl): bool
+    {
+        // For non-mediamtx URLs (real cameras), skip probe
+        if (str_contains($rtspUrl, '192.168') || str_contains($rtspUrl, 'rtsp://admin')) {
+            return true;
+        }
+
+        $timeout = 3;
+        $quality = 31; // worst quality — fast probe
+
+        for ($i = 0; $i < self::PROBE_RETRIES; $i++) {
+            if ($i > 0) {
+                usleep(self::PROBE_INTERVAL_US);
+            }
+
+            $probePath = sys_get_temp_dir() . '/minetra_probe_' . $this->checkpointId . '.jpg';
+            $cmd       = sprintf(
+                'timeout %d ffmpeg -loglevel error -rtsp_transport tcp -timeout 5000000 -i %s -frames:v 1 -q:v %d -y %s 2>&1',
+                $timeout,
+                escapeshellarg($rtspUrl),
+                $quality,
+                escapeshellarg($probePath)
+            );
+
+            exec($cmd, $out, $code);
+
+            if ($code === 0 && file_exists($probePath) && filesize($probePath) > 512) {
+                @unlink($probePath);
+                Log::debug('CaptureCctvSnapshotJob: RTSP probe berhasil.', [
+                    'attempt' => $i + 1,
+                    'url'     => $rtspUrl,
+                ]);
+                return true;
+            }
+
+            @unlink($probePath);
+            Log::debug('CaptureCctvSnapshotJob: RTSP probe attempt ' . ($i + 1) . ' gagal.');
+        }
+
+        return false;
+    }
+
+    // ─── A4: Structured failure entry ────────────────────────────────────────
+
+    private function writeFailureEntry(
+        Checkpoint $checkpoint,
+        string $reason,
+        ?CctvCamera $camera = null,
+        string $captureMode = 'simulation'
+    ): void {
+        $failedAt   = Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB';
+        $photos     = $checkpoint->photos ?? [];
+        $photos[]   = [
+            'type'        => 'snapshot_failed',
+            'scan_type'   => $this->scanType,
+            'stage'       => $this->stageName,
+            'rfid_uid'    => $this->rfidUid,
+            'camera_name' => $camera?->name ?? 'Unknown',
+            'mode'        => $captureMode,
+            'failed_at'   => $failedAt,
+            'reason'      => $reason,
+        ];
+        $checkpoint->update(['photos' => $photos]);
+    }
+
+    // ─── Strategy Pattern: Camera Resolution ─────────────────────────────────
 
     private function resolveCamera(): ?CctvCamera
     {
-        // 1. Stage-specific camera
         if ($this->stageName) {
             $camera = CctvCamera::getDefaultForStage($this->companyId, $this->stageName);
             if ($camera) return $camera;
         }
 
-        // 2. First active camera for company
         return CctvCamera::where('company_id', $this->companyId)
             ->where('is_active', true)
             ->orderBy('id')
             ->first();
-
-        // 3. Env fallback handled by caller (rtsp_url dari config)
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // RESILIENCE PATTERN — Multi-frame capture
-    // Ambil n frame dengan interval 0.5 detik, simpan yang terbaik
-    // (ukuran file terbesar = frame paling informatif = paling banyak detail)
-    // ═════════════════════════════════════════════════════════════════════════
+    // ─── Resilience Pattern: Multi-frame capture ──────────────────────────────
 
     private function captureMultipleFrames(string $rtspUrl, string $dir, int $n = 3): ?string
     {
@@ -182,16 +269,13 @@ class CaptureCctvSnapshotJob implements ShouldQueue
 
         for ($i = 0; $i < $n; $i++) {
             if ($i > 0) {
-                usleep(500_000); // 0.5 detik antar frame
+                usleep(500_000);
             }
 
             $filePath = $dir . '/' . $this->buildFilename();
 
             if ($this->captureFrame($rtspUrl, $filePath)) {
-                $captured[] = [
-                    'path' => $filePath,
-                    'size' => filesize($filePath),
-                ];
+                $captured[] = ['path' => $filePath, 'size' => filesize($filePath)];
             }
         }
 
@@ -199,20 +283,14 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             return null;
         }
 
-        // Pilih frame dengan filesize terbesar (paling banyak informasi visual)
         usort($captured, fn ($a, $b) => $b['size'] <=> $a['size']);
 
-        // Hapus frame yang tidak dipilih
         foreach (array_slice($captured, 1) as $discarded) {
             @unlink($discarded['path']);
         }
 
         return $captured[0]['path'];
     }
-
-    // ═════════════════════════════════════════════════════════════════════════
-    // Capture satu frame via ffmpeg
-    // ═════════════════════════════════════════════════════════════════════════
 
     private function captureFrame(string $rtspUrl, string $outputPath): bool
     {
@@ -221,22 +299,20 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         $scale   = config('cctv.ffmpeg_scale', '1280:720');
 
         $cmd = sprintf(
-            'ffmpeg -loglevel error -rtsp_transport tcp -timeout 10000000 -i %s -frames:v 1 -q:v %d -vf scale=%s -y %s 2>&1',
+            'timeout %d ffmpeg -loglevel error -rtsp_transport tcp -timeout 10000000 -i %s -frames:v 1 -q:v %d -vf scale=%s -y %s 2>&1',
+            $timeout,
             escapeshellarg($rtspUrl),
             $quality,
             escapeshellarg($scale),
             escapeshellarg($outputPath)
         );
 
-        $fullCmd = sprintf('timeout %d %s', $timeout, $cmd);
-
-        exec($fullCmd, $output, $exitCode);
+        exec($cmd, $output, $exitCode);
 
         if ($exitCode !== 0 || !file_exists($outputPath) || filesize($outputPath) < 1024) {
             Log::debug('CaptureCctvSnapshotJob: ffmpeg frame gagal.', [
                 'exit_code' => $exitCode,
                 'output'    => implode("\n", array_slice($output, -3)),
-                'path'      => $outputPath,
             ]);
             @unlink($outputPath);
             return false;
@@ -245,10 +321,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         return true;
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // BUILDER PATTERN — Filename dengan format deterministik
-    // Format: snap_{companyId}_{checkpointId}_{YYYYMMDD_HHmmss}_{random4}.jpg
-    // ═════════════════════════════════════════════════════════════════════════
+    // ─── Builder Pattern: Filename ────────────────────────────────────────────
 
     private function buildFilename(): string
     {
