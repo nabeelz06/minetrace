@@ -360,6 +360,7 @@ class BatchController extends Controller
                 'checkpoints'     => $batch->checkpoints->map(fn($cp) => [
                     'id'               => $cp->id,
                     'checkpoint_stage' => $cp->checkpoint_stage,
+                    'stage_label'      => $cp->stage_label,
                     'weight_recorded'  => $cp->weight_recorded,
                     'weight_previous'  => $cp->weight_previous,
                     'weight_loss'      => $cp->weight_loss,
@@ -372,6 +373,8 @@ class BatchController extends Controller
                     'recorded_at'      => $cp->recorded_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
                     'recorded_at_diff' => $cp->recorded_at?->diffForHumans(),
                     'rfid_scan_code'   => $cp->rfid_scan_code,
+                    'photos'           => $cp->photos ?? [],
+                    'snapshot_status'  => $cp->snapshot_status,
                 ])->toArray(),
                 'lab_analyses'    => $batch->labAnalyses->map(fn($la) => [
                     'id'            => $la->id,

@@ -98,6 +98,20 @@ function scanTypeColor(type) {
     return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
 }
 
+function snapshotStatusLabel(status) {
+    if (status === 'captured') return '✓ Captured'
+    if (status === 'pending')  return '⏳ Pending'
+    if (status === 'failed')   return '✕ Failed'
+    return null
+}
+
+function snapshotStatusColor(status) {
+    if (status === 'captured') return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
+    if (status === 'pending')  return 'text-amber-400 border-amber-500/30 bg-amber-500/10'
+    if (status === 'failed')   return 'text-red-400 border-red-500/30 bg-red-500/10'
+    return ''
+}
+
 // ─── HLS stream ───────────────────────────────────────────────────────────────
 function destroyHls() {
     if (hlsInstance.value) {
@@ -541,9 +555,21 @@ const statusLabel = computed(() => ({
                                             {{ snap.captured_at?.split(' ')[1]?.substring(0, 5) ?? '—' }}
                                         </span>
                                     </div>
+                                    <!-- snapshot_status badge -->
+                                    <span v-if="snapshotStatusLabel(snap.snapshot_status)"
+                                        class="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border"
+                                        :class="snapshotStatusColor(snap.snapshot_status)">
+                                        {{ snapshotStatusLabel(snap.snapshot_status) }}
+                                    </span>
                                     <p v-if="snap.rfid_uid"
                                         class="text-[9px] font-mono text-gray-600 truncate">
                                         UID: {{ snap.rfid_uid }}
+                                    </p>
+                                    <!-- SHA-256 integrity (first 8 chars) -->
+                                    <p v-if="snap.sha256"
+                                        class="text-[9px] font-mono text-gray-700 truncate"
+                                        :title="'SHA-256: ' + snap.sha256">
+                                        SHA: {{ snap.sha256.substring(0, 8) }}…
                                     </p>
                                 </div>
                             </div>

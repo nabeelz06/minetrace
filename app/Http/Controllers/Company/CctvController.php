@@ -215,18 +215,20 @@ class CctvController extends Controller
                             'manual_trigger',
                         ]))
                         ->map(fn ($photo) => [
-                            'id'          => $cp->id,
-                            'batch_code'  => $cp->batch?->batch_code ?? '—',
-                            'stage'       => $photo['stage']
-                                          ?? $cp->checkpoint_data['scan_stage']
-                                          ?? $cp->checkpoint_stage
-                                          ?? null,
-                            'camera_name' => $photo['camera_name'] ?? 'CCTV',
-                            'photo_url'   => $photo['url'] ?? null,
-                            'captured_at' => $photo['captured_at'] ?? null,
-                            'rfid_uid'    => $photo['rfid_uid'] ?? $cp->rfid_scan_code,
-                            'scan_type'   => $photo['scan_type'] ?? 'scan_in',
-                            'filesize_kb' => $photo['filesize_kb'] ?? null,
+                            'id'              => $cp->id,
+                            'batch_code'      => $cp->batch?->batch_code ?? '—',
+                            'stage'           => $photo['stage']
+                                             ?? $cp->checkpoint_data['scan_stage']
+                                             ?? $cp->checkpoint_stage
+                                             ?? null,
+                            'camera_name'     => $photo['camera_name'] ?? 'CCTV',
+                            'photo_url'       => $photo['url'] ?? null,
+                            'captured_at'     => $photo['captured_at'] ?? null,
+                            'rfid_uid'        => $photo['rfid_uid'] ?? $cp->rfid_scan_code,
+                            'scan_type'       => $photo['scan_type'] ?? 'scan_in',
+                            'filesize_kb'     => $photo['filesize_kb'] ?? null,
+                            'sha256'          => $photo['sha256'] ?? null,
+                            'snapshot_status' => $cp->snapshot_status,
                         ]);
                 })
                 ->take(5)

@@ -58,12 +58,12 @@ class ExportController extends Controller
     }
 
     /**
-     * Form buat export baru. Hanya company_admin dan operator_process.
+     * Form buat export baru. Hanya company_admin dan operator_warehouse.
      */
     public function create(): Response
     {
         abort_unless(
-            Auth::user()->hasAnyRole(['company_admin', 'operator_process']),
+            Auth::user()->hasAnyRole(['company_admin', 'operator_warehouse']),
             403, 'Anda tidak memiliki izin membuat ekspor.'
         );
 
@@ -95,7 +95,7 @@ class ExportController extends Controller
      */
     public function validateBatches(Request $request)
     {
-        abort_unless(Auth::user()->hasAnyRole(['company_admin', 'operator_process']), 403);
+        abort_unless(Auth::user()->hasAnyRole(['company_admin', 'operator_warehouse']), 403);
 
         $request->validate([
             'batch_ids'   => 'required|array|min:1',
@@ -115,7 +115,7 @@ class ExportController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        abort_unless(Auth::user()->hasAnyRole(['company_admin', 'operator_process']), 403);
+        abort_unless(Auth::user()->hasAnyRole(['company_admin', 'operator_warehouse']), 403);
 
         $validated = $request->validate([
             'batch_ids'             => 'required|array|min:1',

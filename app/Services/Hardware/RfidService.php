@@ -60,6 +60,16 @@ class RfidService
     private const CACHE_MODE_TTL   = 3600;   // 1 jam
     private const TZ               = 'Asia/Jakarta';
 
+    private function modeKey(int $companyId, string $stage): string
+    {
+        return self::CACHE_ACTIVE_MODE . $companyId . '_' . $stage;
+    }
+
+    private function stagesTrackerKey(int $companyId): string
+    {
+        return self::CACHE_ACTIVE_MODE . $companyId . '_stages';
+    }
+
     /**
      * Konfigurasi stage untuk menentukan ENUM checkpoint_stage yang valid.
      *
@@ -452,7 +462,7 @@ class RfidService
     {
         $stageLabel = self::STAGE_FLOW[$stage]['label'] ?? $stage;
 
-        Cache::put(self::CACHE_ACTIVE_MODE . $companyId, [
+        Cache::put($this->modeKey($companyId, $stage), [
             'mode'      => $mode,
             'stage'     => $stage,
             'label'     => $stageLabel,
@@ -460,20 +470,67 @@ class RfidService
             'set_at_ts' => now()->toISOString(),
         ], self::CACHE_MODE_TTL);
 
+        $trackerKey   = $this->stagesTrackerKey($companyId);
+        $activeStages = Cache::get($trackerKey, []);
+        if (!in_array($stage, $activeStages, true)) {
+            $activeStages[] = $stage;
+            Cache::put($trackerKey, $activeStages, self::CACHE_MODE_TTL);
+        }
+
         Log::info("RFID Active Mode SET: mode={$mode} stage={$stage} company_id={$companyId}");
     }
 
-    /** Ambil mode aktif saat ini */
-    public function getActiveMode(int $companyId): ?array
+    /** Ambil mode aktif untuk stage tertentu, atau stage pertama aktif jika stage=null */
+    public function getActiveMode(int $companyId, ?string $stage = null): ?array
     {
-        return Cache::get(self::CACHE_ACTIVE_MODE . $companyId);
+        if ($stage !== null) {
+            return Cache::get($this->modeKey($companyId, $stage));
+        }
+
+        $activeStages = Cache::get($this->stagesTrackerKey($companyId), []);
+        foreach ($activeStages as $s) {
+            $data = Cache::get($this->modeKey($companyId, $s));
+            if ($data) return $data;
+        }
+        return null;
     }
 
-    /** Reset mode ke idle */
-    public function clearActiveMode(int $companyId): void
+    /** Ambil semua mode aktif untuk semua stage (untuk dashboard) */
+    public function getAllActiveModes(int $companyId): array
     {
-        Cache::forget(self::CACHE_ACTIVE_MODE . $companyId);
-        Log::info("RFID Active Mode CLEARED: company_id={$companyId}");
+        $activeStages = Cache::get($this->stagesTrackerKey($companyId), []);
+        $modes = [];
+        foreach ($activeStages as $s) {
+            $data = Cache::get($this->modeKey($companyId, $s));
+            if ($data) {
+                $modes[$s] = $data;
+            }
+        }
+        return $modes;
+    }
+
+    /** Reset mode ke idle — stage tertentu atau semua stage */
+    public function clearActiveMode(int $companyId, ?string $stage = null): void
+    {
+        $trackerKey = $this->stagesTrackerKey($companyId);
+
+        if ($stage !== null) {
+            Cache::forget($this->modeKey($companyId, $stage));
+            $activeStages = array_values(array_filter(
+                Cache::get($trackerKey, []),
+                fn ($s) => $s !== $stage
+            ));
+            empty($activeStages)
+                ? Cache::forget($trackerKey)
+                : Cache::put($trackerKey, $activeStages, self::CACHE_MODE_TTL);
+            Log::info("RFID Active Mode CLEARED: stage={$stage} company_id={$companyId}");
+        } else {
+            foreach (Cache::get($trackerKey, []) as $s) {
+                Cache::forget($this->modeKey($companyId, $s));
+            }
+            Cache::forget($trackerKey);
+            Log::info("RFID Active Mode CLEARED ALL: company_id={$companyId}");
+        }
     }
 
     /** Daftar stage yang tersedia untuk dropdown UI */
@@ -659,13 +716,7 @@ class RfidService
     public function getRecentRfidActivity(int $companyId): array
     {
         return Checkpoint::with(['batch.productCode'])
-            ->whereHas('batch', function ($q) use ($companyId) {
-                $hasData = Checkpoint::whereHas('batch', fn ($bq) => $bq->where('company_id', $companyId))
-                    ->whereNotNull('rfid_scan_code')->exists();
-                if ($hasData) {
-                    $q->where('company_id', $companyId);
-                }
-            })
+            ->whereHas('batch', fn ($q) => $q->where('company_id', $companyId))
             ->whereNotNull('rfid_scan_code')
             ->latest('recorded_at')
             ->limit(20)

@@ -121,7 +121,7 @@ class UserController extends Controller
             'name'        => 'required|string|max:255',
             'email'       => 'required|email|unique:users,email',
             'password'    => ['required', Password::min(8)->letters()->numbers()->symbols()],
-            'role'        => 'required|in:super_admin,bim_admin,bim_viewer,government_auditor,company_admin,operator_lab,operator_process,company_auditor',
+            'role'        => 'required|string|exists:roles,name',
             'employee_id' => 'nullable|string|max:50',
             'department'  => 'nullable|string|max:100',
             'phone'       => 'nullable|string|max:20',

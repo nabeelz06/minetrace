@@ -12,9 +12,7 @@ class CreateExportRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Auth::user()->hasRole([
-            'company_admin', 'operator_process'
-        ]);
+        return Auth::user()->hasAnyRole(['company_admin', 'operator_warehouse']);
     }
 
     public function rules(): array

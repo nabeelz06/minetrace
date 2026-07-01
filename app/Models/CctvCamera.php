@@ -78,12 +78,14 @@ class CctvCamera extends Model
 
     public function getEffectiveHlsUrlAttribute(): string
     {
+        $simulationMode = !env('CCTV_USE_REAL', false) && $this->location_key;
+
         if ($this->hls_url) {
-            // Simulation mode: pastikan HLS URL mengarah ke local mediamtx
-            if (!env('CCTV_USE_REAL', false) && $this->location_key) {
-                return $this->buildSimulationHlsUrl();
-            }
-            return $this->hls_url;
+            return $simulationMode ? $this->buildSimulationHlsUrl() : $this->hls_url;
+        }
+
+        if ($simulationMode) {
+            return $this->buildSimulationHlsUrl();
         }
 
         $base = rtrim(config('cctv.hls_base_url', ''), '/');

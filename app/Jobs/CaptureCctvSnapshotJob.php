@@ -68,6 +68,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
                 'company_id' => $this->companyId,
                 'stage'      => $this->stageName,
             ]);
+            $checkpoint->update(['snapshot_status' => 'failed']);
             return;
         }
 
@@ -110,6 +111,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             'filesize_kb'  => $filesizeKb,
             'captured_at'  => $capturedAt,
             'duration_ms'  => $durationMs,
+            'sha256'       => hash_file('sha256', $bestPath),
         ];
 
         $photos   = $checkpoint->photos ?? [];
@@ -122,6 +124,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         $checkpoint->update([
             'photos'          => $photos,
             'checkpoint_data' => $checkpointData,
+            'snapshot_status' => 'captured',
         ]);
 
         Log::info('CaptureCctvSnapshotJob: Snapshot berhasil tersimpan.', [
@@ -141,6 +144,8 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             'scan_type'     => $this->scanType,
             'error'         => $e->getMessage(),
         ]);
+        Checkpoint::where('id', $this->checkpointId)
+            ->update(['snapshot_status' => 'failed']);
     }
 
     // ═════════════════════════════════════════════════════════════════════════

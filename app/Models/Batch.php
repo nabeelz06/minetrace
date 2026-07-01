@@ -30,7 +30,7 @@ class Batch extends Model
         'process_stage', 'status', 'current_location_id',
         'is_split', 'split_count', 'split_suffix', 'split_reason',
         'mass_loss_pct', 'has_discrepancy', 'export_status',
-        'qr_code_path', 'rfid_tag', 'metadata',
+        'qr_code_path', 'metadata',
         'created_by', 'updated_by',
     ];
 

@@ -15,7 +15,7 @@ class Checkpoint extends Model
         'batch_id', 'location_id', 'checkpoint_stage',
         'weight_recorded', 'weight_previous', 'weight_loss', 'weight_loss_pct',
         'has_discrepancy', 'is_verified', 'verified_at', 'verified_by',
-        'next_stage', 'checkpoint_data', 'photos', 'notes',
+        'next_stage', 'checkpoint_data', 'photos', 'snapshot_status', 'notes',
         'rfid_scan_code', 'qr_scan_code', 'scan_timestamp',
         'recorded_by', 'recorded_at',
     ];
@@ -32,6 +32,8 @@ class Checkpoint extends Model
         'verified_at'      => 'datetime',
         'scan_timestamp'   => 'datetime',
         'recorded_at'      => 'datetime',
+        // snapshot_status: null|'pending'|'captured'|'failed'
+        'snapshot_status'  => 'string',
     ];
 
     // ─── Relationships ─────────────────────────────────────────────────────
@@ -62,6 +64,7 @@ class Checkpoint extends Model
     {
         return match($this->checkpoint_stage) {
             'lab_kimia_create'     => 'Pembuatan Batch (Lab Kimia)',
+            'lab_sample_taken'     => 'Sampel Lab Diambil',
             'in_transit'           => 'Dalam Perjalanan',
             'receiving_verify'     => 'Verifikasi Receiving',
             'wet_process_input'    => 'Masuk Wet Process',
@@ -72,9 +75,11 @@ class Checkpoint extends Model
             'project_plant_output' => 'Keluar Project Plant',
             'warehouse_inbound'    => 'Masuk Warehouse',
             'warehouse_outbound'   => 'Keluar Warehouse',
+            'warehouse_transfer'   => 'Pengiriman ke Lab LTJ',
             'smelter_input'        => 'Masuk Smelter (Terminal)',
             'export_release'       => 'Rilis Ekspor',
-            default                => $this->checkpoint_stage,
+            'reprocess_return'     => 'Dikembalikan untuk Reproses',
+            default                => str_replace('_', ' ', $this->checkpoint_stage ?? ''),
         };
     }
 }

@@ -18,15 +18,36 @@ const allPhotos = computed(() => {
     const items = []
     for (const cp of props.batch?.checkpoints ?? []) {
         for (const photo of cp.photos ?? []) {
+            if (!photo?.url) continue
             items.push({
-                url:   `/storage/${photo}`,
-                stage: cp.stage_label || cp.checkpoint_stage,
-                date:  cp.recorded_at,
+                url:             photo.url,
+                stage:           photo.stage || cp.checkpoint_stage,
+                stage_label:     cp.stage_label || cp.checkpoint_stage?.replace(/_/g, ' '),
+                date:            photo.captured_at || cp.recorded_at,
+                scan_type:       photo.scan_type,
+                camera_name:     photo.camera_name,
+                filesize_kb:     photo.filesize_kb,
+                sha256:          photo.sha256,
+                rfid_uid:        photo.rfid_uid,
+                snapshot_status: cp.snapshot_status,
             })
         }
     }
     return items
 })
+
+function snapshotStatusBadge(status) {
+    if (status === 'captured') return { label: '✓ Captured', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
+    if (status === 'pending')  return { label: '⏳ Pending',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
+    if (status === 'failed')   return { label: '✕ Failed',   cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
+    return null
+}
+
+function scanTypeLabel(type) {
+    if (type === 'scan_out' || type === 'departure_snapshot') return 'SCAN OUT'
+    if (type === 'manual_trigger') return 'MANUAL'
+    return 'SCAN IN'
+}
 
 // ─── Tab active ───────────────────────────────────────────────────────────
 const activeTab = ref('overview')
@@ -435,7 +456,13 @@ const weightRetentionPct = computed(() => {
                                             </span>
                                             <span v-if="cp.location"
                                                   class="text-xs text-muted-foreground">
-                                                📍 {{ cp.location.name }}
+                                                📍 {{ cp.location }}
+                                            </span>
+                                            <!-- CCTV snapshot status badge -->
+                                            <span v-if="snapshotStatusBadge(cp.snapshot_status)"
+                                                  class="text-xs font-semibold px-1.5 py-0.5 rounded"
+                                                  :class="snapshotStatusBadge(cp.snapshot_status)?.cls">
+                                                📷 {{ snapshotStatusBadge(cp.snapshot_status)?.label }}
                                             </span>
                                         </div>
                                     </div>
@@ -482,29 +509,62 @@ const weightRetentionPct = computed(() => {
                         </div>
                     </div>
 
-                    <div v-else class="p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    <div v-else class="p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                         <button
                             v-for="(photo, i) in allPhotos"
                             :key="i"
                             @click="openPhoto(photo.url)"
-                            class="group relative rounded-xl overflow-hidden border border-border hover:border-primary/40 transition-all duration-150 aspect-video bg-muted"
+                            class="group relative rounded-xl overflow-hidden border border-border hover:border-primary/40 transition-all duration-150 bg-muted"
                         >
-                            <img
-                                :src="photo.url"
-                                :alt="`Foto ${photo.stage}`"
-                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                loading="lazy"
-                            />
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                            <div class="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <p class="text-xs text-white font-medium truncate">{{ photo.stage }}</p>
-                                <p class="text-xs text-gray-300">{{ formatDate(photo.date) }}</p>
+                            <div class="aspect-video relative overflow-hidden">
+                                <img
+                                    :src="photo.url"
+                                    :alt="`Foto ${photo.stage_label}`"
+                                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    loading="lazy"
+                                />
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+
+                                <!-- Scan type badge -->
+                                <div class="absolute top-1.5 left-1.5">
+                                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white">
+                                        {{ scanTypeLabel(photo.scan_type) }}
+                                    </span>
+                                </div>
+
+                                <!-- Zoom icon -->
+                                <div class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                                    </svg>
+                                </div>
+
+                                <!-- Stage + time overlay -->
+                                <div class="absolute bottom-0 left-0 right-0 p-2">
+                                    <p class="text-xs text-white font-medium truncate">{{ photo.stage_label }}</p>
+                                    <p class="text-[10px] text-gray-300">{{ formatDate(photo.date) }}</p>
+                                </div>
                             </div>
-                            <div class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
-                                </svg>
+
+                            <!-- Metadata row -->
+                            <div class="px-2 py-1.5 space-y-0.5 text-left">
+                                <div class="flex items-center justify-between gap-1">
+                                    <span class="text-[10px] text-muted-foreground truncate">{{ photo.camera_name ?? '—' }}</span>
+                                    <span v-if="snapshotStatusBadge(photo.snapshot_status)"
+                                          class="text-[9px] font-bold px-1 py-0.5 rounded flex-shrink-0"
+                                          :class="snapshotStatusBadge(photo.snapshot_status)?.cls">
+                                        {{ snapshotStatusBadge(photo.snapshot_status)?.label }}
+                                    </span>
+                                </div>
+                                <p v-if="photo.sha256"
+                                   class="text-[9px] font-mono text-muted-foreground/60 truncate"
+                                   :title="'SHA-256: ' + photo.sha256">
+                                    SHA: {{ photo.sha256.substring(0, 8) }}…
+                                </p>
+                                <p v-if="photo.rfid_uid" class="text-[9px] font-mono text-muted-foreground/60 truncate">
+                                    UID: {{ photo.rfid_uid }}
+                                </p>
                             </div>
                         </button>
                     </div>

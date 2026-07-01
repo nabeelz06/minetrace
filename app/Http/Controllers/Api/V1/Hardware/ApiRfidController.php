@@ -120,6 +120,7 @@ class ApiRfidController extends Controller
                 ->first();
 
             if ($checkpoint) {
+                $checkpoint->update(['snapshot_status' => 'pending']);
                 dispatch(new CaptureCctvSnapshotJob(
                     checkpointId: $checkpoint->id,
                     companyId:    $companyId,
@@ -171,6 +172,7 @@ class ApiRfidController extends Controller
                 ->first();
 
             if ($checkpoint) {
+                $checkpoint->update(['snapshot_status' => 'pending']);
                 dispatch(new CaptureCctvSnapshotJob(
                     checkpointId: $checkpoint->id,
                     companyId:    $companyId,
@@ -271,11 +273,14 @@ class ApiRfidController extends Controller
         $companyId = Auth::user()->company_id;
 
         if ($mode === 'idle') {
-            $this->rfid->clearActiveMode($companyId);
+            $clearStage = $validated['stage'] ?? null;
+            $this->rfid->clearActiveMode($companyId, $clearStage);
             return response()->json([
                 'success' => true,
-                'message' => 'Mode RFID direset ke idle.',
-                'data'    => ['mode' => 'idle', 'stage' => null],
+                'message' => $clearStage
+                    ? "Mode RFID untuk stage {$clearStage} direset ke idle."
+                    : 'Semua mode RFID direset ke idle.',
+                'data'    => ['mode' => 'idle', 'stage' => $clearStage],
             ]);
         }
 
@@ -313,11 +318,14 @@ class ApiRfidController extends Controller
     public function getActiveModeStatus(Request $request): JsonResponse
     {
         $companyId  = Auth::user()?->company_id ?? self::DEFAULT_COMPANY_ID;
-        $activeMode = $this->rfid->getActiveMode($companyId);
+        $stage      = $request->query('stage');
+        $activeMode = $this->rfid->getActiveMode($companyId, $stage ?: null);
+        $allModes   = $this->rfid->getAllActiveModes($companyId);
 
         return response()->json([
             'success'   => true,
             'data'      => $activeMode,
+            'all_modes' => $allModes,
             'rfid_mode' => 'manual',
         ]);
     }
