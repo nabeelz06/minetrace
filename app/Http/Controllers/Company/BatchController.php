@@ -7,6 +7,7 @@ use App\Http\Requests\Batch\CreateBatchRequest;
 use App\Models\Batch;
 use App\Models\Location;
 use App\Models\ProductCode;
+use App\Repositories\CctvSnapshotRepository;
 use App\Services\Batch\BatchService;
 use App\Services\Batch\QrCodeService;
 use Carbon\Carbon;
@@ -67,7 +68,8 @@ class BatchController extends Controller
 
     public function __construct(
         private BatchService  $batchService,
-        private QrCodeService $qrCodeService
+        private QrCodeService $qrCodeService,
+        private CctvSnapshotRepository $snapshotRepository
     ) {}
 
     /**
@@ -415,6 +417,16 @@ class BatchController extends Controller
                     'analyzed_at'   => $la->analyzed_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
                     'notes'         => $la->notes,
                 ])->toArray(),
+                // Riwayat capture CCTV — entitas first-class (cctv_snapshots),
+                // di-scope otomatis ke batch ini saja via scopeForBatch().
+                // Dipresentasikan lewat CctvSnapshotRepository::present() —
+                // SATU-SATUNYA sumber bentuk data, sama persis dengan yang
+                // dipakai CctvSnapshotController untuk SnapshotHistory.vue,
+                // agar SnapshotGalleryCard.vue tampil identik di kedua tempat.
+                'snapshots'       => $this->snapshotRepository->forBatch($batch->id)
+                    ->map(fn ($s) => $this->snapshotRepository->present($s))
+                    ->values()
+                    ->toArray(),
             ],
             'timeline'  => $this->batchService->getTimeline($batch),
             'user_role' => $userRole,

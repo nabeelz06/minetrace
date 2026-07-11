@@ -450,7 +450,7 @@ class ProcessController extends Controller
             $tz = 'Asia/Jakarta';
 
             // ─── Resolve lokasi tujuan ─────────────────────────────────────
-            $locationId = $validated['location_id'];
+            $locationId = $validated['location_id'] ?? null;
             if (!$locationId) {
                 $defaultLoc = Location::where('company_id', Auth::user()->company_id)
                     ->where('location_type', $config['location_type'])
@@ -634,7 +634,7 @@ class ProcessController extends Controller
                 ->where('process_stage', $stage)->first();
             $hasDiscrepancy = $threshold ? $lossPct >= $threshold->warning_threshold_pct : false;
 
-            $locationId = $validated['location_id'];
+            $locationId = $validated['location_id'] ?? null;
             if (!$locationId) {
                 $nextConfig = self::STAGES[$nextStage];
                 $nextLoc    = Location::where('company_id', Auth::user()->company_id)

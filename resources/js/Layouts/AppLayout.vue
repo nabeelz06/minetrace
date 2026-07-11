@@ -82,12 +82,31 @@ const rfidItem = {
     en:   'Hardware RFID',
 }
 
+// Accordion (children) agar "Riwayat Capture CCTV" tidak menjadi nav
+// item top-level baru — tetap satu entri "CCTV" di sidebar dengan
+// sub-item Monitor (live-view) dan Riwayat Capture (manajemen histori).
 const cctvItem = {
     key:  'hardware_cctv',
     href: '/company/hardware/cctv',
     icon: '📹',
-    id:   'CCTV Monitor',
-    en:   'CCTV Monitor',
+    id:   'CCTV',
+    en:   'CCTV',
+    children: [
+        {
+            key:  'cctv_monitor',
+            href: '/company/hardware/cctv',
+            icon: '📹',
+            id:   'Monitor CCTV',
+            en:   'CCTV Monitor',
+        },
+        {
+            key:  'cctv_snapshots',
+            href: '/company/cctv/snapshots',
+            icon: '🗂️',
+            id:   'Riwayat Capture CCTV',
+            en:   'CCTV Capture History',
+        },
+    ],
 }
 
 // ─── Roles yang boleh akses RFID panel ────────────────────────────────────────

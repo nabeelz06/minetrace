@@ -23,11 +23,15 @@ docker/nginx/ssl/
 /.nova
 /.vscode
 /.zed
-.env.production
-.env.production
-.env.production
-.env.production
-.env.production
-.env.production
-.env.production
-.env.production
+
+# Stale generated Ziggy route dump — never imported by app.js; routes are
+# injected per-request via the @routes Blade directive instead.
+resources/js/ziggy.js
+
+# Session debugging artifacts (VPS diagnostics, ad-hoc scripts) — never
+# part of the application itself.
+certbot_conf/
+diagnostic*.sh
+diagnostic*.txt
+script*.sh
+script*-output.txt

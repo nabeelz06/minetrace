@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Company\BatchController;
 use App\Http\Controllers\Company\CctvController;
+use App\Http\Controllers\Company\CctvSnapshotController;
 use App\Http\Controllers\Company\HardwareController;
 use App\Http\Controllers\Company\LabController;
 use App\Http\Controllers\Company\ExportController;
@@ -263,5 +264,18 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
                 Route::post('/',                  [CctvController::class, 'store'])->name('store');
                 Route::put('{camera}',            [CctvController::class, 'update'])->name('update');
                 Route::delete('{camera}',         [CctvController::class, 'destroy'])->name('destroy');
+            });
+
+        // Riwayat Capture CCTV — CctvSnapshot CRUD (entitas first-class)
+        Route::middleware("role:{$allCompanyRoles}")
+            ->prefix('cctv/snapshots')
+            ->name('cctv.snapshots.')
+            ->group(function () {
+                Route::get('/',              [CctvSnapshotController::class, 'index'])->name('index');
+                // ← STATIC 'trash' HARUS sebelum {id} (fix SQLSTATE bug)
+                Route::get('trash',          [CctvSnapshotController::class, 'trashed'])->name('trash');
+                Route::patch('{id}/verify',  [CctvSnapshotController::class, 'verify'])->name('verify');
+                Route::delete('{id}',        [CctvSnapshotController::class, 'destroy'])->name('destroy');
+                Route::patch('{id}/restore', [CctvSnapshotController::class, 'restore'])->name('restore');
             });
     });

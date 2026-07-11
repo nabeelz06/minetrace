@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CctvCamera;
+use App\Models\CctvSnapshot;
 use App\Models\Checkpoint;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -75,7 +76,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         $captureMode = $camera?->getCaptureMode() ?? (env('CCTV_USE_REAL', false) ? 'real' : 'simulation');
 
         // A3 — Probe mediamtx readiness before committing ffmpeg resources
-        if (!$this->probeRtspReady($rtspUrl)) {
+        if (!$this->probeRtspReady($rtspUrl, $captureMode)) {
             Log::warning('CaptureCctvSnapshotJob: RTSP tidak siap setelah probe.', [
                 'rtsp_url'      => $rtspUrl,
                 'checkpoint_id' => $this->checkpointId,
@@ -150,6 +151,24 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             'capture_succeeded' => true,
         ]);
 
+        // CctvSnapshot adalah sumber kebenaran kanonik sejak migrasi dari
+        // checkpoints.photos — entri di atas tetap ditulis sebagai mirror
+        // ringan untuk kompatibilitas mundur kode yang belum di-migrasi.
+        CctvSnapshot::create([
+            'company_id'     => $this->companyId,
+            'batch_id'       => $checkpoint->batch_id,
+            'checkpoint_id'  => $checkpoint->id,
+            'camera_id'      => $camera?->id,
+            'file_path'      => $relativePath,
+            'capture_mode'   => $captureMode,
+            'capture_status' => 'success',
+            'scan_type'      => $this->scanType,
+            'rfid_uid'       => $this->rfidUid ?: null,
+            'stage'          => $this->stageName,
+            'filesize_kb'    => (int) round($filesizeKb),
+            'captured_at'    => now(),
+        ]);
+
         Log::info('CaptureCctvSnapshotJob: snapshot berhasil.', [
             'checkpoint_id' => $this->checkpointId,
             'path'          => $relativePath,
@@ -181,10 +200,15 @@ class CaptureCctvSnapshotJob implements ShouldQueue
 
     // ─── A3: MediaMTX readiness probe ────────────────────────────────────────
 
-    private function probeRtspReady(string $rtspUrl): bool
+    private function probeRtspReady(string $rtspUrl, string $captureMode): bool
     {
-        // For non-mediamtx URLs (real cameras), skip probe
-        if (str_contains($rtspUrl, '192.168') || str_contains($rtspUrl, 'rtsp://admin')) {
+        // Kamera REAL (fisik) tidak diprobe: kamera fisik seperti TP-Link
+        // Tapo punya kuota sesi RTSP concurrent yang sangat terbatas — probe
+        // tambahan berisiko merebut slot dari koneksi live-view yang sudah
+        // ada dan menyebabkan koneksi itu putus (insiden ECONNRESET yang
+        // pernah terjadi saat pengujian multi-kamera). Simulasi (mediamtx)
+        // aman diprobe karena hanya proses ffmpeg lokal tanpa batas sesi.
+        if ($captureMode === 'real') {
             return true;
         }
 
@@ -258,6 +282,21 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             'reason'      => $reason,
         ];
         $checkpoint->update(['photos' => $photos]);
+
+        CctvSnapshot::create([
+            'company_id'     => $this->companyId,
+            'batch_id'       => $checkpoint->batch_id,
+            'checkpoint_id'  => $checkpoint->id,
+            'camera_id'      => $camera?->id,
+            'file_path'      => null,
+            'capture_mode'   => $captureMode,
+            'capture_status' => 'failed',
+            'failure_reason' => $reason,
+            'scan_type'      => $this->scanType,
+            'rfid_uid'       => $this->rfidUid ?: null,
+            'stage'          => $this->stageName,
+            'captured_at'    => now(),
+        ]);
     }
 
     // ─── Strategy Pattern: Camera Resolution ─────────────────────────────────

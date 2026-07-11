@@ -1,70 +1,34 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { Head, Link } from '@inertiajs/vue3'
+import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import SnapshotGalleryCard from '@/components/shared/SnapshotGalleryCard.vue'
 
 const props = defineProps({
     batch:    Object,
     timeline: Array,
 })
 
+const page = usePage()
+const can  = computed(() => page.props.can ?? {})
+
 // ─── CCTV Photo modal ─────────────────────────────────────────────────────────
 const photoModal = ref(null)
 function openPhoto(url) { photoModal.value = url }
 function closePhoto()   { photoModal.value = null }
 
-// Kumpulkan semua foto dari SEMUA checkpoint MILIK BATCH INI SAJA.
-// props.batch.checkpoints datang dari relasi Batch::checkpoints() (hasMany,
-// discope otomatis oleh foreign key batch_id) — jadi galeri ini TIDAK PERNAH
-// mengakumulasi foto dari batch lain, sekalipun batch ini punya banyak
-// riwayat scan (lihat BatchController::show()). Galeri "Riwayat Batch Induk"
-// (parent_batch.checkpoints) sengaja dipisah di tab lain, tidak ikut di sini.
-//
-// Urutan: TERBARU DI DEPAN. checkpoint_id dipakai sebagai kunci sortir
-// (bukan parsing string tanggal "dd/mm/yyyy" yang rapuh) karena checkpoint
-// dibuat via auto-increment ID sesuai urutan waktu perekamannya — index foto
-// dalam satu checkpoint.photos[] juga dibalik untuk kasus >1 foto per
-// checkpoint (jarang terjadi, tapi tetap benar urutannya jika ada).
-const allPhotos = computed(() => {
-    const items = []
-    for (const cp of props.batch?.checkpoints ?? []) {
-        const photos = cp.photos ?? []
-        photos.forEach((photo, photoIndex) => {
-            if (!photo?.url) return
-            items.push({
-                url:              photo.url,
-                stage:            photo.stage || cp.checkpoint_stage,
-                stage_label:      cp.stage_label || cp.checkpoint_stage?.replace(/_/g, ' '),
-                date:             photo.captured_at || cp.recorded_at,
-                date_diff:        cp.recorded_at_diff,
-                scan_type:        photo.scan_type,
-                camera_name:      photo.camera_name,
-                filesize_kb:      photo.filesize_kb,
-                sha256:           photo.sha256,
-                rfid_uid:         photo.rfid_uid,
-                snapshot_status:  cp.snapshot_status,
-                checkpoint_id:    cp.id,
-                photo_index:      photoIndex,
-            })
-        })
-    }
-    return items.sort((a, b) => {
-        if (b.checkpoint_id !== a.checkpoint_id) return b.checkpoint_id - a.checkpoint_id
-        return b.photo_index - a.photo_index
-    })
-})
+// Riwayat capture CCTV — entitas first-class (cctv_snapshots), sudah
+// di-scope ke batch ini SAJA oleh backend (CctvSnapshotRepository::forBatch(),
+// lihat BatchController::show()) dan sudah terurut TERBARU DI DEPAN
+// (ORDER BY captured_at DESC). Tidak pernah mengakumulasi foto dari batch
+// lain, sekalipun batch ini adalah bagian dari rantai transformasi.
+const allPhotos = computed(() => props.batch?.snapshots ?? [])
 
-function snapshotStatusBadge(status) {
-    if (status === 'captured') return { label: '✓ Captured', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
-    if (status === 'pending')  return { label: '⏳ Pending',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
-    if (status === 'failed')   return { label: '✕ Failed',   cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
-    return null
+function handleVerify({ id, is_verified, review_notes }) {
+    router.patch(`/company/cctv/snapshots/${id}/verify`, { is_verified, review_notes }, { preserveScroll: true })
 }
-
-function scanTypeLabel(type) {
-    if (type === 'scan_out' || type === 'departure_snapshot') return 'SCAN OUT'
-    if (type === 'manual_trigger') return 'MANUAL'
-    return 'SCAN IN'
+function handleDelete({ id, reason }) {
+    router.delete(`/company/cctv/snapshots/${id}`, { data: { reason }, preserveScroll: true })
 }
 
 // ─── Tab active ───────────────────────────────────────────────────────────
@@ -575,73 +539,17 @@ const weightRetentionPct = computed(() => {
                     </div>
 
                     <div v-else class="p-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                        <button
-                            v-for="(photo, i) in allPhotos"
-                            :key="photo.checkpoint_id + '-' + photo.photo_index"
-                            @click="openPhoto(photo.url)"
-                            class="group relative rounded-xl overflow-hidden border transition-all duration-150 bg-muted"
-                            :class="i === 0 ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border hover:border-primary/40'"
-                        >
-                            <div class="aspect-video relative overflow-hidden">
-                                <img
-                                    :src="photo.url"
-                                    :alt="`Foto ${photo.stage_label}`"
-                                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                    loading="lazy"
-                                />
-                                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-
-                                <!-- Scan type + latest badge -->
-                                <div class="absolute top-1.5 left-1.5 flex items-center gap-1">
-                                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white">
-                                        {{ scanTypeLabel(photo.scan_type) }}
-                                    </span>
-                                    <span v-if="i === 0"
-                                          class="text-[9px] font-bold px-1.5 py-0.5 rounded text-white"
-                                          style="background: hsl(var(--primary));">
-                                        ● TERBARU
-                                    </span>
-                                </div>
-
-                                <!-- Zoom icon -->
-                                <div class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
-                                    </svg>
-                                </div>
-
-                                <!-- Stage + time overlay — timestamp mentah dari backend
-                                     ditampilkan langsung (SUDAH terformat dd/mm/yyyy HH:mm:ss WIB),
-                                     TIDAK di-reparse via `new Date()` yang keliru menafsirkan
-                                     format dd/mm sebagai mm/dd (ambigu di JS Date constructor). -->
-                                <div class="absolute bottom-0 left-0 right-0 p-2 space-y-0.5">
-                                    <p class="text-xs text-white font-semibold truncate">{{ photo.stage_label }}</p>
-                                    <p class="text-[11px] text-white font-mono font-medium">{{ photo.date || '—' }}</p>
-                                    <p v-if="photo.date_diff" class="text-[10px] text-gray-300">{{ photo.date_diff }}</p>
-                                </div>
-                            </div>
-
-                            <!-- Metadata row -->
-                            <div class="px-2 py-1.5 space-y-0.5 text-left">
-                                <div class="flex items-center justify-between gap-1">
-                                    <span class="text-[10px] text-muted-foreground truncate">{{ photo.camera_name ?? '—' }}</span>
-                                    <span v-if="snapshotStatusBadge(photo.snapshot_status)"
-                                          class="text-[9px] font-bold px-1 py-0.5 rounded flex-shrink-0"
-                                          :class="snapshotStatusBadge(photo.snapshot_status)?.cls">
-                                        {{ snapshotStatusBadge(photo.snapshot_status)?.label }}
-                                    </span>
-                                </div>
-                                <p v-if="photo.sha256"
-                                   class="text-[9px] font-mono text-muted-foreground/60 truncate"
-                                   :title="'SHA-256: ' + photo.sha256">
-                                    SHA: {{ photo.sha256.substring(0, 8) }}…
-                                </p>
-                                <p v-if="photo.rfid_uid" class="text-[9px] font-mono text-muted-foreground/60 truncate">
-                                    UID: {{ photo.rfid_uid }}
-                                </p>
-                            </div>
-                        </button>
+                        <SnapshotGalleryCard
+                            v-for="(snapshot, i) in allPhotos"
+                            :key="snapshot.id"
+                            :snapshot="snapshot"
+                            :is-latest="i === 0"
+                            :can-verify="can.is_company_admin || can.is_auditor"
+                            :can-delete="can.is_company_admin"
+                            @open="openPhoto"
+                            @verify="handleVerify"
+                            @delete="handleDelete"
+                        />
                     </div>
                 </div>
             </div>

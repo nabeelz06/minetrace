@@ -19,6 +19,7 @@ services:
       - certbot_conf:/etc/letsencrypt:ro
     depends_on:
       - app
+      - mediamtx
     restart: unless-stopped
     networks:
       - minetra_net
@@ -39,6 +40,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mediamtx:
+        condition: service_started
     restart: unless-stopped
     networks:
       - minetra_net
@@ -78,6 +81,23 @@ services:
     networks:
       - minetra_net
 
+  # ─── MediaMTX — RTSP-to-HLS bridge + CCTV stream ───────────────
+  # Sama image dengan docker-compose.yml (local). Wajib ada di produksi —
+  # tanpa service ini seluruh fitur CCTV (live-view + snapshot RFID) akan
+  # gagal karena CCTV_MEDIAMTX_RTSP/CCTV_MEDIAMTX_API di .env.production
+  # menunjuk ke hostname "mediamtx" pada jaringan Docker ini.
+  # TIDAK ADA port yang dipublikasikan ke host: HLS diakses browser lewat
+  # nginx reverse proxy (location /hls/ di app.prod.conf) agar tetap di
+  # balik HTTPS yang sama — port RTSP/API mentah tidak perlu publik.
+  mediamtx:
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: minetra_mediamtx
+    restart: unless-stopped
+    volumes:
+      - ./docker/mediamtx/mediamtx.yml:/mediamtx.yml:ro
+    networks:
+      - minetra_net
+
   # ─── Laravel Queue Worker ─────────────────────────────────────
   worker:
     build:
@@ -92,6 +112,7 @@ services:
     depends_on:
       - db
       - redis
+      - mediamtx
     restart: unless-stopped
     networks:
       - minetra_net
