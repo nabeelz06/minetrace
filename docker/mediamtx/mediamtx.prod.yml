@@ -1,0 +1,106 @@
+# mediamtx.prod.yml — MediaMTX config untuk MINETRA PRODUCTION (Phase 1)
+#
+# Phase 1 = SIMULATION-ONLY. Hanya 3 stream test-pattern (cam_gate1,
+# cam_wet, cam_warehouse), IDENTIK dengan pola local dev (mediamtx.yml),
+# TANPA path live_gate1/proxy kamera fisik — bridge Cloudflare Tunnel ke
+# TP-Link Tapo C500 fisik (kamera ada di jaringan/lokasi berbeda dari VPS
+# ini) adalah pekerjaan lanjutan TERPISAH, sengaja di luar scope sesi ini.
+#
+# Tidak ada port yang dipublikasikan ke host di docker-compose.prod.yml —
+# service ini HANYA reachable dari container lain di jaringan Docker
+# minetra_net (nginx reverse-proxy /hls/ → mediamtx:8888, app/worker →
+# mediamtx:8554 utk ffmpeg snapshot). Ini perbaikan keamanan yang
+# disengaja dibanding docker-compose.yml lokal (yang publish 8554/8888/
+# 8889/9997 ke host untuk kemudahan development).
+
+# ── Ports ──────────────────────────────────────────────────────────────
+rtspAddress:    :8554
+rtmpAddress:    :1935
+hlsAddress:     :8888
+webrtcAddress:  :8889
+apiAddress:     :9997
+
+# ── Security — no auth; permukaan serang dibatasi oleh network isolation
+#    (tidak ada port publik), bukan oleh auth internal mediamtx ────────
+authInternalUsers:
+  - user: any
+    ips: []
+    permissions:
+      - action: publish
+      - action: read
+      - action: playback
+      - action: api
+      - action: metrics
+
+# ── API ──────────────────────────────────────────────────────────────
+api:     yes
+metrics: yes
+metricsAddress: :9998
+
+# ── Logging ──────────────────────────────────────────────────────────
+logLevel:        warn
+logDestinations: [stdout]
+
+# ── HLS ──────────────────────────────────────────────────────────────
+# Sama seperti local dev: LL-HLS (default sejak v1.9.0) butuh
+# hlsSegmentCount >= 7 — nilai lebih rendah menyebabkan "Low-Latency HLS
+# requires at least 7 segments" → muxer instance destroyed → 500.
+hls:                yes
+hlsSegmentCount:    7
+hlsSegmentDuration: 1s
+hlsPartDuration:    200ms
+#
+# hlsAllowOrigins — origin produksi sebenarnya, BUKAN localhost seperti
+# local dev. HLS.js di CctvMonitor.vue di-serve dari domain yang sama
+# (lewat nginx /hls/ proxy) sehingga origin browser = APP_URL produksi.
+hlsAllowOrigins:
+  - 'https://mining-traceability.com'
+hlsEncryption:      no
+
+# ── WebRTC ───────────────────────────────────────────────────────────
+webrtc: yes
+
+# ── Camera Paths — SIMULATION ONLY (Phase 1) ──────────────────────────
+paths:
+
+  # ── SIMULATION STREAM 1 — Gate 1 / Receiving Area ───────────────────
+  cam_gate1:
+    source:          publisher
+    sourceOnDemand:  no
+    runOnInit: >-
+      ffmpeg -f lavfi
+      -i testsrc2=size=1280x720:rate=15
+      -vf "drawbox=x=0:y=0:w=iw:h=60:color=blue@0.6:t=fill,
+           drawbox=x=0:y=0:w=iw:h=60:color=black@0.4:t=fill"
+      -c:v libx264 -preset ultrafast -tune zerolatency
+      -b:v 800k -maxrate 900k -bufsize 1600k -g 30
+      -f rtsp rtsp://localhost:8554/cam_gate1
+    runOnInitRestart: yes
+
+  # ── SIMULATION STREAM 2 — Wet Process Area ──────────────────────────
+  cam_wet:
+    source:          publisher
+    sourceOnDemand:  no
+    runOnInit: >-
+      ffmpeg -f lavfi
+      -i testsrc2=size=1280x720:rate=15
+      -vf "drawbox=x=0:y=0:w=iw:h=60:color=green@0.6:t=fill,
+           drawbox=x=0:y=0:w=iw:h=60:color=black@0.4:t=fill"
+      -c:v libx264 -preset ultrafast -tune zerolatency
+      -b:v 800k -maxrate 900k -bufsize 1600k -g 30
+      -f rtsp rtsp://localhost:8554/cam_wet
+    runOnInitRestart: yes
+
+  # ── SIMULATION STREAM 3 — LTJ Warehouse ─────────────────────────────
+  cam_warehouse:
+    source:          publisher
+    sourceOnDemand:  no
+    runOnInit: >-
+      ffmpeg -f lavfi
+      -i testsrc2=size=1280x720:rate=15
+      -vf "drawbox=x=0:y=0:w=iw:h=60:color=red@0.6:t=fill,
+           drawbox=x=0:y=0:w=iw:h=60:color=black@0.4:t=fill"
+      -c:v libx264 -preset ultrafast -tune zerolatency
+      -b:v 800k -maxrate 900k -bufsize 1600k -g 30
+      -f rtsp rtsp://localhost:8554/cam_warehouse
+    runOnInitRestart: yes

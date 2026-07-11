@@ -106,6 +106,15 @@ class PtTimahCctvCameraSeeder extends Seeder
             ],
         ];
 
+        // is_simulation di-seed dari CCTV_USE_REAL (default simulasi jika env
+        // belum di-set/false) — SESUAI docblock CctvCamera::isSimulationCamera()
+        // yang menyatakan env ini dipakai sebagai DEFAULT saat seeding, bukan
+        // otoritas runtime. Sebelumnya method ini hardcode `false` (selalu
+        // REAL) terlepas dari env, sehingga deployment simulation-only
+        // (Phase 1 production, CCTV_USE_REAL=false) tetap men-seed kamera
+        // sebagai REAL mengarah ke IP LAN fisik yang tidak reachable dari VPS.
+        $isSimulation = !(bool) env('CCTV_USE_REAL', false);
+
         foreach ($cameras as $cam) {
             $simRtsp = "{$rtspBase}/{$cam['sim_stream']}";
 
@@ -118,14 +127,22 @@ class PtTimahCctvCameraSeeder extends Seeder
                     'name'                => $cam['name'],
                     'rtsp_url_simulation' => $simRtsp,
                     'rtsp_url_real'       => self::SHARED_CAMERA_RTSP,
-                    'rtsp_url'            => self::SHARED_CAMERA_RTSP,
-                    'hls_url'             => $sharedHls,
+                    'rtsp_url'            => $isSimulation ? $simRtsp : self::SHARED_CAMERA_RTSP,
+                    // hls_url HANYA diisi eksplisit untuk mode real (path fisik
+                    // "live_gate1" yang statis). Mode simulasi dibiarkan null
+                    // agar CctvCamera::getEffectiveHlsUrlAttribute() menurunkan
+                    // path per-stream (cam_gate1/cam_wet/cam_warehouse) secara
+                    // otomatis dari location_key — bukan memakai hls_url
+                    // bersama milik kamera real yang tidak eksis di mediamtx
+                    // simulation-only.
+                    'hls_url'             => $isSimulation ? null : $sharedHls,
                     'is_active'           => true,
-                    'is_simulation'       => false,
+                    'is_simulation'       => $isSimulation,
                 ]
             );
 
-            $this->command->info("  📹 CCTV seeded: {$cam['name']} ({$cam['location_key']}) — REAL (kamera bersama)");
+            $mode = $isSimulation ? 'SIMULASI' : 'REAL (kamera bersama)';
+            $this->command->info("  📹 CCTV seeded: {$cam['name']} ({$cam['location_key']}) — {$mode}");
         }
     }
 }

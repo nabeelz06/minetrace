@@ -94,7 +94,7 @@ services:
     container_name: minetra_mediamtx
     restart: unless-stopped
     volumes:
-      - ./docker/mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ./docker/mediamtx/mediamtx.prod.yml:/mediamtx.yml:ro
     networks:
       - minetra_net
 
@@ -110,9 +110,12 @@ services:
     volumes:
       - app_storage:/var/www/html/storage
     depends_on:
-      - db
-      - redis
-      - mediamtx
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mediamtx:
+        condition: service_started
     restart: unless-stopped
     networks:
       - minetra_net
