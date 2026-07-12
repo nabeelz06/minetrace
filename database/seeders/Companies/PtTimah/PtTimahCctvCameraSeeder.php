@@ -56,12 +56,16 @@ use Illuminate\Support\Facades\Log;
 class PtTimahCctvCameraSeeder extends Seeder
 {
     /**
-     * Kredensial kamera fisik TUNGGAL yang saat ini melayani seluruh
-     * checkpoint. Ubah nilai ini (atau, lebih baik, gunakan UI Settings)
-     * saat kamera fisik diganti/upgrade.
+     * Nama path mediamtx statis untuk live-view kamera fisik bersama —
+     * satu-satunya hal yang aman di-hardcode di sini, karena path ini
+     * memang didefinisikan statis di mediamtx.yml/.prod.yml, bukan
+     * kredensial. Kredensial kamera SENGAJA TIDAK di-hardcode di sini
+     * (lihat physicalCameraRtsp() di bawah) — sebelumnya konstanta
+     * SHARED_CAMERA_RTSP menyimpan kredensial fisik dalam plaintext dan
+     * ikut ter-commit ke git; kredensial itu harus dianggap bocor dan
+     * dirotasi di perangkat kameranya, terlepas dari perubahan ini.
      */
-    private const SHARED_CAMERA_RTSP = 'rtsp://admin_minetra:Tapo123!@192.168.18.38/stream2';
-    private const SHARED_LIVE_PATH   = 'live_gate1';
+    private const SHARED_LIVE_PATH = 'live_gate1';
 
     public function run(): void
     {
@@ -73,10 +77,11 @@ class PtTimahCctvCameraSeeder extends Seeder
             return;
         }
 
-        $companyId = $company->id;
-        $hlsBase   = rtrim(env('CCTV_HLS_BASE_URL', 'http://localhost:8888'), '/');
-        $rtspBase  = rtrim(env('CCTV_MEDIAMTX_RTSP', 'rtsp://127.0.0.1:8554'), '/');
-        $sharedHls = $hlsBase ? "{$hlsBase}/" . self::SHARED_LIVE_PATH . '/index.m3u8' : null;
+        $companyId       = $company->id;
+        $hlsBase         = rtrim(env('CCTV_HLS_BASE_URL', 'http://localhost:8888'), '/');
+        $rtspBase        = rtrim(env('CCTV_MEDIAMTX_RTSP', 'rtsp://127.0.0.1:8554'), '/');
+        $sharedHls       = $hlsBase ? "{$hlsBase}/" . self::SHARED_LIVE_PATH . '/index.m3u8' : null;
+        $physicalRtsp    = $this->physicalCameraRtsp();
 
         $cameras = [
             [
@@ -113,7 +118,20 @@ class PtTimahCctvCameraSeeder extends Seeder
         // REAL) terlepas dari env, sehingga deployment simulation-only
         // (Phase 1 production, CCTV_USE_REAL=false) tetap men-seed kamera
         // sebagai REAL mengarah ke IP LAN fisik yang tidak reachable dari VPS.
-        $isSimulation = !(bool) env('CCTV_USE_REAL', false);
+        //
+        // Guard tambahan: jika CCTV_USE_REAL=true TAPI CCTV_RTSP_URL belum
+        // di-set (mis. lupa diisi di .env.production, atau network bridge ke
+        // kamera fisik — VPN/tunnel — belum tersedia), JANGAN tetap seed
+        // sebagai real dengan URL kosong. Itu akan membuat setiap live-view
+        // dan setiap snapshot RFID gagal total tanpa indikasi yang jelas ke
+        // admin. Fallback paksa ke simulasi + warning eksplisit.
+        $wantsReal    = (bool) env('CCTV_USE_REAL', false);
+        $isSimulation = !$wantsReal || !$physicalRtsp;
+
+        if ($wantsReal && !$physicalRtsp) {
+            $this->command->warn('  ⚠ CCTV_USE_REAL=true tapi CCTV_RTSP_URL belum di-set (atau masih placeholder) — seeding tetap SIMULASI untuk mencegah kamera real dengan URL kosong.');
+            Log::warning('PtTimahCctvCameraSeeder: CCTV_USE_REAL=true tanpa CCTV_RTSP_URL valid, fallback ke simulasi.');
+        }
 
         foreach ($cameras as $cam) {
             $simRtsp = "{$rtspBase}/{$cam['sim_stream']}";
@@ -126,8 +144,8 @@ class PtTimahCctvCameraSeeder extends Seeder
                 [
                     'name'                => $cam['name'],
                     'rtsp_url_simulation' => $simRtsp,
-                    'rtsp_url_real'       => self::SHARED_CAMERA_RTSP,
-                    'rtsp_url'            => $isSimulation ? $simRtsp : self::SHARED_CAMERA_RTSP,
+                    'rtsp_url_real'       => $physicalRtsp,
+                    'rtsp_url'            => $isSimulation ? $simRtsp : $physicalRtsp,
                     // hls_url HANYA diisi eksplisit untuk mode real (path fisik
                     // "live_gate1" yang statis). Mode simulasi dibiarkan null
                     // agar CctvCamera::getEffectiveHlsUrlAttribute() menurunkan
@@ -144,5 +162,23 @@ class PtTimahCctvCameraSeeder extends Seeder
             $mode = $isSimulation ? 'SIMULASI' : 'REAL (kamera bersama)';
             $this->command->info("  📹 CCTV seeded: {$cam['name']} ({$cam['location_key']}) — {$mode}");
         }
+    }
+
+    /**
+     * Kredensial kamera fisik dibaca dari CCTV_RTSP_URL (.env) — TIDAK
+     * di-hardcode di source ini. Placeholder yang belum diganti (kosong,
+     * mengandung "CHANGE_ME", atau contoh generik ".env.example") dianggap
+     * "belum dikonfigurasi" agar seeding fallback aman ke simulasi alih-alih
+     * menyimpan URL yang jelas tidak akan pernah connect.
+     */
+    private function physicalCameraRtsp(): ?string
+    {
+        $value = trim((string) env('CCTV_RTSP_URL', ''));
+
+        if ($value === '' || str_contains($value, 'CHANGE_ME')) {
+            return null;
+        }
+
+        return $value;
     }
 }

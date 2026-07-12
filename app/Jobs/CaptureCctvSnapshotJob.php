@@ -232,9 +232,23 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             // yang menyebabkan snapshot CCTV gagal total (lihat changelog
             // Bagian 12). Timeout wall-clock cukup diserahkan ke wrapper
             // shell "timeout %d" di depan perintah ini.
+            //
+            // "-k 5" pada wrapper timeout DAN "-nostdin" pada ffmpeg —
+            // ditambahkan setelah insiden kamera fisik yang RTSP-nya
+            // unreachable (mis. kredensial/alamat salah, jaringan belum
+            // di-bridge ke kamera) menyebabkan proses ffmpeg menggantung
+            // pada syscall jaringan blocking dan mengabaikan SIGTERM awal
+            // dari "timeout". Tanpa "-k", proses zombie menumpuk di setiap
+            // percobaan probe (hingga 5x per scan) dan setiap capture frame
+            // (hingga 3x per scan) — lama-lama menghabiskan memori container
+            // hingga di-OOM-kill oleh kernel ("Killed" di log tanpa exception
+            // PHP yang jelas). "-k 5" memaksa SIGKILL 5 detik setelah SIGTERM
+            // jika proses belum juga keluar. "-nostdin" mencegah ffmpeg
+            // menunggu input keyboard interaktif saat dijalankan tanpa tty
+            // (selalu kasusnya di sini, dipanggil lewat PHP exec()).
             $probePath = sys_get_temp_dir() . '/minetra_probe_' . $this->checkpointId . '.jpg';
             $cmd       = sprintf(
-                'timeout %d ffmpeg -loglevel error -rtsp_transport tcp '
+                'timeout -k 5 %d ffmpeg -nostdin -loglevel error -rtsp_transport tcp '
                 . '-analyzeduration 2000000 -probesize 2000000 '
                 . '-i %s -frames:v 1 -q:v %d -y %s 2>&1',
                 $timeout,
@@ -356,8 +370,13 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         // ffmpeg 4.4.x, yang justru menyebabkan bind-conflict dengan
         // mediamtx di port yang sama. Wall-clock timeout diserahkan
         // sepenuhnya ke wrapper shell "timeout %d".
+        //
+        // "-k 5" + "-nostdin" — lihat catatan lengkap di probeRtspReady():
+        // menjamin proses ffmpeg benar-benar mati (SIGKILL setelah 5 detik
+        // jika SIGTERM diabaikan) alih-alih menggantung dan menumpuk
+        // sebagai proses zombie yang menghabiskan memori container.
         $cmd = sprintf(
-            'timeout %d ffmpeg -loglevel error -rtsp_transport tcp '
+            'timeout -k 5 %d ffmpeg -nostdin -loglevel error -rtsp_transport tcp '
             . '-analyzeduration 3000000 -probesize 3000000 '
             . '-i %s -frames:v 1 -q:v %d -vf scale=%s -y %s 2>&1',
             $timeout,
