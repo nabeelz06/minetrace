@@ -39,6 +39,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(
             \App\Services\Company\OnboardingService::class
         );
+
+        // ─── Register Telescope khusus untuk environment lokal ────────────
+        if ($this->app->environment('local')) {
+            $this->app->register(\App\Providers\TelescopeServiceProvider::class);
+            $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
+        }
     }
 
     /**
