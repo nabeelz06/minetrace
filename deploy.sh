@@ -15,7 +15,7 @@ git pull origin main
 
 # ── Build production images ───────────────────────────────────
 echo "[2/6] Building Docker images (production)..."
-docker compose -f docker-compose.prod.yml build --no-cache app
+docker compose -f docker-compose.prod.yml build --no-cache app worker
 
 # ── Stop old containers ───────────────────────────────────────
 echo "[3/6] Stopping old containers..."
