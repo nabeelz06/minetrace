@@ -75,7 +75,13 @@ class ApiRfidController extends Controller
         $request->merge([
             'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
         ]);
-        $request->validate(['uid' => 'required|string|min:4|max:50']);
+
+        try {
+            $request->validate(['uid' => 'required|string|min:4|max:50']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning("RFID /register → validasi gagal ip:{$request->ip()}", ['errors' => $e->errors()]);
+            return $this->errorResponse('UID tidak valid atau kosong', 422);
+        }
 
         $companyId = $this->resolveCompanyId($request);
         $result    = $this->rfid->registerBatchTag($request->uid, $companyId);
@@ -114,7 +120,13 @@ class ApiRfidController extends Controller
         $request->merge([
             'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
         ]);
-        $request->validate(['uid' => 'required|string|min:4|max:50']);
+
+        try {
+            $request->validate(['uid' => 'required|string|min:4|max:50']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning("RFID /login → validasi gagal ip:{$request->ip()}", ['errors' => $e->errors()]);
+            return $this->errorResponse('UID tidak valid atau kosong', 422);
+        }
 
         $companyId  = $this->resolveCompanyId($request);
         $rfidOrigin = $this->resolveOrigin($request);
@@ -198,7 +210,13 @@ class ApiRfidController extends Controller
         $request->merge([
             'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
         ]);
-        $request->validate(['uid' => 'required|string|min:4|max:50']);
+
+        try {
+            $request->validate(['uid' => 'required|string|min:4|max:50']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning("RFID /logout → validasi gagal ip:{$request->ip()}", ['errors' => $e->errors()]);
+            return $this->errorResponse('UID tidak valid atau kosong', 422);
+        }
 
         $companyId  = $this->resolveCompanyId($request);
         $rfidOrigin = $this->resolveOrigin($request);

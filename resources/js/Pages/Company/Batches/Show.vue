@@ -31,6 +31,14 @@ function handleDelete({ id, reason }) {
     router.delete(`/company/cctv/snapshots/${id}`, { data: { reason }, preserveScroll: true })
 }
 
+// ─── Badge status snapshot CCTV per checkpoint ─────────────────────────────────
+function snapshotStatusBadge(status) {
+    if (status === 'captured') return { cls: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', label: 'Captured' }
+    if (status === 'pending')  return { cls: 'text-amber-400 border-amber-500/30 bg-amber-500/10', label: 'Pending' }
+    if (status === 'failed')   return { cls: 'text-red-400 border-red-500/30 bg-red-500/10', label: 'Failed' }
+    return null
+}
+
 // ─── Tab active ───────────────────────────────────────────────────────────
 const activeTab = ref('overview')
 const tabs = computed(() => {
