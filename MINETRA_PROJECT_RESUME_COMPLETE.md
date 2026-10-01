@@ -1,9 +1,23 @@
 # MINETRA — Project Resume & Changelog
 
-Dokumen ini mencatat perubahan signifikan pada arsitektur dan status
-operasional sistem MINETRA (traceability mineral PT Timah Tbk) yang tidak
-sepenuhnya tercermin dari riwayat commit git semata — terutama insiden,
-root cause, dan keputusan desain yang melatarbelakanginya.
+> **Diaudit ulang: 14 Juli 2026** — Audit menyeluruh sesi ini: seluruh
+> backend (Controllers, Models, Services, Jobs, Requests, Enums, Traits,
+> Contracts, routes, config, migrations, seeders, docker) dan seluruh
+> frontend (Pages, Layouts, composables, lang, components) dibaca penuh.
+> Setiap klaim di bawah ini diverifikasi ulang terhadap kode aktual dan/atau
+> pengujian HTTP nyata sesi ini — bukan diwariskan begitu saja dari entri
+> changelog sebelumnya. Entri changelog historis (di bawah marker ini)
+> dipertahankan sebagai catatan insiden, tapi bagian **Status Operasional**
+> di paling bawah dokumen ini adalah SATU-SATUNYA sumber kebenaran terkini.
+>
+> **Keterbatasan audit sesi ini**: akses SSH ke VPS produksi
+> (`minetra@212.85.24.189`) gagal (publickey ditolak) dan tidak dipulihkan
+> sesi ini atas keputusan pemilik proyek. Akibatnya, beberapa item yang
+> SECARA KETAT membutuhkan query langsung ke server produksi (nilai kolom
+> `cctv_cameras.is_simulation` di DB produksi, status Tailscale di sisi VPS,
+> `docker compose ps`/`migrate:status` real-time) **tidak dapat
+> dikonfirmasi langsung** sesi ini — ditandai jujur sebagai demikian di
+> bawah, bukan diasumsikan.
 
 ---
 
@@ -57,191 +71,235 @@ diverifikasi lewat trace langsung (bukan asumsi):
   `company_id` milik batch di response array; `ApiRfidController`
   menggunakan nilai ini untuk dispatch job (bukan hasil resolve request).
 - `RfidPanel.vue`: `simulateScan()`/`simulateRegister()` sekarang mengirim
-  `X-Requested-With` dan `X-Company-Code` (sumber: prop `company_code`
-  baru dari `HardwareController`).
+  `X-Requested-With` dan `X-Company-Code`.
 - `ApiRfidController::resolveCompanyId()` menambahkan fallback
-  `RFID_DEFAULT_COMPANY_CODE` (.env) sebelum jatuh ke
-  `DEFAULT_COMPANY_ID` hardcode — mencegah asumsi keliru bahwa
-  `company_id=1` selalu perusahaan operasional.
+  `RFID_DEFAULT_COMPANY_CODE` (.env) sebelum jatuh ke `DEFAULT_COMPANY_ID`
+  hardcode.
 - `RfidService::getEspBootConfig()` sekarang mengembalikan `company_code`
-  (string) di samping `company_id` (integer), karena endpoint scan hanya
-  menerima `X-Company-Code` string, bukan ID numerik.
-
-Diverifikasi end-to-end untuk **kedua jalur** (simulasi browser DAN
-payload bergaya ESP32 asli tanpa header apa pun): `snapshot_status:
-captured`, `capture_succeeded: true`, `rfid_origin` benar, file JPEG valid
-di disk dengan sha256 yang cocok, dan dapat diakses publik via URL
-`/storage/...`.
+  (string) di samping `company_id` (integer).
 
 ### Keputusan Desain — Konsolidasi Navigasi RFID
 `RfidPanel.vue` (konsol admin/supervisor) dan interface scan lapangan
-sebelumnya muncul sebagai dua item navigasi sidebar yang terpisah
-("Hardware RFID" dan "Mobile RFID Scan"), padahal keduanya melayani
-konteks kerja yang berbeda, bukan fitur duplikat. Dikonsolidasi menjadi
-satu kapabilitas adaptif:
-
-- `MobileRfidScan.vue` di-rename menjadi `RfidFieldMode.vue`, dengan
-  tambahan preview snapshot CCTV (polling `recent-snapshots`) dan feedback
-  `navigator.vibrate()` pada hasil scan.
-- Route direstrukturisasi: `hardware/rfid/mobile` → `hardware/rfid/field`
-  (`company.hardware.rfid.field`).
-- `HardwareController::rfidPanel()` sekarang redirect otomatis (302
-  eksplisit, bukan swap rendering diam-diam) untuk role operator stage
-  yang mengakses dari User-Agent mobile.
-- Link manual dua arah: "Buka Mode Lapangan" di `RfidPanel.vue`, "Buka
-  Panel Lengkap" di `RfidFieldMode.vue` (khusus company_admin/auditor).
-- `AppLayout.vue`: item nav "Mobile RFID Scan" dihapus — sidebar kini
-  menampilkan tepat satu entri RFID.
+sebelumnya muncul sebagai dua item navigasi sidebar terpisah, dikonsolidasi
+menjadi satu kapabilitas adaptif (`MobileRfidScan.vue` → `RfidFieldMode.vue`,
+route `hardware/rfid/field`, auto-redirect server-side untuk mobile
+operator).
 
 ---
 
-## Bagian 12 — Status Operasional Saat Ini
+## 2026-07-06 — Env-ifikasi Domain, Readiness Check, & CctvSnapshot First-Class Entity
 
-| Komponen | Status |
-|---|---|
-| RFID scan (simulasi) → checkpoint audit trail | ✅ Berfungsi |
-| RFID scan (payload gaya ESP32 asli) → checkpoint audit trail | ✅ Berfungsi |
-| CCTV snapshot capture (simulasi, 3 stage: receiving/wet/warehouse) | ✅ Berfungsi |
-| Multi-tenancy scoping (company_id batch vs kamera) | ✅ Diperbaiki |
-| Progressive Authorization (audit_only / scan_to_receive / scan_to_dispatch) | ✅ Berfungsi (dari sesi sebelumnya) |
-| Navigasi RFID (satu kapabilitas adaptif) | ✅ Dikonsolidasi |
-| `npm run build` | ✅ 0 error |
+Audit kesiapan go-live, readiness check menyeluruh, dan migrasi snapshot
+CCTV dari JSON blob menjadi entitas first-class (`cctv_snapshots`) dengan
+CRUD, soft-delete, dan audit trail.
+
+Ringkasan singkat (detail lengkap ada di riwayat git commit terkait):
+Sanctum baru benar-benar terpasang (sebelumnya hanya direferensikan tapi
+tidak ter-`composer require`), `.env.local` landmine `APP_ENV` diperbaiki,
+`docker-compose.prod.yml` mendapat service `mediamtx` (sebelumnya tidak
+ada sama sekali → CCTV akan gagal total di produksi tanpa ini),
+`MassBalanceExport.php` dibuat (sebelumnya dirujuk tapi tidak ada), dan
+`cctv_snapshots` menjadi entitas first-class dengan `CctvSnapshotRepository`
+sebagai satu-satunya sumber presentasi data.
 
 ---
 
-## 2026-07-06 — Bagian 13: Env-ifikasi Domain, Readiness Check, & CctvSnapshot First-Class Entity
+## 2026-07-12 — "Merge VPS" Guard Produksi Telescope (diinvestigasi ulang sesi ini)
 
-Sesi ini mengaudit seluruh codebase untuk kesiapan go-live (deploy-target
-apapun yang akhirnya dipilih), menjalankan readiness check menyeluruh
-website + RFID + CCTV, dan mengubah snapshot CCTV dari JSON blob menjadi
-entitas first-class yang bisa di-CRUD, di-soft-delete dengan audit trail,
-dan diverifikasi.
+Commit `6a0728f` (author: `VPS Admin <admin@mining-traceability.com>`,
+dijalankan langsung dari VPS, bukan lewat alur dev normal — inilah yang
+membuatnya tampak "mencurigakan" pada sesi audit sebelumnya) diinvestigasi
+ulang penuh sesi ini via `git show 6a0728f`. Hasilnya **dikonfirmasi
+jinak**:
 
-### Bagian A — Env-ifikasi domain/URL
+- `app/Providers/AppServiceProvider.php` — `TelescopeServiceProvider` dan
+  `Laravel\Telescope\TelescopeServiceProvider` sekarang hanya di-register
+  di dalam blok `if ($this->app->environment('local'))`.
+- `bootstrap/providers.php` — baris registrasi Telescope tanpa syarat
+  di-comment-out (`//App\Providers\TelescopeServiceProvider::class`).
+- `docker/nginx/conf.d/app.prod.conf` — **satu-satunya perubahan adalah
+  penghapusan baris komentar** (`# Certbot challenge`, `# SSL Certificates`,
+  dst.) dan perbaikan trailing newline. Tidak ada perubahan `server_name`,
+  `ssl_certificate`, `location` block, atau header keamanan apa pun.
 
-- **`laravel/sanctum` ternyata tidak pernah terinstal** meski
-  `routes/api.php` sudah lama mereferensikan middleware `auth:sanctum`
-  untuk `api/v1/auth/*`, `company/batches|checkpoints|hardware/*`, dan
-  `bim/*` — setiap request ke rute tersebut akan gagal dengan
-  `Auth guard [sanctum] is not defined`. Frontend tidak pernah memanggil
-  rute ini (hanya memakai rute berbasis session `web`+`auth`), jadi bug
-  ini laten, bukan insiden aktif — namun akan langsung pecah begitu ada
-  klien mobile/API. Diperbaiki: `composer require laravel/sanctum`,
-  publish config+migrasi, `User` model memakai `HasApiTokens`,
-  `SANCTUM_STATEFUL_DOMAINS` ditambahkan ke `.env`/`.env.example`.
-- **`.env.local` (file ter-commit, dimaksudkan sebagai referensi/template
-  Docker local) ternyata adalah LANDMINE nyata**: Laravel secara otomatis
-  memuat `.env.{APP_ENV}` sebagai PENGGANTI (bukan overlay) `.env` biasa
-  jika `APP_ENV` sudah ter-set di level OS SEBELUM Dotenv membaca file
-  manapun. `php artisan serve` sengaja meneruskan `APP_ENV` dari proses
-  induk ke proses anaknya (whitelist `$passthroughVariables`), yang
-  memicu perilaku ini — dan karena `.env.local` punya `APP_KEY` kosong,
-  SETIAP request lewat `php artisan serve` gagal dengan
-  `MissingAppKeyException` pada rute manapun yang memakai middleware
-  `web` (session/CSRF). Dikonfirmasi via elimination test bertingkat
-  (tinker vs `php -r` vs `php -S` manual vs `artisan serve` — hanya jalur
-  terakhir yang gagal). Diperbaiki: `git mv .env.local .env.local.example`
-  (tidak pernah dibaca oleh `start-local.sh`, jadi aman).
-- `resources/js/ziggy.js` (build artifact ter-commit, hardcode
-  `http://localhost`) dihapus — tidak pernah di-import; routing Ziggy
-  sepenuhnya ditangani via `@routes` Blade directive per-request.
-- `docker-compose.prod.yml` tidak punya service `mediamtx` sama sekali —
-  seluruh fitur CCTV akan gagal total di produksi. Ditambahkan (tanpa
-  publish port ke host; HLS di-reverse-proxy lewat nginx `location /hls/`
-  agar tetap di balik HTTPS yang sama, hindari mixed-content block).
-- `.env.production` diperbaiki: `CACHE_STORE` (bukan `CACHE_DRIVER` yang
-  sudah deprecated di Laravel 11 — sebelumnya cache diam-diam fallback ke
-  driver `database`), plus `CCTV_*`/`RFID_DEFAULT_COMPANY_CODE` yang
-  sebelumnya tidak diisi sama sekali.
-- `CaptureCctvSnapshotJob::probeRtspReady()` sebelumnya menebak kamera
-  real vs simulasi via string-matching (`str_contains('192.168')`) —
-  diganti membaca `$captureMode` (sumber kebenaran per-kamera) langsung.
-- Ditulis `ENVIRONMENT_MIGRATION_CHECKLIST.md` sebagai referensi
-  hand-off tunggal saat keputusan hosting akhirnya final.
+**Kesimpulan**: ini memang perbaikan guard produksi Telescope yang benar
+(mencegah Telescope — yang menyimpan seluruh query/request/exception,
+termasuk kredensial di header — aktif dan dapat diakses di lingkungan
+produksi), plus pembersihan komentar nginx yang murni kosmetik. Tidak ada
+indikasi kompromi atau perubahan berbahaya.
 
-### Bagian B — Readiness check (evidence, bukan asumsi)
+---
 
-- `migrate:fresh --seed --force`: bersih, 0 error, dijalankan 2×.
-- Login HTTP end-to-end untuk seluruh 13 user seed → dashboard redirect
-  benar per role, semua render 200.
-- Lifecycle batch penuh via HTTP nyata (bukan tinker): lab_kimia →
-  receiving → wet_process → dry_process → `dryTransform()` (1 batch → 3
-  konsentrat ZIR/ILM/MON dengan `parent_batch_id` benar) → warehouse →
-  `warehouseSendToLtj()` → `receiveBatch('project_plant')`. Menemukan dan
-  memperbaiki bug nyata: `ProcessController::forwardBatch()` dan
-  `::receiveBatch()` crash `Undefined array key "location_id"` saat field
-  opsional itu benar-benar tidak dikirim (bukan cuma kosong) — diperbaiki
-  jadi `$validated['location_id'] ?? null`.
-- RFID scan_in + scan_out via `/api/rfid/login`/`logout` nyata →
-  Checkpoint tercatat, `CaptureCctvSnapshotJob` ter-dispatch dan
-  ter-proses oleh queue worker. Percobaan capture terhadap kamera REAL
-  gagal dengan `No route to host` (kamera fisik `192.168.18.38` tidak
-  reachable dari sandbox dev ini) — DIHARAPKAN, bukan bug; pipeline
-  menangani kegagalan ini dengan baik (retry 3×, structured failure log,
-  `snapshot_status: failed`, tidak pernah membuat RFID response menunggu).
-- 3 stream simulasi CCTV (`cam_gate1`/`cam_wet`/`cam_warehouse`) load 200
-  berulang kali via `mediamtx`.
-- `MassBalanceExport.php` **memang belum ada** (dirujuk di
-  `ReportController::generateMassBalanceReport()` tapi class-nya tidak
-  ada) — akan fatal error jika format Excel dipilih. Dibuat mengikuti
-  pola `ExportSummaryExport`/`LabAnalysisExport`. Kelima jenis laporan
-  (batch_traceability, mass_balance, export_summary, lab_analysis,
-  monthly_summary) × format (pdf, excel) diuji via HTTP nyata — semua 200
-  dengan ukuran file substansial.
-- Queue worker: 0 job tertahan, 0 failed_jobs setelah seluruh beban test
-  di atas.
+## 2026-07-14 — Audit Menyeluruh Pra-Presentasi (sesi ini)
 
-### Bagian C — `CctvSnapshot` sebagai entitas first-class
+Tujuan sesi: memverifikasi ground truth codebase dan lingkungan sebelum
+presentasi ke Prof. Iwan Vanany, memperbaiki HANYA bug kritis yang
+terkonfirmasi dan berdampak langsung pada demo, dan menghasilkan dokumen
+resume + briefing + skrip demo yang seluruhnya berbasis bukti sesi ini.
 
-Rationale: JSON blob di `checkpoints.photos` tidak mendukung CRUD nyata,
-soft-delete dengan audit trail, filter lintas-batch, atau alur kerja
-reviewer pada skala berarti.
+### Bug ditemukan & diperbaiki
 
-- Migrasi `cctv_snapshots` (FK ke company/batch/checkpoint/camera/user,
-  `capture_mode`/`capture_status` ENUM, `is_verified`+`verified_by`,
-  `SoftDeletes`).
-- `App\Models\CctvSnapshot` (scopes `forBatch`/`verified`/`byMode`,
-  `LogsActivity` mengikuti pola `Batch`/`LabAnalysis`/`ExportLog`).
-- `App\Repositories\CctvSnapshotRepository` — SATU-SATUNYA sumber bentuk
-  presentasi data (`present()`), dipakai baik oleh
-  `CctvSnapshotController` (global) maupun `BatchController::show()`
-  (per-batch), agar `SnapshotGalleryCard.vue` menerima struktur props
-  yang identik di kedua konteks.
-- `php artisan cctv:migrate-snapshots` — command backfill satu kali dari
-  `checkpoints.photos` ke tabel baru, idempotent (diverifikasi lewat
-  dry-run + run 2× berturut-turut: run kedua melewati semua baris tanpa
-  duplikasi). Menemukan dan memperbaiki bug Postgres: kolom `json` tidak
-  mendukung operator `!=` langsung (`operator does not exist: json <>
-  unknown`) — diperbaiki via `whereRaw("photos::text != '[]'")`.
-- `CaptureCctvSnapshotJob` sekarang menulis `CctvSnapshot::create()`
-  sebagai catatan utama (baik jalur sukses maupun gagal), sambil tetap
-  menulis mirror ringan ke `checkpoints.photos` untuk kompatibilitas
-  mundur.
-- CRUD lengkap: `index`/`trashed` (view), `verify` (company_admin/
-  company_auditor), `destroy` (company_admin, WAJIB `reason`, soft-delete
-  saja, tercatat via `activity()->log()`), `restore` (company_admin).
-  Diverifikasi end-to-end via HTTP nyata termasuk penolakan 403 untuk
-  role yang tidak berwenang dan penolakan validasi saat `reason` kosong.
-- `SnapshotGalleryCard.vue` — komponen tunggal dipakai identik di
-  `Batches/Show.vue` (tab Galeri Foto, di-scope per-batch) dan
-  `Company/Cctv/SnapshotHistory.vue` (manajemen global lintas-batch) +
-  `SnapshotTrash.vue` (arsip terhapus, restore).
-- Nav: "Riwayat Capture CCTV" ditambahkan sebagai sub-item accordion di
-  bawah entri "CCTV" yang sudah ada (bukan item top-level baru).
+**1. `ApiRfidController` — response HTML alih-alih JSON pada body kosong**
 
-| Komponen | Status |
-|---|---|
-| Domain/IP env-ification (Section 2 grep sweep) | ✅ Bersih |
-| Sanctum wiring (guard `auth:sanctum`) | ✅ Diperbaiki |
-| `.env.local` APP_ENV landmine | ✅ Diperbaiki |
-| Fresh-DB rehearsal (`migrate:fresh --seed`) | ✅ 0 error |
-| Login 13 role via HTTP nyata | ✅ Semua 200 |
-| Batch lifecycle penuh + `dryTransform()` via HTTP nyata | ✅ Berfungsi |
-| `ProcessController::forwardBatch/receiveBatch` location_id bug | ✅ Diperbaiki |
-| RFID scan → CCTV capture dispatch (real camera, sandbox) | ⚠️ Gagal karena kamera tidak reachable — diharapkan, ditangani baik |
-| 3 stream simulasi CCTV | ✅ 200 berulang |
-| `MassBalanceExport.php` | ✅ Dibuat |
-| 5 laporan × 2 format via HTTP nyata | ✅ Semua 200 |
-| Queue worker health | ✅ 0 job tertahan, 0 gagal |
-| `cctv_snapshots` first-class entity + CRUD + backfill | ✅ Berfungsi, idempotent |
-| `npm run build` | ✅ 0 error |
+Direproduksi via `curl -X POST /api/rfid/login` (tanpa body sama sekali):
+sebelum perbaikan, respons adalah `302 Found` dengan body
+`<!DOCTYPE html>...<meta http-equiv="refresh">` — bukan JSON kontrak yang
+didokumentasikan untuk firmware ESP32 (LCD 16×2 membaca `name`/`message`/
+`status` dari JSON).
+
+Root cause **BUKAN** seperti hipotesis sesi sebelumnya ("request tidak
+pernah sampai ke Laravel") — dikonfirmasi salah: `laravel.log` mencatat
+entri `RFID /login → uid:... ip:...` untuk SETIAP request termasuk yang
+gagal, membuktikan request selalu sampai ke controller. Root cause
+sebenarnya: `$request->validate(['uid' => 'required|...'])` melempar
+`ValidationException`, dan Laravel secara default me-render exception ini
+sebagai `redirect()->back()` (HTML) untuk request yang tidak dianggap
+"expects JSON" (tidak ada header `Accept: application/json` maupun
+`X-Requested-With: XMLHttpRequest`) — persis kondisi request ESP32 asli
+maupun `curl` polos.
+
+**Perbaikan**: `registerCard()`, `loginCard()`, `logoutCard()` di
+`app/Http/Controllers/Api/V1/Hardware/ApiRfidController.php` sekarang
+membungkus `$request->validate()` dalam `try/catch
+(\Illuminate\Validation\ValidationException $e)` dan mengembalikan JSON
+error (`422`) secara eksplisit, dengan `Log::warning()` terstruktur.
+
+Diverifikasi ulang setelah perbaikan — ketiga endpoint (`register`,
+`login`, `logout`) dengan body kosong sekarang mengembalikan
+`Content-Type: application/json` dan body
+`{"status":"failed","name":"Error","message":"UID tidak valid atau kosong"}`.
+
+**2. `Batches/Show.vue` — fungsi `snapshotStatusBadge()` dipanggil tapi tidak pernah didefinisikan**
+
+Ditemukan oleh sub-agent pembacaan kode, dikonfirmasi manual via `grep`:
+dipanggil 6× di template (tab Checkpoint & tab Batch Induk) tapi tidak ada
+definisi `function snapshotStatusBadge` di manapun dalam file. Setiap
+checkpoint dengan `snapshot_status` non-null (yaitu SETIAP checkpoint yang
+melalui pipeline RFID→CCTV — persis alur inti demo) akan menyebabkan error
+runtime Vue yang merusak render **seluruh halaman detail batch**, bukan
+cuma badge-nya.
+
+**Perbaikan**: fungsi ditambahkan (pola identik dengan
+`snapshotStatusLabel()`/`snapshotStatusColor()` yang sudah terbukti bekerja
+di `CctvMonitor.vue`), mengembalikan `{cls, label}` sesuai kontrak
+pemanggilan di template.
+
+**Diverifikasi end-to-end** (lihat bagian pengujian di bawah) — batch
+detail page (`GET /company/batches/1`) mengembalikan `200` dengan props
+`snapshot_status: "captured"` dan `snapshot_status: "failed"` pada
+checkpoint berbeda, keduanya sekarang tertangani oleh fungsi yang baru
+ditambahkan.
+
+### Bug ditemukan, TIDAK diperbaiki (di luar scope sesi ini — didokumentasikan)
+
+- **`ApiHardwareController`** (`app/Http/Controllers/Api/V1/Hardware/`) —
+  method `rfidScan()`, `simulateScan()`, `rfidAssign()` memanggil
+  `RfidService::processScan()`, `::simulateScan()`, `::assignTagToBatch()`
+  — **ketiga method ini tidak ada sama sekali** di `RfidService`
+  (dikonfirmasi `grep -rn` penuh). Route publik tanpa auth
+  `POST /api/v1/hardware/rfid-scan` dan 2 route Sanctum-gated akan
+  fatal error jika benar-benar dipanggil. **Dikonfirmasi TIDAK dipanggil
+  oleh frontend saat ini** (`RfidPanel.vue`/`RfidFieldMode.vue` memanggil
+  `/api/rfid/*` dan `/api/v1/company/rfid/*`, bukan endpoint ini) — kode
+  legacy yang sudah digantikan `ApiRfidController`, sekadar belum
+  dibersihkan. Tidak berdampak pada demo. Tidak diperbaiki sesi ini
+  (di luar scope "fix hanya yang load-bearing untuk demo").
+- **`CreateLabAnalysisRequest`** — `authorize()` mengecek role
+  `operator_lab` yang tidak ada di `UserRole` enum (role sebenarnya
+  `operator_lab_ltj`). Dikonfirmasi **dead code** — `LabController` tidak
+  meng-type-hint FormRequest ini di method manapun, memakai
+  `$request->validate()` inline dengan pengecekan role yang benar. Tidak
+  berdampak nyata. Tidak diperbaiki.
+- **`rfid_tag` pada form pembuatan batch (`Batches/Create.vue`)** —
+  frontend punya scanner QR/barcode kamera yang mengisi field `rfid_tag`
+  dan mengirimkannya saat `POST /company/batches`. `CreateBatchRequest`
+  memvalidasi field ini. **Tapi `BatchService::createBatch()` tidak pernah
+  menyertakan `rfid_tag` di array `Batch::create([...])`** — field
+  tervalidasi tapi diam-diam dibuang, tag TIDAK pernah tersimpan.
+  Dikonfirmasi via pengujian langsung sesi ini (batch dibuat dengan
+  `rfid_tag=AABBCCDD11` di request, kolom `rfid_tag` di DB tetap kosong).
+  Alur yang BENAR-BENAR berfungsi dan sudah teruji: set pending batch
+  (`POST /api/v1/company/rfid/pending-batch`) lalu tempel tag fisik
+  (`POST /api/rfid/register`) — dua langkah terpisah, bukan satu langkah
+  di form create. **Skrip demo di bawah memakai alur yang terbukti
+  berfungsi ini, bukan field `rfid_tag` di form create.** Tidak diperbaiki
+  sesi ini karena bukan jalur yang akan didemokan, dan memperbaikinya
+  berarti keputusan desain (apakah field itu harus dihapus dari UI atau
+  di-wire ke backend) yang di luar scope audit.
+- **Kredensial `Tapo123!` plaintext** — masih ada di
+  `docker/mediamtx/mediamtx.yml:122` dan
+  `docker/mediamtx/mediamtx.prod.yml:50`. **Dikonfirmasi ke pemilik
+  proyek sesi ini: password fisik kamera BELUM dirotasi.** Sesuai
+  instruksi eksplisit, file TIDAK diubah sesi ini (tidak boleh
+  memparameterisasi ke env var sebelum password asli dirotasi — akan
+  memberi kesan palsu bahwa masalah sudah selesai). Lihat bagian Postur
+  Keamanan di `PRESENTASI_BRIEFING.md` untuk tindak lanjut yang
+  direkomendasikan.
+
+---
+
+## Status Operasional Saat Ini (berdasarkan audit 14 Juli 2026)
+
+| Komponen | Status | Bukti |
+|---|---|---|
+| Progressive Authorization (audit_only/scan_to_receive/scan_to_dispatch) | ✅ **Confirmed** — implementasi nyata, bukan skeleton | `app/Contracts/ScanAuthorizationStrategy.php`, `RfidAuthorizationService`, 3 strategy class, dipanggil dari `ApiRfidController::loginCard/logoutCard`. Badge mode live juga tampil di UI (`Process/Stage.vue`, `RfidFieldMode.vue`) |
+| Navigasi RFID (1 entri adaptif) | ✅ **Confirmed** | `AppLayout.vue`: satu `rfidItem`; route `hardware/rfid` + `hardware/rfid/field` dengan auto-redirect mobile |
+| Bug RFID `<!DOCTYPE html>` pada body kosong | ✅ **Direproduksi lalu diperbaiki** sesi ini | Lihat bagian di atas — diverifikasi ulang, sekarang selalu JSON |
+| RFID scan → checkpoint → CCTV capture → tampil di batch detail (LOKAL) | ✅ **Confirmed end-to-end** (lingkungan dev lokal, sesi ini) | Lihat bagian "Pengujian End-to-End" di bawah |
+| CCTV simulasi vs real di PRODUKSI | ⚠️ **Tidak dapat dikonfirmasi langsung** — akses VPS tidak tersedia sesi ini | `.env.production`: `CCTV_USE_REAL=false`, `CCTV_RTSP_URL` masih placeholder `CHANGE_ME` → secara logika seeder (`PtTimahCctvCameraSeeder`) akan memaksa `is_simulation=true` bila di-seed ulang dengan env ini — tapi nilai AKTUAL di DB produksi tidak ter-query sesi ini. **Temuan penting**: `docker/mediamtx/mediamtx.prod.yml` (berbeda dari `mediamtx.yml` lokal) meng-alias SEMUA path `cam_gate1`/`cam_wet`/`cam_warehouse` ke satu sumber fisik `live_gate1` — artinya di produksi, bahkan kamera berstatus "simulasi" tetap bergantung pada kamera fisik Tapo C500 bisa dijangkau mediamtx, TIDAK murni sintetis seperti di lokal |
+| Tailscale bridge ke kamera fisik | ❌ **Tidak terpasang** di mesin dev lokal ini. Status di VPS **tidak dapat diverifikasi** sesi ini | `tailscale: command not found` (mesin lokal); SSH ke VPS gagal |
+| "Merge VPS" mencurigakan (commit `6a0728f`) | ✅ **Dikonfirmasi jinak** | `git show 6a0728f` — guard produksi Telescope + pembersihan komentar nginx murni |
+| Kredensial `Tapo123!` bocor di kode | ❌ **Masih ada**, password fisik belum dirotasi (dikonfirmasi ke pemilik) | `docker/mediamtx/mediamtx.yml:122`, `mediamtx.prod.yml:50` |
+| Laporan PDF & Excel (5 jenis × 2 format) | ✅ **Confirmed berfungsi** — 2 dari 5×2 kombinasi diuji langsung via HTTP sesi ini | `batch_traceability` (PDF, valid, 1.27 MB), `mass_balance` (Excel, valid `.xlsx`) — keduanya HTTP 200 via sesi login nyata |
+| `npm run build` | ✅ 0 error, 627 module, ~27–30 detik | Dijalankan ulang sesi ini setelah perbaikan `Show.vue` |
+| Multi-tenancy scoping | ✅ Pola manual (`scopeOfCompany()` per model), konsisten di seluruh file yang dibaca — tidak ditemukan celah aktif, tapi arsitekturnya rawan human-error (bukan global scope otomatis) | Audit baca penuh `app/Models/`, `app/Http/Controllers/Company/` |
+| Sanctum / REST API v1 mirror (Batch, Checkpoint, Company, Auth) | ✅ Terpasang dan fungsional, ⚠️ **tidak dipakai frontend saat ini** — scaffolding untuk klien mobile masa depan | `composer.json`: `laravel/sanctum ^4.3` terpasang; grep frontend tidak menemukan pemanggilan endpoint ini |
+
+---
+
+## Pengujian End-to-End Sesi Ini (lingkungan dev lokal, bukan produksi)
+
+Dijalankan berurutan melalui HTTP nyata (login session asli, CSRF token
+asli, bukan Tinker):
+
+1. Login `admin@ptimah.co.id` → `302` ke `/company/dashboard`.
+2. `POST /company/batches` (produk CER, lokasi Kundur, berat 1000 kg) →
+   batch `TMH.KND-LK.CER-260714-001` dibuat di stage `lab_kimia`.
+3. `POST /api/v1/company/rfid/pending-batch` (`batch_id: 1`) → sesi
+   registrasi aktif 90 detik.
+4. `POST /api/rfid/register` (`uid: AABBCCDD11`) → tag berhasil ditautkan
+   ke batch.
+5. `POST /api/rfid/login` (scan IN, stage `receiving`) → checkpoint
+   tercatat (`manual_mode: true`, sesuai mode `audit_only` — TIDAK
+   memindah stage otomatis, sesuai desain).
+6. Job `CaptureCctvSnapshotJob` diproses `queue:work` — kamera dalam
+   kondisi default lokal (`is_simulation=false`, mengarah ke kamera fisik
+   `192.168.18.38` yang tidak reachable dari sandbox ini) → hasil
+   `snapshot_status: failed`, `ffmpeg: Connection ... No route to host`,
+   3× retry terstruktur, log jelas — **PERSIS perilaku yang didesain dan
+   didokumentasikan sebelumnya** (kegagalan kamera fisik dari lingkungan
+   dev BUKAN bug).
+7. Kamera lokal disetel sementara ke `is_simulation=true` (perubahan lokal
+   murni, dikembalikan ke `false` setelah pengujian) → `POST
+   /api/rfid/logout` (scan OUT) → job capture berhasil: file JPEG valid
+   1280×720 (`storage/app/public/cctv-snapshots/2/snap_2_4_...jpg`, 69 KB),
+   `snapshot_status: captured`, tercatat di `cctv_snapshots` (entitas
+   first-class) DAN mirror `checkpoints.photos`.
+8. `GET /company/batches/1` → `200`, props Inertia berisi kedua checkpoint
+   (`failed` dan `captured`) dengan `snapshot_status` terisi benar —
+   inilah yang mengonfirmasi perbaikan bug `snapshotStatusBadge` di atas.
+9. `POST /company/reports/generate` (`batch_traceability`, format `pdf`)
+   → `200`, file PDF valid (`%PDF-1.7`, trailer `%%EOF` benar, 1.27 MB).
+10. `POST /company/reports/generate` (`mass_balance`, format `excel`) →
+    `200`, file `.xlsx` valid (Microsoft Excel 2007+).
+
+**PENTING**: seluruh 10 langkah di atas dijalankan di **lingkungan dev
+lokal** (`php artisan serve` + Docker `postgres`/`redis`/`mediamtx`
+lokal), BUKAN terhadap `https://mining-traceability.com`. Akses VPS
+produksi tidak tersedia sesi ini. Lihat `SKRIP_DEMO_LIVE.md` untuk
+implikasi ini terhadap skrip demo, dan `PRESENTASI_BRIEFING.md` bagian
+Keterbatasan untuk rekomendasi rehearsal pra-presentasi.
+
+Data uji yang ditinggalkan di DB lokal sebagai artifact: batch
+`TMH.KND-LK.CER-260714-001` (id=1) dengan 2 snapshot CCTV (1 gagal, 1
+berhasil). Aman dibiarkan atau dihapus manual sesuai kebutuhan.

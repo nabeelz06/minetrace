@@ -9,6 +9,7 @@ use App\Models\ProductCode;
 use App\Models\User;
 use Database\Seeders\Core\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 /**
@@ -30,10 +31,11 @@ class BatchCreationTest extends TestCase
         $this->company  = Company::where('code', 'TIMAH')->firstOrFail();
     }
 
+    #[Test]
     public function authenticated_operator_can_create_batch(): void
     {
         $productCode = ProductCode::where('company_id', $this->company->id)
-            ->where('code', 'MIK')
+            ->where('code', 'MIT')
             ->firstOrFail();
 
         $location = Location::where('company_id', $this->company->id)
@@ -60,9 +62,10 @@ class BatchCreationTest extends TestCase
         $this->assertMatchesRegularExpression('/^TMH\./', $batch->batch_code);
     }
 
+    #[Test]
     public function batch_code_is_unique_and_sequential(): void
     {
-        $productCode = ProductCode::where('company_id', $this->company->id)->where('code', 'MIK')->firstOrFail();
+        $productCode = ProductCode::where('company_id', $this->company->id)->where('code', 'MIT')->firstOrFail();
         $location    = Location::where('company_id', $this->company->id)->where('location_type', 'lab_kimia')->firstOrFail();
 
         $this->actingAs($this->operator)->post('/company/batches', [
@@ -83,6 +86,7 @@ class BatchCreationTest extends TestCase
         $this->assertNotEquals($batches[0]->batch_code, $batches[1]->batch_code);
     }
 
+    #[Test]
     public function batch_requires_valid_product_code(): void
     {
         $location = Location::where('company_id', $this->company->id)->where('location_type', 'lab_kimia')->firstOrFail();
@@ -97,9 +101,10 @@ class BatchCreationTest extends TestCase
         $response->assertSessionHasErrors('product_code_id');
     }
 
+    #[Test]
     public function batch_requires_positive_weight(): void
     {
-        $productCode = ProductCode::where('company_id', $this->company->id)->where('code', 'MIK')->firstOrFail();
+        $productCode = ProductCode::where('company_id', $this->company->id)->where('code', 'MIT')->firstOrFail();
         $location    = Location::where('company_id', $this->company->id)->where('location_type', 'lab_kimia')->firstOrFail();
 
         $response = $this->actingAs($this->operator)
@@ -112,6 +117,7 @@ class BatchCreationTest extends TestCase
         $response->assertSessionHasErrors('initial_weight');
     }
 
+    #[Test]
     public function unauthenticated_user_cannot_create_batch(): void
     {
         $response = $this->post('/company/batches', [
@@ -123,6 +129,7 @@ class BatchCreationTest extends TestCase
         $response->assertRedirect('/login');
     }
 
+    #[Test]
     public function batch_from_different_company_is_unauthorized(): void
     {
         // Buat company dan batch lain

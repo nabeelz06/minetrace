@@ -27,7 +27,7 @@ class LoginController extends Controller
     public function create(): Response
     {
         return Inertia::render('Auth/Login', [
-            'canResetPassword' => false, // Akan diaktifkan di Sprint 2+
+            'canResetPassword' => true,
             'status'           => session('status'),
         ]);
     }

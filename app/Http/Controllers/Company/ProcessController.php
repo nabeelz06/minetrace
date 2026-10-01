@@ -1013,7 +1013,7 @@ class ProcessController extends Controller
 
         // ─── [Strategy] Project Plant: terima MON yang in_transit ─────────
         if ($stage === 'project_plant') {
-            return Batch::with(['productCode', 'currentLocation'])
+            return Batch::with(['productCode', 'currentLocation', 'checkpoints'])
                 ->where('company_id', $companyId)
                 ->where('process_stage', 'warehouse')
                 ->where('status', 'in_transit')     // Dikirim warehouse, belum diterima Lab LTJ
@@ -1026,7 +1026,7 @@ class ProcessController extends Controller
         }
 
         // ─── Stage lain: dari prev_stage ──────────────────────────────────
-        return Batch::with(['productCode', 'currentLocation'])
+        return Batch::with(['productCode', 'currentLocation', 'checkpoints'])
             ->where('company_id', $companyId)
             ->where('process_stage', $prevStage)
             ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'split'])
