@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\Hardware\ApiRfidController;
+use App\Http\Controllers\Api\V1\Hardware\ApiRfidDeviceController;
 use App\Http\Controllers\Api\V1\Auth\ApiAuthController;
 use App\Http\Controllers\Api\V1\Batch\ApiBatchController;
 use App\Http\Controllers\Api\V1\Checkpoint\ApiCheckpointController;
@@ -42,6 +43,13 @@ Route::prefix('rfid')->group(function () {
     Route::post('logout', [ApiRfidController::class, 'logoutCard'])
         ->middleware('throttle:120,1')
         ->name('api.rfid.logout');
+
+    // Heartbeat ringan (Fase 7 — device registry). Hanya berguna untuk
+    // reader yang sudah punya X-Device-Key; ESP32 legacy boleh tidak
+    // memanggil ini sama sekali tanpa kehilangan fungsi apa pun.
+    Route::post('heartbeat', [ApiRfidController::class, 'deviceHeartbeat'])
+        ->middleware('throttle:120,1')
+        ->name('api.rfid.heartbeat');
 
 }); // end prefix('rfid')
 
@@ -226,6 +234,21 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('authorization-modes', [ApiRfidController::class, 'setAuthorizationMode'])
             ->name('authorization-modes.set');
 
+        // ─────────────────────────────────────────────────────────────
+        // DEVICE REGISTRY — CRUD RFID Reader (Fase 7)
+        // Dipanggil dari tab "Perangkat" di RfidPanel.vue. Otorisasi
+        // per-method ada di ApiRfidDeviceController (admin-only untuk
+        // mutasi, admin+auditor untuk index/lihat).
+        // ─────────────────────────────────────────────────────────────
+        Route::prefix('devices')->name('devices.')->group(function () {
+            Route::get('/',                     [ApiRfidDeviceController::class, 'index'])->name('index');
+            Route::post('/',                    [ApiRfidDeviceController::class, 'store'])->name('store');
+            Route::put('{reader}',              [ApiRfidDeviceController::class, 'update'])->name('update');
+            Route::post('{reader}/regenerate-key', [ApiRfidDeviceController::class, 'regenerateKey'])->name('regenerate-key');
+            Route::post('{reader}/revoke',      [ApiRfidDeviceController::class, 'revoke'])->name('revoke');
+            Route::post('{reader}/reactivate',  [ApiRfidDeviceController::class, 'reactivate'])->name('reactivate');
+        });
+
     });
 
-}); 
+});

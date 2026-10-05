@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Company;
 
 use App\Http\Controllers\Controller;
+use App\Models\RfidReader;
 use App\Services\Hardware\RfidAuthorizationService;
 use App\Services\Hardware\RfidService;
 use Carbon\Carbon;
@@ -137,6 +138,20 @@ class HardwareController extends Controller
         $pendingBatch    = $this->rfid->getPendingBatch($companyId);
         $recentActivity  = $this->rfid->getRecentRfidActivity($companyId);
 
+        // ─── Device registry (Fase 7) ───────────────────────────────
+        // Hanya di-query & dikirim ke frontend untuk role yang memang
+        // boleh melihatnya (sama seperti can_view_full_panel di
+        // rfidFieldMode() di atas) — role lain menerima array kosong di
+        // props, BUKAN cuma disembunyikan di UI, supaya tidak ada data
+        // reader yang "ikut terkirim" ke payload Inertia role yang tidak
+        // berwenang (defense in depth; endpoint /devices sendiri juga
+        // tetap melakukan abort_unless-nya sendiri, lihat
+        // ApiRfidDeviceController).
+        $canViewDevices = in_array($userRole, self::FULL_PANEL_ROLES, true);
+        $devices        = $canViewDevices
+            ? RfidReader::where('company_id', $companyId)->orderByDesc('created_at')->get()->map->toDisplayArray()
+            : [];
+
         // ─── Debug log — untuk verify data yang dikirim ke Vue ─────
         Log::info('HardwareController::rfidPanel', [
             'user_id'         => $user->id,
@@ -151,6 +166,7 @@ class HardwareController extends Controller
             'tagged_batches'   => $taggedBatches,
             'pending_batch'    => $pendingBatch,
             'recent_activity'  => $recentActivity,
+            'devices'          => $devices,
             'stats' => [
                 'untagged_count' => count($untaggedBatches),
                 'tagged_count'   => count($taggedBatches),

@@ -24,6 +24,7 @@ const props = defineProps({
     tagged_batches:   { type: Array,  default: () => [] },
     pending_batch:    { type: Object, default: null },
     recent_activity:  { type: Array,  default: () => [] },
+    devices:          { type: Array,  default: () => [] },
     stats:            Object,
     user_role:        String,
     company_id:       Number,
@@ -35,6 +36,14 @@ const canManage = computed(() => ['company_admin','operator_lab_station','operat
     'operator_dry','operator_warehouse','operator_lab_ltj'].includes(props.user_role))
 const canAdmin  = computed(() => props.user_role === 'company_admin')
 
+// Fase 7 — Device Registry. Sama dengan FULL_PANEL_ROLES di
+// HardwareController (company_admin + company_auditor) — frontend hanya
+// mengatur tampilan; batasan sesungguhnya tetap di backend (props
+// `devices` sudah array kosong untuk role lain, dan setiap endpoint
+// /devices/* melakukan abort_unless-nya sendiri).
+const canViewDevices   = computed(() => ['company_admin','company_auditor'].includes(props.user_role))
+const onlineDeviceCount = computed(() => (props.devices || []).filter(d => d.status === 'online').length)
+
 const activeTab = ref('esp32')
 
 const availableStages = [
@@ -44,6 +53,18 @@ const availableStages = [
     { stage: 'warehouse',     label_id: 'LTJ Warehouse',    label_en: 'LTJ Warehouse'    },
     { stage: 'project_plant', label_id: 'Lab Analisis LTJ', label_en: 'LTJ Lab Analysis' },
 ]
+
+// ─── Device Registry — state lokal (Fase 7) ───────────────────────────────────
+const showAddDevice  = ref(false)
+const newDeviceName  = ref('')
+const newDeviceLoc   = ref('')
+const newDeviceType  = ref('uhf_vx6336')
+const savingDevice   = ref(false)
+const deviceActionId = ref(null)   // id reader yang sedang diproses (regenerate/revoke/reactivate)
+// Device key plaintext — HANYA hidup di memory selama modal reveal terbuka,
+// TIDAK PERNAH ditulis ke localStorage/sessionStorage. Dibuang begitu admin
+// menutup modal (lihat dismissRevealedKey()).
+const revealedKey    = ref(null)   // { plain_key, reader_name }
 
 const chromeSteps = [
     { num:'1', text:'Klik ikon kunci di address bar' },
@@ -505,6 +526,126 @@ async function removeTag(batch) {
     }
 }
 
+// ─── Device Registry — actions (Fase 7) ───────────────────────────────────────
+async function createDevice() {
+    if (!newDeviceName.value.trim()) return
+    savingDevice.value = true
+    try {
+        const res = await apiFetch('/api/v1/company/rfid/devices', 'POST', {
+            name: newDeviceName.value.trim(),
+            location_key: newDeviceLoc.value || null,
+            hardware_type: newDeviceType.value,
+        })
+        showToast(res.message, res.success ? 'success' : 'error')
+        if (res.success) {
+            revealedKey.value = { plain_key: res.data.plain_key, reader_name: res.data.name }
+            showAddDevice.value = false
+            newDeviceName.value = ''; newDeviceLoc.value = ''; newDeviceType.value = 'uhf_vx6336'
+            router.reload({ only: ['devices'] })
+        }
+    } catch {
+        showToast(lang.value === 'en' ? 'Failed to register reader.' : 'Gagal mendaftarkan reader.', 'error')
+    } finally {
+        savingDevice.value = false
+    }
+}
+
+async function regenerateDeviceKey(device) {
+    const msg = lang.value === 'en'
+        ? `Regenerate device key for "${device.name}"? The old key stops working immediately.`
+        : `Buat ulang device key untuk "${device.name}"? Key lama akan langsung tidak berlaku.`
+    if (!confirm(msg)) return
+
+    deviceActionId.value = device.id
+    try {
+        const res = await apiFetch(`/api/v1/company/rfid/devices/${device.id}/regenerate-key`, 'POST')
+        showToast(res.message, res.success ? 'success' : 'error')
+        if (res.success) {
+            revealedKey.value = { plain_key: res.data.plain_key, reader_name: res.data.name }
+            router.reload({ only: ['devices'] })
+        }
+    } catch {
+        showToast(lang.value === 'en' ? 'Failed to regenerate device key.' : 'Gagal membuat ulang device key.', 'error')
+    } finally {
+        deviceActionId.value = null
+    }
+}
+
+async function revokeDevice(device) {
+    const msg = lang.value === 'en'
+        ? `Revoke access for "${device.name}"? This device will stop working until reactivated.`
+        : `Cabut akses reader "${device.name}"? Device ini tidak akan bisa mengirim data sampai diaktifkan ulang.`
+    if (!confirm(msg)) return
+
+    deviceActionId.value = device.id
+    try {
+        const res = await apiFetch(`/api/v1/company/rfid/devices/${device.id}/revoke`, 'POST')
+        showToast(res.message, res.success ? 'success' : 'error')
+        if (res.success) router.reload({ only: ['devices'] })
+    } catch {
+        showToast(lang.value === 'en' ? 'Failed to revoke device.' : 'Gagal mencabut akses reader.', 'error')
+    } finally {
+        deviceActionId.value = null
+    }
+}
+
+async function reactivateDevice(device) {
+    deviceActionId.value = device.id
+    try {
+        const res = await apiFetch(`/api/v1/company/rfid/devices/${device.id}/reactivate`, 'POST')
+        showToast(res.message, res.success ? 'success' : 'error')
+        if (res.success) router.reload({ only: ['devices'] })
+    } catch {
+        showToast(lang.value === 'en' ? 'Failed to reactivate device.' : 'Gagal mengaktifkan reader.', 'error')
+    } finally {
+        deviceActionId.value = null
+    }
+}
+
+// Buang plaintext key dari memory — titik, tidak ada cara "lihat lagi".
+function dismissRevealedKey() {
+    revealedKey.value = null
+}
+
+async function copyDeviceKey() {
+    try {
+        await navigator.clipboard.writeText(revealedKey.value.plain_key)
+        showToast(lang.value === 'en' ? 'Key copied to clipboard.' : 'Key disalin ke clipboard.', 'success')
+    } catch {
+        showToast(lang.value === 'en' ? 'Copy failed — select and copy manually.' : 'Gagal menyalin — salin manual.', 'error')
+    }
+}
+
+function deviceStatusBadge(status) {
+    const m = {
+        online: {
+            label: lang.value === 'en' ? 'Online' : 'Online',
+            cls: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500',
+        },
+        offline: {
+            label: lang.value === 'en' ? 'Offline' : 'Offline',
+            cls: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400', dot: 'bg-red-500',
+        },
+        never_connected: {
+            label: lang.value === 'en' ? 'Never connected' : 'Belum Terhubung',
+            cls: 'bg-muted text-muted-foreground', dot: 'bg-gray-400',
+        },
+        revoked: {
+            label: lang.value === 'en' ? 'Revoked' : 'Dicabut',
+            cls: 'bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400', dot: 'bg-gray-400',
+        },
+    }
+    return m[status] ?? m.never_connected
+}
+
+function hardwareTypeLabel(type) {
+    return {
+        esp32_rc522: 'ESP32 + RC522',
+        uhf_vx6336:  'UHF HW-VX6336',
+        other:       lang.value === 'en' ? 'Other' : 'Lainnya',
+    }[type] ?? type
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 const toastMsg  = ref(''); const toastType = ref('info'); const toastVisible = ref(false)
 let toastTimer  = null
@@ -730,6 +871,12 @@ if (props.esp32_ip) { esp32IpInput.value = props.esp32_ip; startEspPolling() }
                     class="px-3 py-1.5 rounded-lg text-xs font-semibold"
                     :style="activeTab==='activity'?'background:hsl(var(--card));color:hsl(var(--foreground));box-shadow:0 1px 2px rgba(0,0,0,0.08);':'color:hsl(var(--muted-foreground));'">
                 📋 {{ lang==='en' ? 'Audit Log' : 'Log Audit' }}
+            </button>
+            <button v-if="canViewDevices" @click="activeTab='devices'"
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                    :style="activeTab==='devices'?'background:hsl(var(--card));color:hsl(var(--foreground));box-shadow:0 1px 2px rgba(0,0,0,0.08);':'color:hsl(var(--muted-foreground));'">
+                🔑 {{ lang==='en' ? 'Devices' : 'Perangkat' }}
+                <span v-if="onlineDeviceCount" class="w-1.5 h-1.5 rounded-full bg-emerald-500"/>
             </button>
         </div>
 
@@ -1253,6 +1400,179 @@ if (props.esp32_ip) { esp32IpInput.value = props.esp32_ip; startEspPolling() }
                 </div>
             </div>
         </div>
+
+        <!-- ══════════════════════════════════════════════════
+             TAB: RFID DEVICES — Device Registry (Fase 7)
+        ══════════════════════════════════════════════════ -->
+        <div v-show="activeTab==='devices'" class="space-y-4 animate-fade-in">
+
+            <!-- Penjelasan singkat + tombol tambah -->
+            <div class="rounded-xl border border-border bg-card p-4 flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                    <p class="text-xs font-bold text-foreground">
+                        {{ lang==='en' ? 'Registered RFID Readers' : 'RFID Reader Terdaftar' }}
+                    </p>
+                    <p class="text-[10px] text-muted-foreground mt-0.5 max-w-md">
+                        {{ lang==='en'
+                            ? 'Each physical reader (ESP32 or UHF bridge) gets its own revocable key. RFID tags are NOT registered here — tap a tag on a reader via the Simulate/field flow instead.'
+                            : 'Setiap reader fisik (ESP32 atau bridge UHF) punya key sendiri yang bisa dicabut. Tag RFID TIDAK didaftarkan di sini — tempelkan tag ke reader melalui alur Simulasi/lapangan.' }}
+                    </p>
+                </div>
+                <button v-if="canAdmin" @click="showAddDevice=true"
+                        class="flex-shrink-0 h-9 px-3 rounded-lg text-xs font-bold text-white active:scale-[0.97] whitespace-nowrap"
+                        style="background:hsl(var(--primary))">
+                    + {{ lang==='en' ? 'Add Reader' : 'Tambah Reader' }}
+                </button>
+            </div>
+
+            <!-- Form tambah reader -->
+            <Transition name="slide">
+                <div v-if="showAddDevice" class="rounded-xl border border-border bg-card p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <p class="text-xs font-bold text-foreground">{{ lang==='en' ? 'New Reader' : 'Reader Baru' }}</p>
+                        <button @click="showAddDevice=false" class="text-xs text-muted-foreground hover:text-foreground">✕</button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="text-[10px] font-semibold text-muted-foreground">{{ lang==='en'?'Name':'Nama' }}</label>
+                            <input v-model="newDeviceName" type="text" placeholder="Reader Gudang Masuk"
+                                   class="w-full h-9 px-3 mt-1 rounded-lg border border-border bg-background text-xs font-medium text-foreground outline-none focus:border-primary transition-colors"/>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-semibold text-muted-foreground">{{ lang==='en'?'Location / Stage':'Lokasi / Stage' }}</label>
+                            <select v-model="newDeviceLoc"
+                                    class="w-full h-9 px-2 mt-1 rounded-lg border border-border bg-background text-xs font-medium text-foreground outline-none">
+                                <option value="">{{ lang==='en'?'(Not set)':'(Belum diatur)' }}</option>
+                                <option v-for="s in availableStages" :key="s.stage" :value="s.stage">{{ lang==='en'?s.label_en:s.label_id }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-semibold text-muted-foreground">{{ lang==='en'?'Hardware Type':'Tipe Hardware' }}</label>
+                            <select v-model="newDeviceType"
+                                    class="w-full h-9 px-2 mt-1 rounded-lg border border-border bg-background text-xs font-medium text-foreground outline-none">
+                                <option value="uhf_vx6336">UHF HW-VX6336</option>
+                                <option value="esp32_rc522">ESP32 + RC522</option>
+                                <option value="other">{{ lang==='en'?'Other':'Lainnya' }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button @click="createDevice" :disabled="!newDeviceName.trim()||savingDevice"
+                            class="h-9 px-4 rounded-lg text-xs font-bold text-white disabled:opacity-50 active:scale-[0.97]"
+                            style="background:hsl(var(--primary))">
+                        {{ savingDevice ? (lang==='en'?'Saving...':'Menyimpan...') : (lang==='en'?'Register Reader':'Daftarkan Reader') }}
+                    </button>
+                </div>
+            </Transition>
+
+            <!-- Daftar reader -->
+            <EmptyState v-if="!devices.length"
+                icon="🔑"
+                :title="lang==='en'?'No readers registered':'Belum ada reader terdaftar'"
+                :description="lang==='en'?'Add a reader to issue it a device key.':'Tambahkan reader untuk membuatkan device key.'"
+            />
+            <div v-else class="rounded-xl border border-border bg-card overflow-hidden">
+                <div class="px-4 py-3 border-b border-border flex items-center justify-between">
+                    <p class="text-xs font-bold text-foreground">{{ lang==='en'?'Readers':'Daftar Reader' }}</p>
+                    <span class="text-[10px] text-muted-foreground">{{ devices.length }} {{ lang==='en'?'device(s)':'perangkat' }}</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b border-border bg-muted/20">
+                                <th class="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{{ lang==='en'?'Reader':'Reader' }}</th>
+                                <th class="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{{ lang==='en'?'Type':'Tipe' }}</th>
+                                <th class="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{{ lang==='en'?'Location':'Lokasi' }}</th>
+                                <th class="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                                <th class="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{{ lang==='en'?'Last Seen':'Terakhir Terlihat' }}</th>
+                                <th v-if="canAdmin" class="px-4 py-2.5 w-44"/>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border">
+                            <tr v-for="d in devices" :key="d.id" class="group hover:bg-muted/20">
+                                <td class="px-4 py-3">
+                                    <p class="text-xs font-bold text-foreground">{{ d.name }}</p>
+                                    <p class="text-[10px] font-mono text-muted-foreground">{{ d.device_code }}</p>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">{{ hardwareTypeLabel(d.hardware_type) }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-[11px] text-foreground">{{ d.location_key ? getStageName(d.location_key) : '—' }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-[10px] font-bold px-2 py-1 rounded-lg inline-flex items-center gap-1.5" :class="deviceStatusBadge(d.status).cls">
+                                        <span class="w-1.5 h-1.5 rounded-full" :class="deviceStatusBadge(d.status).dot"/>
+                                        {{ deviceStatusBadge(d.status).label }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-[11px] text-muted-foreground">{{ d.last_seen_at ?? '—' }}</span>
+                                </td>
+                                <td v-if="canAdmin" class="px-4 py-3">
+                                    <div class="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                                        <button @click="regenerateDeviceKey(d)" :disabled="deviceActionId===d.id"
+                                                class="text-[10px] font-bold px-2 py-1 rounded-lg text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 active:scale-[0.97] disabled:opacity-40 transition-all">
+                                            {{ lang==='en'?'New Key':'Key Baru' }}
+                                        </button>
+                                        <button v-if="d.is_active" @click="revokeDevice(d)" :disabled="deviceActionId===d.id"
+                                                class="text-[10px] font-bold px-2 py-1 rounded-lg text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 active:scale-[0.97] disabled:opacity-40 transition-all">
+                                            {{ lang==='en'?'Revoke':'Cabut' }}
+                                        </button>
+                                        <button v-else @click="reactivateDevice(d)" :disabled="deviceActionId===d.id"
+                                                class="text-[10px] font-bold px-2 py-1 rounded-lg text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 active:scale-[0.97] disabled:opacity-40 transition-all">
+                                            {{ lang==='en'?'Reactivate':'Aktifkan' }}
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════
+             MODAL: REVEAL DEVICE KEY — tampil SEKALI saat
+             create/regenerate, lalu dibuang dari memory (Fase 7)
+        ══════════════════════════════════════════════════ -->
+        <Transition name="slide">
+            <div v-if="revealedKey" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.5)">
+                <div class="w-full max-w-md rounded-xl border border-border bg-card p-5 space-y-4" style="box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+                    <div class="flex items-start gap-2">
+                        <span class="text-lg">🔑</span>
+                        <div>
+                            <p class="text-sm font-bold text-foreground">
+                                {{ lang==='en' ? 'Device key for' : 'Device key untuk' }} "{{ revealedKey.reader_name }}"
+                            </p>
+                            <p class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">
+                                {{ lang==='en'
+                                    ? 'Shown once. Copy it now — it cannot be shown again.'
+                                    : 'Hanya ditampilkan sekali ini. Salin sekarang — tidak bisa ditampilkan ulang.' }}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 font-mono text-xs text-foreground break-all select-all">
+                        {{ revealedKey.plain_key }}
+                    </div>
+                    <p class="text-[10px] text-muted-foreground">
+                        {{ lang==='en'
+                            ? 'Paste this into the reader/bridge config as X-Device-Key. If this was a regeneration, the old key stops working immediately.'
+                            : 'Tempelkan nilai ini ke konfigurasi reader/bridge sebagai X-Device-Key. Jika ini hasil regenerasi, key lama langsung tidak berlaku.' }}
+                    </p>
+                    <div class="flex gap-2">
+                        <button @click="copyDeviceKey"
+                                class="flex-1 h-9 rounded-lg text-xs font-bold text-white active:scale-[0.97]"
+                                style="background:hsl(var(--primary))">
+                            {{ lang==='en'?'Copy Key':'Salin Key' }}
+                        </button>
+                        <button @click="dismissRevealedKey"
+                                class="flex-1 h-9 rounded-lg text-xs font-bold border border-border text-foreground active:scale-[0.97]">
+                            {{ lang==='en'?"I've saved it":'Sudah Saya Simpan' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
 
     </div>
 </AppLayout>
