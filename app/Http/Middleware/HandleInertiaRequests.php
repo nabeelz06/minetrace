@@ -29,6 +29,11 @@ class HandleInertiaRequests extends Middleware
 
         return array_merge(parent::share($request), [
 
+            // ─── Identitas aplikasi (satu sumber: config('app.name')) ──────
+            'app' => [
+                'name' => config('app.name'),
+            ],
+
             // ─── Auth & User ──────────────────────────────────────────────
             'auth' => [
                 'user' => $user ? [

@@ -11,6 +11,7 @@ import { ref, computed, watch, provide, onMounted } from 'vue'
 import { Link, usePage, router }                    from '@inertiajs/vue3'
 import { useI18n }                                  from '@/composables/core/useI18n.js'
 import NavIcon                                      from '@/components/shared/NavIcon.vue'
+import BrandLogo                                    from '@/components/shared/BrandLogo.vue'
 import { THEME_KEY, readPref, writePref }                from '@/lib/brand'
 
 const { t, lang, toggleLang, initFromPage } = useI18n()
@@ -420,15 +421,7 @@ function handleOutsideClick(e) {
     >
         <!-- ── Logo ──────────────────────────────────────── -->
         <div class="flex items-center h-14 px-3 border-b border-sidebar-border flex-shrink-0 gap-2.5">
-            <div class="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center shadow-md relative overflow-hidden"
-                 style="background:linear-gradient(135deg,#3E5C74 0%,#5ea1c2 100%);">
-                <!-- Subtle grid pattern overlay -->
-                <div class="absolute inset-0 opacity-20"
-                     style="background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,0.3) 3px,rgba(255,255,255,0.3) 4px);"/>
-                <svg class="w-4 h-4 text-white relative" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125s-8.25 1.847-8.25 4.125m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/>
-                </svg>
-            </div>
+            <BrandLogo :size="32" />
 
             <Transition name="st">
                 <div v-if="sidebarOpen" class="flex-1 min-w-0 overflow-hidden">
@@ -692,12 +685,7 @@ function handleOutsideClick(e) {
                 </svg>
             </button>
             <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded-lg flex items-center justify-center"
-                     style="background:linear-gradient(135deg,#3E5C74,#5ea1c2)">
-                    <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125s-8.25 1.847-8.25 4.125m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/>
-                    </svg>
-                </div>
+                <BrandLogo :size="24" />
                 <span class="font-heading text-sm font-black tracking-widest text-foreground">MINETRACE</span>
             </div>
         </div>

@@ -1,4 +1,6 @@
 <script setup>
+import BrandLogo from '@/components/shared/BrandLogo.vue'
+
 defineProps({
     heading:    { type: String, required: true },
     subheading: { type: String, required: true },
@@ -71,11 +73,7 @@ const features = [
             <div class="relative z-10 flex flex-col justify-between w-full p-12 xl:p-16">
 
                 <div class="flex items-center gap-3 animate-fade-in">
-                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #3E5C74, #5ea1c2);">
-                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694 4.125-8.25 4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125m16.5 5.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-                        </svg>
-                    </div>
+                    <BrandLogo :size="40" />
                     <div>
                         <p class="text-white font-bold text-xl tracking-[0.2em]">MINETRACE</p>
                         <p class="text-[11px] tracking-widest uppercase" style="color: #4a7d9c;">Mineral Traceability</p>
@@ -138,11 +136,7 @@ const features = [
             <div class="w-full max-w-[400px] px-8 py-10 animate-scale-in">
 
                 <div class="flex items-center gap-3 lg:hidden mb-8">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background: linear-gradient(135deg, #3E5C74, #5ea1c2);">
-                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694 4.125-8.25 4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125m16.5 5.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-                        </svg>
-                    </div>
+                    <BrandLogo :size="36" />
                     <span class="font-bold text-lg tracking-widest text-white">MINETRACE</span>
                 </div>
 
