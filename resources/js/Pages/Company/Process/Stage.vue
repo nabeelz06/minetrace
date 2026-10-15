@@ -829,7 +829,11 @@ const exportPieData = computed(() => {
                             </Link>
                             
                             <!-- Forward batch (receiving, wet) -->
-                            <button v-if="canForward && (isReceiving || isWet)" @click="openForwardModal(batch)"
+                            <span v-if="canForward && (isReceiving || isWet) && batch.status === 'in_transit'"
+                                  class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30">
+                                {{ lang === 'en' ? 'Sent — awaiting receipt' : 'Terkirim — menunggu diterima' }}
+                            </span>
+                            <button v-else-if="canForward && (isReceiving || isWet)" @click="openForwardModal(batch)"
                                     class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-[0.97]"
                                     style="background:hsl(207 40% 45%)">
                                 {{ lang === 'en'
