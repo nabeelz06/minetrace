@@ -27,7 +27,15 @@
     -->
     <script>
         (function() {
-            var stored = localStorage.getItem('minetra-theme');
+            var stored = null;
+            try {
+                // Kunci baru; bila kosong, migrasi dari kunci lama (pra-rebrand).
+                stored = localStorage.getItem('minetrace-theme');
+                if (stored === null) {
+                    var old = localStorage.getItem('minetra-theme');
+                    if (old !== null) { stored = old; localStorage.setItem('minetrace-theme', old); }
+                }
+            } catch (e) {}
             var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             if (stored === 'dark' || (!stored && sysDark)) {
                 document.documentElement.classList.add('dark');

@@ -13,11 +13,10 @@ import { ref, computed, watch } from 'vue'
 import { router, usePage }      from '@inertiajs/vue3'
 import id from '@/lang/id.js'
 import en from '@/lang/en.js'
-
-const STORAGE_KEY = 'minetra-lang'
+import { LANG_KEY as STORAGE_KEY, readPref, writePref } from '@/lib/brand'
 
 // ─── Shared reactive ref (singleton per tab) ───────────────────────────────
-const lang = ref(localStorage.getItem(STORAGE_KEY) ?? 'id')
+const lang = ref(readPref(STORAGE_KEY) ?? 'id')
 
 // ─── Translation maps ─────────────────────────────────────────────────────
 const translations = { id, en }
@@ -88,7 +87,7 @@ function toggleLang() {
 function setLang(newLang) {
     if (!['id', 'en'].includes(newLang)) return
     lang.value = newLang
-    localStorage.setItem(STORAGE_KEY, newLang)
+    writePref(STORAGE_KEY, newLang)
     document.documentElement.setAttribute('lang', newLang)
 
     // Sync ke server (non-blocking)
@@ -152,7 +151,7 @@ function initFromPage() {
         if (userLang && ['id', 'en'].includes(userLang)) {
             if (lang.value !== userLang) {
                 lang.value = userLang
-                localStorage.setItem(STORAGE_KEY, userLang)
+                writePref(STORAGE_KEY, userLang)
                 document.documentElement.setAttribute('lang', userLang)
             }
         }

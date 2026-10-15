@@ -246,7 +246,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             // jika proses belum juga keluar. "-nostdin" mencegah ffmpeg
             // menunggu input keyboard interaktif saat dijalankan tanpa tty
             // (selalu kasusnya di sini, dipanggil lewat PHP exec()).
-            $probePath = sys_get_temp_dir() . '/minetra_probe_' . $this->checkpointId . '.jpg';
+            $probePath = sys_get_temp_dir() . '/minetrace_probe_' . $this->checkpointId . '.jpg';
             $cmd       = sprintf(
                 'timeout -k 5 %d ffmpeg -nostdin -loglevel error -rtsp_transport tcp '
                 . '-analyzeduration 2000000 -probesize 2000000 '

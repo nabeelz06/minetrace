@@ -5,8 +5,9 @@ import { createApp, h }     from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { createPinia }      from 'pinia'
 import { ZiggyVue }         from '../../vendor/tightenco/ziggy'
+import { BRAND, THEME_KEY, LANG_KEY, readPref, writePref } from './lib/brand'
 
-const appName = import.meta.env.VITE_APP_NAME || 'MINETRACE'
+const appName = import.meta.env.VITE_APP_NAME || BRAND.name
 
 // ─── WSL2 Fix: Parse data-page manual ────────────────────────────────────
 const appEl       = document.getElementById('app')
@@ -17,7 +18,7 @@ if (!initialPage) {
 }
 
 // ─── Apply dark mode sebelum render ──────────────────────────────────────
-const savedTheme = localStorage.getItem('minetra-theme')
+const savedTheme = readPref(THEME_KEY)
 if (savedTheme === 'dark' ||
     (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.documentElement.classList.add('dark')
@@ -51,9 +52,9 @@ createInertiaApp({
         try {
             const serverLang = props?.initialPage?.props?.auth?.user?.language
             if (serverLang && ['id', 'en'].includes(serverLang)) {
-                localStorage.setItem('minetra-lang', serverLang)
-            } else if (!localStorage.getItem('minetra-lang')) {
-                localStorage.setItem('minetra-lang', 'id')
+                writePref(LANG_KEY, serverLang)
+            } else if (!readPref(LANG_KEY)) {
+                writePref(LANG_KEY, 'id')
             }
         } catch (e) {
             // Silent fail - language akan pakai localStorage

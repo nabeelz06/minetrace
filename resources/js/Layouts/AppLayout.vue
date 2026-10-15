@@ -11,6 +11,7 @@ import { ref, computed, watch, provide, onMounted } from 'vue'
 import { Link, usePage, router }                    from '@inertiajs/vue3'
 import { useI18n }                                  from '@/composables/core/useI18n.js'
 import NavIcon                                      from '@/components/shared/NavIcon.vue'
+import { THEME_KEY, readPref, writePref }                from '@/lib/brand'
 
 const { t, lang, toggleLang, initFromPage } = useI18n()
 
@@ -47,7 +48,7 @@ const isDark = ref(false)
 
 onMounted(() => {
     const serverPref = user.value?.dark_mode
-    const localPref  = localStorage.getItem('minetra-theme')
+    const localPref  = readPref(THEME_KEY)
     const sysDark    = window.matchMedia?.('(prefers-color-scheme: dark)').matches
     const next = (serverPref !== undefined && serverPref !== null)
         ? Boolean(serverPref)
@@ -60,7 +61,7 @@ function toggleDark() {
     const next = !isDark.value
     isDark.value = next
     document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('minetra-theme', next ? 'dark' : 'light')
+    writePref(THEME_KEY, next ? 'dark' : 'light')
     router.patch('/user/dark-mode', { dark_mode: next }, {
         preserveState: true, preserveScroll: true, replace: true,
     })

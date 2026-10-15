@@ -1,4 +1,5 @@
 <script setup>
+import { LANG_KEY, readPref } from '@/lib/brand'
 /**
  * StatusBadge — badge status yang konsisten dipakai di seluruh aplikasi.
  * Mendukung: batch status, export status, lab status, user status.
@@ -51,7 +52,7 @@ function getConfig() {
     return typeConfig[key] ?? { class: 'badge-completed', label: { id: key, en: key } }
 }
 
-const lang = localStorage.getItem('minetra-lang') || 'id'
+const lang = readPref(LANG_KEY) || 'id'
 </script>
 
 <template>

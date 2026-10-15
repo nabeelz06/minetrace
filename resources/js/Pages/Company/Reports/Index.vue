@@ -162,7 +162,7 @@ function getFilename(response) {
     if (match) return match[1].replace(/['"]/g, '').trim()
     // Fallback filename
     const ext = selectedFormat.value === 'excel' ? 'xlsx' : 'pdf'
-    return `MINETRA-Report-${selectedType.value}-${dateFrom.value}-${dateTo.value}.${ext}`
+    return `MINETRACE-Report-${selectedType.value}-${dateFrom.value}-${dateTo.value}.${ext}`
 }
 
 // ─── Color map per report type ─────────────────────────────────────────
