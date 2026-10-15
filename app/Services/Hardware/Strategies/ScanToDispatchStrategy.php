@@ -46,7 +46,8 @@ class ScanToDispatchStrategy implements ScanAuthorizationStrategy
             $batch->rfid_tag,
             $batch->company_id,
             $stage,
-            $context['rfid_origin'] ?? 'real_esp32'
+            $context['rfid_origin'] ?? 'real_esp32',
+            $context['meta'] ?? []
         );
     }
 
@@ -54,7 +55,7 @@ class ScanToDispatchStrategy implements ScanAuthorizationStrategy
     {
         // Step 1: Audit trail (same as AuditOnly)
         $rfidOrigin = $context['rfid_origin'] ?? 'real_esp32';
-        $auditResult = $this->rfid->checkpointOut($batch->rfid_tag, $batch->company_id, $stage, $rfidOrigin);
+        $auditResult = $this->rfid->checkpointOut($batch->rfid_tag, $batch->company_id, $stage, $rfidOrigin, $context['meta'] ?? []);
 
         if ($auditResult['status'] !== 'success') {
             return $auditResult;

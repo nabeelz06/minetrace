@@ -22,6 +22,7 @@ class AuditOnlyStrategy implements ScanAuthorizationStrategy
             companyId:  $batch->company_id,
             scanStage:  $stage,
             rfidOrigin: $context['rfid_origin'] ?? 'real_esp32',
+            meta:       $context['meta'] ?? [],
         );
     }
 
@@ -32,6 +33,7 @@ class AuditOnlyStrategy implements ScanAuthorizationStrategy
             companyId:  $batch->company_id,
             scanStage:  $stage,
             rfidOrigin: $context['rfid_origin'] ?? 'real_esp32',
+            meta:       $context['meta'] ?? [],
         );
     }
 

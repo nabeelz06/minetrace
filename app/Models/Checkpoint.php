@@ -19,6 +19,7 @@ class Checkpoint extends Model
         'rfid_origin', 'capture_attempted', 'capture_succeeded',
         'notes', 'rfid_scan_code', 'qr_scan_code', 'scan_timestamp',
         'recorded_by', 'recorded_at',
+        'company_id', 'event_id', 'scan_stage', 'scan_direction', 'reader_id', 'voided_at', 'voided_by', 'void_reason',
     ];
 
     protected $casts = [
@@ -33,10 +34,28 @@ class Checkpoint extends Model
         'verified_at'      => 'datetime',
         'scan_timestamp'   => 'datetime',
         'recorded_at'      => 'datetime',
+        'voided_at'        => 'datetime',
         'snapshot_status'   => 'string',
         'capture_attempted' => 'boolean',
         'capture_succeeded' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        // Denormalisasi tenant: tiap checkpoint membawa company_id milik batch-nya,
+        // sehingga umpan scan per perusahaan tidak perlu JOIN ke tabel batches.
+        static::creating(function (self $checkpoint) {
+            if ($checkpoint->company_id === null && $checkpoint->batch_id) {
+                $checkpoint->company_id = Batch::withTrashed()->whereKey($checkpoint->batch_id)->value('company_id');
+            }
+        });
+    }
+
+    /** Hanya scan/checkpoint yang belum dibatalkan. */
+    public function scopeActive($query)
+    {
+        return $query->whereNull($query->getModel()->getTable() . '.voided_at');
+    }
 
     // ─── Relationships ─────────────────────────────────────────────────────
 
@@ -48,6 +67,11 @@ class Checkpoint extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    public function reader(): BelongsTo
+    {
+        return $this->belongsTo(RfidReader::class, 'reader_id');
     }
 
     public function recordedByUser(): BelongsTo

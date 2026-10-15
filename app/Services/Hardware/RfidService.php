@@ -12,51 +12,28 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * RfidService — Business logic integrasi hardware RFID ESP32.
+ * RfidService — logika bisnis scan RFID (pencatatan checkpoint, mode aktif, daftar batch/tag).
  *
  * ════════════════════════════════════════════════════════════════════════
- * ARSITEKTUR RFID — MODE MANUAL (Industri Real)
+ * PERAN SCAN bergantung pada MODE OTORISASI per tahap (RfidAuthorizationService):
+ *   audit_only        (default) : scan hanya mencatat checkpoint; perpindahan tahap lewat web.
+ *   scan_to_receive             : Scan IN juga memicu penerimaan batch (dengan guard tahap).
+ *   scan_to_dispatch            : Scan OUT juga memicu pengiriman batch (tandai in_transit).
+ * Checkpoint scan selalu dicatat lebih dulu; transisi hanya bila guard terpenuhi.
  *
- * ┌─────────────────────────────────────────────────────────────────┐
- * │  PRINSIP: RFID = AUDIT TRAIL, bukan pemindah stage otomatis    │
- * │                                                                 │
- * │  ESP32 scan → Catat log saja (checkpoint_data + timestamp)     │
- * │  Operator web → Yang memindahkan stage secara formal           │
- * │                                                                 │
- * │  Alasan industri:                                               │
- * │  - Verifikasi fisik tetap dilakukan manusia                    │
- * │  - Tidak ada false-positive dari tag yang terbaca dari jauh    │
- * │  - Operator bertanggung jawab atas setiap perpindahan stage    │
- * │  - Audit trail RFID dan stage transition tercatat terpisah     │
- * └─────────────────────────────────────────────────────────────────┘
+ * ORKESTRASI (identitas perangkat, dedupe/idempotensi, lock, snapshot CCTV) ada di
+ * RfidScanService. Registrasi tag ada di RfidRegistrationService. Kelas ini TIDAK
+ * memutuskan tenant: pemanggil wajib menyerahkan company_id yang sudah tervalidasi.
  *
- * ALUR KERJA:
- *
- *   1. Operator set mode di web panel:
- *      POST /api/v1/company/rfid/set-mode { mode:'scan_in', stage:'wet_process' }
- *      → Cache: rfid_active_mode_{company_id} = { mode, stage }
- *      → ESP32 LCD menampilkan: "[ WET SCAN IN ] / Tempel Tag..."
- *
- *   2. ESP32 scan karung → hanya CATAT LOG:
- *      POST /api/rfid/login { uid:'A3B2C1D0' }
- *      → checkpointIn(uid, companyId, stage) → Checkpoint::create()
- *      → TIDAK ada batch->update(process_stage) ← PERUBAHAN UTAMA
- *      → Response LCD: "Scan IN OK / B-20260615-001"
- *
- *   3. Operator lihat log di web → konfirmasi penerimaan via:
- *      ProcessController::receiveBatch() → batch resmi pindah stage
- *
- * STAGE FLOW: Mendefinisikan ENUM checkpoint_stage valid per stage.
+ * "Mode aktif" (scan_in/scan_out + tahap) di cache hanya dipakai perangkat legacy yang
+ * tidak terdaftar; reader terdaftar membawa read point tetap (tahap + arah) sendiri.
  * ════════════════════════════════════════════════════════════════════════
  */
 class RfidService
 {
     // ─── Cache key constants ──────────────────────────────────────────────
-    private const CACHE_PENDING_PREFIX = 'rfid_pending_batch_';
-    private const CACHE_PENDING_GLOBAL = 'rfid_pending_batch_global';
     private const CACHE_ACTIVE_MODE    = 'rfid_active_mode_';
 
-    private const CACHE_PENDING_TTL = 90;    // detik
     private const CACHE_MODE_TTL   = 3600;   // 1 jam
     private const TZ               = 'Asia/Jakarta';
 
@@ -123,111 +100,6 @@ class RfidService
     ];
 
     // ═══════════════════════════════════════════════════════════════════
-    // REGISTER — Link RFID tag ke batch (Lab Kimia)
-    // ═══════════════════════════════════════════════════════════════════
-
-    /**
-     * Daftarkan UID RFID tag ke batch yang sedang pending.
-     * Dipanggil ESP32 via POST /api/rfid/register
-     */
-    public function registerBatchTag(string $uid, int $companyId = 1): array
-    {
-        $uid = $this->sanitizeUid($uid);
-
-        // ─── Cek UID sudah dipakai ─────────────────────────────────────────
-        $existingBatch = Batch::where('rfid_tag', $uid)->whereNull('deleted_at')->first();
-
-        if ($existingBatch) {
-            Log::warning("RFID Register: UID {$uid} sudah dipakai batch {$existingBatch->batch_code}");
-            return [
-                'status'  => 'failed',
-                'name'    => $this->truncate($existingBatch->batch_code, 16),
-                'message' => 'Tag sudah dipakai',
-                'detail'  => "UID ini sudah digunakan oleh batch {$existingBatch->batch_code}.",
-            ];
-        }
-
-        // ─── Cari pending batch (per-company → global fallback) ────────────
-        $perCompanyKey = self::CACHE_PENDING_PREFIX . $companyId;
-        $pendingData   = Cache::get($perCompanyKey);
-        $usedGlobal    = false;
-
-        if (!$pendingData) {
-            $pendingData = Cache::get(self::CACHE_PENDING_GLOBAL);
-            if ($pendingData) {
-                $usedGlobal = true;
-                $companyId  = (int) ($pendingData['company_id'] ?? $companyId);
-                Log::info("RFID Register: Global cache resolved company_id={$companyId}");
-            }
-        }
-
-        if (!$pendingData) {
-            return [
-                'status'  => 'failed',
-                'name'    => 'Tidak Ada Sesi',
-                'message' => 'Tidak ada sesi',
-                'detail'  => 'Mulai sesi registrasi dari panel web MINETRACE terlebih dahulu.',
-            ];
-        }
-
-        $batch = Batch::where('company_id', $companyId)->find($pendingData['batch_id']);
-
-        if (!$batch) {
-            Cache::forget($perCompanyKey);
-            Cache::forget(self::CACHE_PENDING_GLOBAL);
-            return ['status' => 'failed', 'name' => 'Error', 'message' => 'Batch tidak ada'];
-        }
-
-        return DB::transaction(function () use ($batch, $uid, $pendingData, $companyId, $perCompanyKey) {
-            // ─── Link UID ke batch ─────────────────────────────────────────
-            $batch->update([
-                'rfid_tag' => $uid,
-                'metadata' => array_merge($batch->metadata ?? [], [
-                    'rfid_registered_at' => Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
-                    'rfid_registered_by' => $pendingData['initiated_by'] ?? 'System',
-                ]),
-            ]);
-
-            // ─── Catat checkpoint register ─────────────────────────────────
-            Checkpoint::create([
-                'batch_id'         => $batch->id,
-                'location_id'      => $batch->current_location_id,
-                'checkpoint_stage' => 'lab_kimia_create',
-                'weight_recorded'  => $batch->current_weight,
-                'weight_previous'  => $batch->current_weight,
-                'weight_loss'      => 0,
-                'weight_loss_pct'  => 0,
-                'has_discrepancy'  => false,
-                'is_verified'      => true,
-                'notes'            => "RFID Tag terdaftar: UID {$uid} oleh {$pendingData['initiated_by']}",
-                'checkpoint_data'  => [
-                    'action'        => 'rfid_register',
-                    'rfid_uid'      => $uid,
-                    'initiated_by'  => $pendingData['initiated_by'] ?? 'System',
-                    'timestamp_wib' => Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB',
-                ],
-                'rfid_scan_code' => $uid,
-                'recorded_by'    => null,
-                'recorded_at'    => now(),
-            ]);
-
-            Cache::forget($perCompanyKey);
-            Cache::forget(self::CACHE_PENDING_GLOBAL);
-
-            Log::info("RFID Register: UID={$uid} → Batch={$batch->batch_code}");
-
-            return [
-                'status'     => 'success',
-                'name'       => $this->truncate($batch->batch_code, 16),
-                'message'    => 'Tag terdaftar!',
-                'detail'     => "Batch {$batch->batch_code} ({$batch->productCode?->code}) berhasil ditag UID {$uid}.",
-                'batch_id'   => $batch->id,
-                'batch_code' => $batch->batch_code,
-            ];
-        });
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
     // SCAN IN — Rekam audit trail karung MASUK area (MANUAL)
     // ═══════════════════════════════════════════════════════════════════
 
@@ -248,7 +120,7 @@ class RfidService
      * @param  int         $companyId  Company ID
      * @param  string|null $scanStage  Stage dimana scan IN terjadi
      */
-    public function checkpointIn(string $uid, int $companyId = 1, ?string $scanStage = null, string $rfidOrigin = 'real_esp32'): array
+    public function checkpointIn(string $uid, int $companyId, ?string $scanStage = null, string $rfidOrigin = 'real_esp32', array $meta = []): array
     {
         $uid = $this->sanitizeUid($uid);
 
@@ -288,7 +160,7 @@ class RfidService
         $timeWib     = Carbon::now(self::TZ)->format('H:i:s');
         $timeDisplay = Carbon::now(self::TZ)->format('d/m/Y H:i:s');
 
-        Checkpoint::create([
+        $checkpoint = Checkpoint::create([
             'batch_id'         => $batch->id,
             'location_id'      => $batch->current_location_id,
             'checkpoint_stage' => $inCheckpoint,
@@ -312,6 +184,10 @@ class RfidService
             ],
             'rfid_scan_code'    => $uid,
             'rfid_origin'       => $rfidOrigin,
+            'event_id'          => $meta['event_id'] ?? null,
+            'reader_id'         => $meta['reader_id'] ?? null,
+            'scan_stage'        => $scanStage,
+            'scan_direction'    => 'in',
             'capture_attempted' => false,
             'capture_succeeded' => false,
             'recorded_by'       => null,
@@ -333,6 +209,7 @@ class RfidService
             'scan_stage'  => $scanStage,
             'stage_label' => $stageLabel,
             'timestamp'   => $timeDisplay . ' WIB',
+            '_checkpoint_id' => $checkpoint->id,   // internal: dibuang RfidScanService sebelum respons
             // Manual mode indicator — digunakan UI untuk info banner
             'manual_mode' => true,
             'action_required' => "Konfirmasi penerimaan di web panel stage {$stageLabel}",
@@ -360,7 +237,7 @@ class RfidService
      * @param  int         $companyId  Company ID
      * @param  string|null $scanStage  Stage dimana scan OUT terjadi
      */
-    public function checkpointOut(string $uid, int $companyId = 1, ?string $scanStage = null, string $rfidOrigin = 'real_esp32'): array
+    public function checkpointOut(string $uid, int $companyId, ?string $scanStage = null, string $rfidOrigin = 'real_esp32', array $meta = []): array
     {
         $uid = $this->sanitizeUid($uid);
 
@@ -389,9 +266,9 @@ class RfidService
             $scanStage = $batch->process_stage;
         }
 
-        $stageConfig   = self::STAGE_FLOW[$scanStage];
-        $outCheckpoint = $stageConfig['out_checkpoint'];
-        $stageLabel    = $stageConfig['label'];
+        $stageConfig   = self::STAGE_FLOW[$scanStage] ?? null;
+        $outCheckpoint = $stageConfig['out_checkpoint'] ?? 'in_transit';   // tahap di luar STAGE_FLOW (mis. lab_kimia)
+        $stageLabel    = $stageConfig['label'] ?? $scanStage;
 
         // ─── Catat scan OUT sebagai audit trail ───────────────────────────
         // TIDAK ada batch->update(['status' => 'in_transit']) di sini
@@ -399,7 +276,7 @@ class RfidService
         $timeWib     = Carbon::now(self::TZ)->format('H:i:s');
         $timeDisplay = Carbon::now(self::TZ)->format('d/m/Y H:i:s');
 
-        Checkpoint::create([
+        $checkpoint = Checkpoint::create([
             'batch_id'         => $batch->id,
             'location_id'      => $batch->current_location_id,
             'checkpoint_stage' => $outCheckpoint,
@@ -423,6 +300,10 @@ class RfidService
             ],
             'rfid_scan_code'    => $uid,
             'rfid_origin'       => $rfidOrigin,
+            'event_id'          => $meta['event_id'] ?? null,
+            'reader_id'         => $meta['reader_id'] ?? null,
+            'scan_stage'        => $scanStage,
+            'scan_direction'    => 'out',
             'capture_attempted' => false,
             'capture_succeeded' => false,
             'recorded_by'       => null,
@@ -444,6 +325,7 @@ class RfidService
             'scan_stage'  => $scanStage,
             'stage_label' => $stageLabel,
             'timestamp'   => $timeDisplay . ' WIB',
+            '_checkpoint_id' => $checkpoint->id,
             'manual_mode' => true,
             'action_required' => "Kirim batch ke stage berikutnya via web panel",
         ];
@@ -583,48 +465,44 @@ class RfidService
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Set pending batch — tulis ke DUA cache sekaligus (fix company_id mismatch).
-     *
-     * rfid_pending_batch_{company_id} → untuk web UI
-     * rfid_pending_batch_global       → untuk ESP32 yang tidak tahu company
+     * Mulai sesi registrasi tanpa reader spesifik (kompatibilitas endpoint lama `pending-batch`).
+     * Sesi baru per-reader memakai RfidRegistrationService::start() langsung.
      */
     public function setPendingBatch(int $batchId, int $companyId, string $initiatedBy = 'System'): void
     {
         if ($companyId <= 0) {
-            $companyId = 1;
-            Log::warning("RfidService::setPendingBatch — company_id invalid, fallback ke 1");
+            throw new \InvalidArgumentException('company_id wajib');
         }
 
-        $batch = Batch::where('company_id', $companyId)->findOrFail($batchId);
-
-        $data = [
-            'batch_id'     => $batchId,
-            'batch_code'   => $batch->batch_code,
-            'product_code' => $batch->productCode?->code,
-            'initiated_by' => $initiatedBy,
-            'company_id'   => $companyId,
-            'started_at'   => now()->toISOString(),
-        ];
-
-        Cache::put(self::CACHE_PENDING_PREFIX . $companyId, $data, self::CACHE_PENDING_TTL);
-        Cache::put(self::CACHE_PENDING_GLOBAL, $data, self::CACHE_PENDING_TTL);
-
-        Log::info("RFID Pending SET: batch={$batch->batch_code} company_id={$companyId} oleh={$initiatedBy}");
+        $batch = Batch::with('productCode')->where('company_id', $companyId)->findOrFail($batchId);
+        app(RfidRegistrationService::class)->start($initiatedBy, $batch, null);
     }
 
-    /** Ambil pending batch (per-company → global fallback) */
+    /** Sesi registrasi "any" milik perusahaan ini (bentuk lama) — TANPA fallback lintas-perusahaan. */
     public function getPendingBatch(int $companyId): ?array
     {
-        return Cache::get(self::CACHE_PENDING_PREFIX . $companyId)
-            ?? Cache::get(self::CACHE_PENDING_GLOBAL);
+        $sessions = collect(app(RfidRegistrationService::class)->activeForCompany($companyId))
+            ->firstWhere('reader_id', null);
+
+        return $sessions ? [
+            'batch_id'     => $sessions['batch_id'],
+            'batch_code'   => $sessions['batch_code'],
+            'product_code' => $sessions['product_code'],
+            'initiated_by' => $sessions['initiated_by'],
+            'company_id'   => $sessions['company_id'],
+            'started_at'   => $sessions['started_at'],
+        ] : null;
     }
 
-    /** Cancel pending batch */
+    /** Batalkan sesi registrasi "any" perusahaan ini. */
     public function cancelPendingBatch(int $companyId): void
     {
-        Cache::forget(self::CACHE_PENDING_PREFIX . $companyId);
-        Cache::forget(self::CACHE_PENDING_GLOBAL);
-        Log::info("RFID Pending CANCELLED: company_id={$companyId}");
+        $svc = app(RfidRegistrationService::class);
+        foreach ($svc->activeForCompany($companyId) as $s) {
+            if ($s['reader_id'] === null) {
+                $svc->cancel($s['id']);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -696,12 +574,7 @@ class RfidService
             ->whereNull('rfid_tag')
             ->whereNotIn('status', ['exported', 'terminated']);
 
-        $withCompany = (clone $query)->where('company_id', $companyId);
-        if ($withCompany->count() > 0) {
-            $query = $withCompany;
-        } else {
-            Log::warning("getUntaggedBatches: company_id={$companyId} kosong, fallback semua");
-        }
+        $query->where('company_id', $companyId);
 
         return $query
             ->orderBy('created_at', 'desc')
@@ -730,10 +603,7 @@ class RfidService
             ->whereNotNull('rfid_tag')
             ->whereNotIn('status', ['exported', 'terminated']);
 
-        $withCompany = (clone $query)->where('company_id', $companyId);
-        if ($withCompany->count() > 0) {
-            $query = $withCompany;
-        }
+        $query->where('company_id', $companyId);
 
         return $query
             ->orderBy('updated_at', 'desc')
@@ -766,7 +636,8 @@ class RfidService
     public function getRecentRfidActivity(int $companyId): array
     {
         return Checkpoint::with(['batch.productCode'])
-            ->whereHas('batch', fn ($q) => $q->where('company_id', $companyId))
+            ->where('company_id', $companyId)
+            ->active()
             ->whereNotNull('rfid_scan_code')
             ->latest('recorded_at')
             ->limit(20)
@@ -811,32 +682,24 @@ class RfidService
     // ═══════════════════════════════════════════════════════════════════
 
     /**
-     * Cari batch berdasarkan rfid_tag UID.
-     * Per-company dulu → global fallback (fix company_id mismatch ESP32).
+     * Cari batch berdasarkan UID tag — KETAT per perusahaan.
      *
-     * PUBLIC — dipanggil ApiRfidController untuk resolve batch SEBELUM
-     * mendelegasikan ke ScanAuthorizationStrategy yang sesuai (lihat
-     * RfidAuthorizationService::getStrategy()). Strategy butuh objek Batch
-     * yang sudah di-resolve, bukan UID mentah, karena beberapa strategy
-     * (ScanToReceiveStrategy/ScanToDispatchStrategy) perlu memvalidasi
-     * process_stage batch SEBELUM mencatat checkpoint apapun.
+     * Tag milik perusahaan lain dianggap "tidak dikenal" (tanpa membocorkan keberadaannya).
+     * $allowGlobalFallback HANYA untuk perangkat anonim legacy (config rfid.legacy_global_tag_fallback):
+     * bila tag tidak ada di perusahaan default, cari di seluruh perusahaan (perilaku lama).
      */
-    public function findBatchByUid(string $uid, int $companyId): ?Batch
+    public function findBatchByUid(string $uid, int $companyId, bool $allowGlobalFallback = false): ?Batch
     {
-        $batch = Batch::with(['productCode', 'currentLocation'])
+        $query = fn () => Batch::with(['productCode', 'currentLocation'])
             ->where('rfid_tag', $uid)
-            ->where('company_id', $companyId)
-            ->whereNull('deleted_at')
-            ->first();
+            ->whereNull('deleted_at');
 
-        if (!$batch) {
-            $batch = Batch::with(['productCode', 'currentLocation'])
-                ->where('rfid_tag', $uid)
-                ->whereNull('deleted_at')
-                ->first();
+        $batch = $query()->where('company_id', $companyId)->first();
 
+        if (! $batch && $allowGlobalFallback) {
+            $batch = $query()->first();
             if ($batch) {
-                Log::info("RFID: Batch ditemukan via global search. company_id={$batch->company_id} (requested={$companyId})");
+                Log::warning("RFID: fallback global perangkat anonim — tag milik company_id={$batch->company_id}, diminta company_id={$companyId}");
             }
         }
 

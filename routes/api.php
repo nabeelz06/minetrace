@@ -30,18 +30,23 @@ Route::prefix('rfid')->group(function () {
 
     // Register: link UID ke batch (dipanggil ESP32 mode REGISTER)
     Route::post('register', [ApiRfidController::class, 'registerCard'])
-        ->middleware('throttle:120,1')
+        ->middleware('throttle:rfid-device')
         ->name('api.rfid.register');
 
     // Login: checkpoint IN karung masuk gudang
     Route::post('login', [ApiRfidController::class, 'loginCard'])
-        ->middleware('throttle:120,1')
+        ->middleware('throttle:rfid-device')
         ->name('api.rfid.login');
 
     // Logout: checkpoint OUT karung keluar gudang
     Route::post('logout', [ApiRfidController::class, 'logoutCard'])
-        ->middleware('throttle:120,1')
+        ->middleware('throttle:rfid-device')
         ->name('api.rfid.logout');
+
+    // Heartbeat reader terdaftar (wajib X-Device-Key): status online/offline + sinkronisasi jam.
+    Route::post('heartbeat', [ApiRfidController::class, 'heartbeat'])
+        ->middleware('throttle:rfid-device')
+        ->name('api.rfid.heartbeat');
 
 }); // end prefix('rfid')
 

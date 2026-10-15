@@ -87,8 +87,11 @@ class LegacyDeviceContractTest extends TestCase
     #[Test]
     public function register_tag_sudah_dipakai_422(): void
     {
-        $this->tagBatch();
-        app(RfidService::class)->setPendingBatch($this->batch->id, $this->company->id, 'Operator Uji');
+        $this->tagBatch();   // UID sudah dipakai batch ini
+        $other = Batch::factory()->create([
+            'company_id' => $this->company->id, 'product_code_id' => $this->batch->product_code_id, 'rfid_tag' => null,
+        ]);
+        app(RfidService::class)->setPendingBatch($other->id, $this->company->id, 'Operator Uji');
 
         $this->postJson('/api/rfid/register', ['uid' => 'A1B2C3D4'], $this->headers())
             ->assertStatus(422)

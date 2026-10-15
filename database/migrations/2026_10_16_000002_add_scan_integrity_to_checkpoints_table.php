@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Schema;
  *  - event_id    : idempotensi dari klien/perangkat (unik per perusahaan)
  *  - reader_id   : asal reader (provenans)
  *  - voided_*    : pembatalan scan lewat penanda beralasan (BUKAN delete; riwayat tetap)
+ *  - scan_stage/scan_direction : kolom nyata untuk filter umpan scan (menggantikan ekspresi JSON)
  *  - indeks      : (batch_id, recorded_at), rfid_scan_code, (company_id, id)
  */
 return new class extends Migration
@@ -20,6 +21,8 @@ return new class extends Migration
         Schema::table('checkpoints', function (Blueprint $table) {
             $table->foreignId('company_id')->nullable()->after('id')->constrained()->nullOnDelete();
             $table->string('event_id', 64)->nullable();
+            $table->string('scan_stage', 30)->nullable();
+            $table->string('scan_direction', 3)->nullable();   // in | out
             $table->foreignId('reader_id')->nullable()->constrained('rfid_readers')->nullOnDelete();
             $table->timestamp('voided_at')->nullable();
             $table->foreignId('voided_by')->nullable()->constrained('users')->nullOnDelete();
@@ -29,9 +32,17 @@ return new class extends Migration
             $table->index(['batch_id', 'recorded_at'], 'checkpoints_batch_recorded_idx');
             $table->index('rfid_scan_code', 'checkpoints_rfid_scan_code_idx');
             $table->index(['company_id', 'id'], 'checkpoints_company_id_id_idx');
+            $table->index(['company_id', 'scan_stage'], 'checkpoints_company_scan_stage_idx');
         });
 
         // Backfill tenant dari batch (aman diulang; hanya baris yang masih kosong).
+        DB::statement(
+            "UPDATE checkpoints
+                SET scan_stage = checkpoint_data::jsonb ->> 'scan_stage',
+                    scan_direction = CASE checkpoint_data::jsonb ->> 'action'
+                        WHEN 'rfid_scan_in' THEN 'in' WHEN 'rfid_scan_out' THEN 'out' END
+              WHERE rfid_scan_code IS NOT NULL AND checkpoint_data IS NOT NULL"
+        );
         DB::statement(
             'UPDATE checkpoints SET company_id = batches.company_id
                FROM batches
@@ -42,12 +53,13 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('checkpoints', function (Blueprint $table) {
+            $table->dropIndex('checkpoints_company_scan_stage_idx');
             $table->dropIndex('checkpoints_company_id_id_idx');
             $table->dropIndex('checkpoints_rfid_scan_code_idx');
             $table->dropIndex('checkpoints_batch_recorded_idx');
             $table->dropUnique('checkpoints_company_event_unique');
             $table->dropConstrainedForeignId('voided_by');
-            $table->dropColumn(['voided_at', 'void_reason', 'event_id']);
+            $table->dropColumn(['voided_at', 'void_reason', 'event_id', 'scan_stage', 'scan_direction']);
             $table->dropConstrainedForeignId('reader_id');
             $table->dropConstrainedForeignId('company_id');
         });
