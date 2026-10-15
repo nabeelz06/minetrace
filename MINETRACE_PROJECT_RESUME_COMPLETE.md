@@ -303,3 +303,21 @@ Keterbatasan untuk rekomendasi rehearsal pra-presentasi.
 Data uji yang ditinggalkan di DB lokal sebagai artifact: batch
 `TMH.KND-LK.CER-260714-001` (id=1) dengan 2 snapshot CCTV (1 gagal, 1
 berhasil). Aman dibiarkan atau dihapus manual sesuai kebutuhan.
+
+---
+
+## Changelog — 16 Okt 2026 · Rebrand MINETRA → MINETRACE (branch `feat/minetrace-rebrand-ux-rfid`)
+
+- **Rebrand** Kelas A (teks tampilan, PDF, e-mail, dokumen), Kelas B (kunci preferensi
+  `minetrace-theme`/`minetrace-lang` dengan migrasi otomatis dari kunci lama). Kelas C
+  (container/DB/network) sengaja TIDAK diganti — lihat `docs/minetrace/RENAME_INFRA_PLAN.md`.
+  Inventaris + allowlist: `docs/minetrace/01_RENAME_INVENTORY.md`.
+- **Fix P0 — QR tercetak menuju 404**: ditambahkan halaman publik `GET /verify/batch/{id}?code=…&cs=…`
+  (dwibahasa, noindex, throttle 30/menit/IP, minimal-disclosure: tanpa berat/hasil lab/operator).
+  QR lama tetap valid (format URL & checksum tidak berubah; `APP_KEY` tidak boleh dirotasi).
+  Endpoint API `/api/v1/verify/batch/{id}` kini ber-throttle dan tidak lagi memuat `current_weight`.
+- Logo `BrandLogo.vue`, favicon (svg/ico/apple-touch), `theme-color`; `app.name` dibagikan lewat Inertia.
+- `public/rfid-panel.html` (usang) dihapus; fixture tes diperbaiki → 18/18 hijau (+8 tes verifikasi).
+- **CATATAN RILIS** (pemilik): sebelum mengganti `APP_NAME` di `.env.production`, pin
+  `SESSION_COOKIE=minetra_session`, `CACHE_PREFIX=minetra_cache_`, `REDIS_PREFIX=minetra_database_`
+  agar pengguna tidak logout massal dan antrean Redis lama tetap terbaca.

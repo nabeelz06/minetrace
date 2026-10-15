@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
  * ApiVerifyController — endpoint publik untuk verifikasi QR Code.
  *
  * Dapat diakses tanpa auth — untuk scan dari device apapun.
- * Rate limited: 10 req/menit per IP.
+ * Rate limited: 30 req/menit per IP (limiter `verify`). Tanpa berat/hasil lab (minimal-disclosure).
  */
 class ApiVerifyController extends Controller
 {
@@ -55,7 +55,6 @@ class ApiVerifyController extends Controller
                 'company'       => $batch->company?->name,
                 'process_stage' => $batch->process_stage,
                 'status'        => $batch->status,
-                'current_weight'=> $batch->current_weight,
                 'location'      => $batch->currentLocation?->name,
                 'is_hazardous'  => $batch->productCode?->is_hazardous ?? false,
                 'verified_at'   => now()->toIso8601String(),

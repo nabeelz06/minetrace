@@ -36,6 +36,13 @@ use Illuminate\Support\Facades\Route;
 |─────────────────────────────────────────────────────────────────────────────
 */
 
+// ─── Verifikasi QR publik (tanpa login; rate-limited; noindex) ──────────────
+// Tujuan URL pada QR yang tercetak di karung: /verify/batch/{id}?code=…&cs=…
+Route::get('/verify/batch/{id}', [\App\Http\Controllers\Public\VerifyController::class, 'show'])
+    ->whereNumber('id')
+    ->middleware('throttle:verify')
+    ->name('verify.batch');
+
 // ─── Root ───────────────────────────────────────────────────────────────────
 Route::get('/', fn() => auth()->check()
     ? redirect()->route('dashboard.redirect')

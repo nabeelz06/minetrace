@@ -20,6 +20,9 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
  */
 class QrCodeService
 {
+    /** Pesan gagal seragam: tidak membedakan 'batch tidak ada' vs 'checksum salah' (anti-enumerasi). */
+    public const INVALID_MESSAGE = 'QR Code tidak valid atau sudah dimanipulasi.';
+
     /**
      * Generate QR Code SVG untuk batch dan simpan ke storage.
      *
@@ -61,7 +64,7 @@ class QrCodeService
      * @param  int    $batchId    ID batch dari URL
      * @param  string $batchCode  Kode batch dari URL
      * @param  string $checksum   Checksum dari URL
-     * @return array              ['valid' => bool, 'batch' => Batch|null, 'message' => string]
+     * @return array              ['valid' => bool, 'batch' => Batch|null, 'message' => string, 'reason' => string (hanya saat gagal; untuk log)]
      */
     public function verify(int $batchId, string $batchCode, string $checksum): array
     {
@@ -72,7 +75,8 @@ class QrCodeService
             return [
                 'valid'   => false,
                 'batch'   => null,
-                'message' => 'Batch tidak ditemukan.',
+                'message' => self::INVALID_MESSAGE,
+                'reason'  => 'not_found',
             ];
         }
 
@@ -80,7 +84,8 @@ class QrCodeService
             return [
                 'valid'   => false,
                 'batch'   => null,
-                'message' => 'Kode batch tidak cocok.',
+                'message' => self::INVALID_MESSAGE,
+                'reason'  => 'code_mismatch',
             ];
         }
 
@@ -89,7 +94,8 @@ class QrCodeService
             return [
                 'valid'   => false,
                 'batch'   => null,
-                'message' => 'QR Code tidak valid atau sudah dimanipulasi.',
+                'message' => self::INVALID_MESSAGE,
+                'reason'  => 'bad_checksum',
             ];
         }
 

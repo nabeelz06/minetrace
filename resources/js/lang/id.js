@@ -5,6 +5,8 @@
 export default {
     // ─── Sistem ──────────────────────────────────────────────────────────
     app: {
+        skip_to_content: 'Lewati ke konten utama',
+        language:        'Bahasa',
         name:          'MINETRACE',
         tagline:       'Sistem Traceability Mineral Logam Tanah Jarang',
         loading:       'Memuat...',
@@ -594,5 +596,28 @@ export default {
         no_data:        '—',
         batch_count:    '{n} batch',
         event_count:    '{n} event',
+    },
+
+    verify: {
+        title:           'Verifikasi Batch',
+        valid_title:     'Batch terverifikasi',
+        valid_desc:      'QR ini asli dan cocok dengan catatan sistem.',
+        invalid_title:   'QR tidak dapat diverifikasi',
+        invalid_desc:    'QR ini tidak dikenali atau sudah diubah. Jangan percaya karung ini sebelum diperiksa petugas.',
+        malformed_title: 'Tautan QR tidak lengkap',
+        malformed_desc:  'Pindai ulang QR pada karung. Jika tetap gagal, hubungi petugas.',
+        batch_code:      'Kode batch',
+        product:         'Produk',
+        company:         'Perusahaan',
+        stage:           'Tahap saat ini',
+        status_label:    'Status',
+        location:        'Lokasi',
+        timeline:        'Riwayat tahap',
+        privacy_note:    'Halaman publik ini sengaja tidak menampilkan berat, hasil laboratorium, maupun identitas operator.',
+        status: {
+            active: 'Aktif', in_process: 'Dalam proses', in_transit: 'Dalam pengiriman',
+            in_warehouse: 'Di gudang', exported: 'Diekspor', split: 'Dipecah',
+            transformed: 'Ditransformasi', completed: 'Selesai', terminated: 'Dihentikan',
+        },
     },
 }

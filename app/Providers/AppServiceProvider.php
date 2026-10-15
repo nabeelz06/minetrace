@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Http\Request;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +57,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // ─── Disable wrapping JSON resources ──────────────────────────────
         JsonResource::withoutWrapping();
+
+        // ─── Rate limit verifikasi QR publik: 30 permintaan/menit per IP ───
+        RateLimiter::for('verify', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
 
         // ─── Query performance monitoring (dev only) ──────────────────────
         if (config('app.debug') && config('app.env') !== 'testing') {

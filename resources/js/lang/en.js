@@ -4,6 +4,8 @@
  */
 export default {
     app: {
+        skip_to_content: 'Skip to main content',
+        language:        'Language',
         name:          'MINETRACE',
         tagline:       'Rare Earth Mineral Traceability System',
         loading:       'Loading...',
@@ -536,5 +538,28 @@ export default {
         no_data:        '—',
         batch_count:    '{n} batches',
         event_count:    '{n} events',
+    },
+
+    verify: {
+        title:           'Batch Verification',
+        valid_title:     'Batch verified',
+        valid_desc:      'This QR is genuine and matches the system record.',
+        invalid_title:   'QR could not be verified',
+        invalid_desc:    'This QR is not recognised or has been altered. Do not trust this bag until staff check it.',
+        malformed_title: 'QR link is incomplete',
+        malformed_desc:  'Scan the QR on the bag again. If it still fails, contact staff.',
+        batch_code:      'Batch code',
+        product:         'Product',
+        company:         'Company',
+        stage:           'Current stage',
+        status_label:    'Status',
+        location:        'Location',
+        timeline:        'Stage history',
+        privacy_note:    'This public page intentionally omits weight, lab results and operator identity.',
+        status: {
+            active: 'Active', in_process: 'In process', in_transit: 'In transit',
+            in_warehouse: 'In warehouse', exported: 'Exported', split: 'Split',
+            transformed: 'Transformed', completed: 'Completed', terminated: 'Terminated',
+        },
     },
 }

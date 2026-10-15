@@ -77,6 +77,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
     // Verifikasi batch via QR code (public)
     Route::get('verify/batch/{batchId}', [ApiVerifyController::class, 'verifyBatch'])
+        ->middleware('throttle:verify')
         ->name('verify.batch');
 
     // Hardware reader config (dipanggil ESP32 saat boot)

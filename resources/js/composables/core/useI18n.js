@@ -90,7 +90,8 @@ function setLang(newLang) {
     writePref(STORAGE_KEY, newLang)
     document.documentElement.setAttribute('lang', newLang)
 
-    // Sync ke server (non-blocking)
+    // Sync ke server (non-blocking) — hanya untuk pengguna login (halaman publik tidak punya sesi)
+    if (!usePage().props?.auth?.user) return
     router.patch('/user/language', { language: newLang }, {
         preserveState:  true,
         preserveScroll: true,
