@@ -451,6 +451,8 @@ class ApiRfidController extends Controller
     private function hardwareResponse(array $result): JsonResponse
     {
         $httpStatus = $result['status'] === 'success' ? 200 : 422;
+        // Kunci internal (awalan '_', mis. _code untuk UI) tidak pernah dikirim ke perangkat.
+        $result = array_filter($result, fn ($key) => ! str_starts_with((string) $key, '_'), ARRAY_FILTER_USE_KEY);
         return response()->json($result, $httpStatus)->withHeaders(self::CORS_HEADERS);
     }
 

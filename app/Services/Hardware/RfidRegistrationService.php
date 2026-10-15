@@ -222,13 +222,14 @@ class RfidRegistrationService
 
                 if (! $batch) {
                     $this->forget($session);
-                    return ['status' => 'failed', 'name' => 'Error', 'message' => 'Batch tidak ada'];
+                    return ['status' => 'failed', 'name' => 'Error', 'message' => 'Batch tidak ada', '_code' => 'batch_missing'];
                 }
                 if ($batch->rfid_tag) {
                     $this->forget($session);
                     return [
                         'status'  => 'failed',
                         'name'    => $this->truncate($batch->batch_code, 16),
+                        '_code'   => 'batch_already_tagged',
                         'message' => 'Batch sudah bertag',
                         'detail'  => "Batch {$batch->batch_code} sudah memiliki tag. Lepas tag lama dulu.",
                     ];
@@ -289,6 +290,7 @@ class RfidRegistrationService
                     'detail'     => "Batch {$batch->batch_code} ({$batch->productCode?->code}) berhasil ditag UID {$uid}.",
                     'batch_id'   => $batch->id,
                     'batch_code' => $batch->batch_code,
+                    '_code'      => 'tag_registered',
                 ];
             });
         } catch (UniqueConstraintViolationException) {
@@ -311,6 +313,7 @@ class RfidRegistrationService
 
         return [
             'status'  => 'failed',
+            '_code'   => 'tag_in_use',
             'name'    => $sameCompany ? $this->truncate($owner->batch_code, 16) : 'Tag Dipakai',
             'message' => 'Tag sudah dipakai',
             'detail'  => $sameCompany
@@ -324,6 +327,7 @@ class RfidRegistrationService
     {
         return [
             'status'  => 'failed',
+            '_code'   => 'no_session',
             'name'    => 'Tidak Ada Sesi',
             'message' => 'Tidak ada sesi',
             'detail'  => 'Mulai sesi registrasi dari panel web MINETRACE terlebih dahulu.',

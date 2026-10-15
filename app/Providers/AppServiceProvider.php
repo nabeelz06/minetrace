@@ -85,6 +85,9 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(120)->by('ip:' . $request->ip() . ':' . $request->header('X-Company-Code', '-'));
         });
 
+        // ─── Rate limit mutasi UI RFID: 120/mnt per pengguna ─────────────────
+        RateLimiter::for('rfid-ui', fn (Request $request) => Limit::perMinute(120)->by('u:' . ($request->user()?->id ?? $request->ip())));
+
         // ─── Rate limit verifikasi QR publik: 30 permintaan/menit per IP ───
         RateLimiter::for('verify', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
 

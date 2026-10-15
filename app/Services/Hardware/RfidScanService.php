@@ -45,6 +45,7 @@ class RfidScanService
             $label = $reader->direction === 'in' ? 'SCAN IN' : 'SCAN OUT';
             return [[
                 'status'  => 'failed',
+                '_code'   => 'direction_mismatch',
                 'name'    => 'Arah Salah',
                 'message' => "Reader {$label} saja",
                 'detail'  => "Reader {$reader->code} dikonfigurasi hanya untuk {$label}.",
@@ -63,6 +64,7 @@ class RfidScanService
         } catch (LockTimeoutException) {
             return [[
                 'status'  => 'failed',
+                '_code'   => 'busy',
                 'name'    => 'Sistem Sibuk',
                 'message' => 'Coba lagi',
                 'detail'  => "UID {$uid} sedang diproses. Tempelkan ulang tag.",
@@ -106,6 +108,7 @@ class RfidScanService
 
             return [
                 'status'  => 'failed',
+                '_code'   => 'tag_unknown',
                 'name'    => 'Tag Asing',
                 'message' => 'Tag tidak dikenal',
                 'detail'  => $direction === 'in'

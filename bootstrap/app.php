@@ -31,5 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Penolakan otorisasi pada endpoint API/JSON → bentuk seragam dengan code stabil + dwibahasa.
+        $exceptions->render(function (\Illuminate\Auth\Access\AuthorizationException|\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return \App\Support\RfidApi::fail('forbidden', 403);
+            }
+        });
     })->create();

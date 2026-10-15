@@ -18,6 +18,10 @@ return [
     // Selisih jam perangkat vs server yang dianggap berbahaya (detik) — ditandai di status reader.
     'clock_skew_seconds' => (int) env('RFID_CLOCK_SKEW', 300),
 
+    // Tombol/endpoint Simulasi (demo & pelatihan). Matikan di produksi setelah pelatihan agar data uji
+    // tidak tercampur data nyata. Data simulasi selalu bertanda rfid_origin=simulation.
+    'simulation_enabled' => (bool) env('RFID_SIMULATION_ENABLED', true),
+
     // Retensi hasil idempotensi event_id (detik).
     'event_ttl' => 86400,
 

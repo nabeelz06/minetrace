@@ -2,6 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\Hardware\ApiRfidController;
+use App\Http\Controllers\Api\V1\Rfid\RfidReaderController;
+use App\Http\Controllers\Api\V1\Rfid\RfidRegistrationController;
+use App\Http\Controllers\Api\V1\Rfid\RfidScanController;
+use App\Http\Controllers\Api\V1\Rfid\RfidTagController;
 use App\Http\Controllers\Api\V1\Auth\ApiAuthController;
 use App\Http\Controllers\Api\V1\Batch\ApiBatchController;
 use App\Http\Controllers\Api\V1\Checkpoint\ApiCheckpointController;
@@ -231,6 +235,30 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         Route::post('authorization-modes', [ApiRfidController::class, 'setAuthorizationMode'])
             ->name('authorization-modes.set');
+
+        // ── API UI baru (kontrak: code + message + message_en; lihat App\Support\RfidApi) ──
+        Route::get('overview', [RfidScanController::class, 'overview'])->name('overview');
+
+        // Registri perangkat (admin kelola; peran lain hanya lihat)
+        Route::get('readers',                 [RfidReaderController::class, 'index'])->name('readers.index');
+        Route::post('readers',                [RfidReaderController::class, 'store'])->middleware('throttle:rfid-ui')->name('readers.store');
+        Route::patch('readers/{id}',          [RfidReaderController::class, 'update'])->middleware('throttle:rfid-ui')->name('readers.update');
+        Route::post('readers/{id}/rotate-key', [RfidReaderController::class, 'rotateKey'])->middleware('throttle:rfid-ui')->name('readers.rotate-key');
+
+        // Registrasi tag: sesi per reader (paralel) atau input manual/USB
+        Route::get('registration',                    [RfidRegistrationController::class, 'index'])->name('registration.index');
+        Route::post('registration',                   [RfidRegistrationController::class, 'store'])->middleware('throttle:rfid-ui')->name('registration.store');
+        Route::delete('registration/{sessionId}',     [RfidRegistrationController::class, 'destroy'])->middleware('throttle:rfid-ui')->name('registration.destroy');
+        Route::get('batches/{batch}/registration',    [RfidRegistrationController::class, 'status'])->name('registration.status');
+
+        // Scan: umpan, scan manual/simulasi, batalkan (koreksi beralasan)
+        Route::get('scans',              [RfidScanController::class, 'index'])->name('scans.index');
+        Route::post('scans',             [RfidScanController::class, 'store'])->middleware('throttle:rfid-ui')->name('scans.store');
+        Route::post('scans/{id}/void',   [RfidScanController::class, 'void'])->middleware('throttle:rfid-ui')->name('scans.void');
+
+        // Siklus hidup tag
+        Route::post('batches/{batch}/release-tag', [RfidTagController::class, 'release'])->middleware('throttle:rfid-ui')->name('batches.release-tag');
+        Route::get('batches/{batch}/tag-history',  [RfidTagController::class, 'history'])->name('batches.tag-history');
 
     });
 
