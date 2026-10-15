@@ -957,4 +957,12 @@ export default {
             error: 'Terjadi kesalahan. Coba lagi.',
         },
     },
+
+    account: {
+        title:       'Ganti Password',
+        desc:        'Gunakan password yang kuat dan belum pernah dipakai di tempat lain.',
+        forced_desc: 'Demi keamanan, Anda harus mengganti password sebelum melanjutkan.',
+        current:     'Password saat ini',
+        menu:        'Ganti password',
+    },
 }

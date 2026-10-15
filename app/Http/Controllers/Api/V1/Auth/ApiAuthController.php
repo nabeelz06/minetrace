@@ -41,6 +41,15 @@ class ApiAuthController extends Controller
             ]);
         }
 
+        // Akun yang wajib ganti password harus melakukannya lewat web dulu (token tidak diterbitkan).
+        if ($user->force_password_change) {
+            return response()->json([
+                'success' => false, 'code' => 'password_change_required',
+                'message' => 'Ganti password melalui aplikasi web terlebih dahulu.',
+                'message_en' => 'Change your password in the web app first.',
+            ], 403);
+        }
+
         // Revoke token lama untuk device yang sama
         $deviceName = $request->device_name ?? 'api-client';
         $user->tokens()->where('name', $deviceName)->delete();

@@ -70,6 +70,11 @@ Route::middleware('auth')
 
 // ─── User preferences ─────────────────────────────────────────────────────────
 Route::middleware('auth')->group(function () {
+    // Ganti password sendiri (wajib saat force_password_change — lihat EnsurePasswordIsChanged)
+    Route::get('/account/password', [\App\Http\Controllers\Auth\ChangePasswordController::class, 'edit'])->name('password.change');
+    Route::put('/account/password', [\App\Http\Controllers\Auth\ChangePasswordController::class, 'update'])
+        ->middleware('throttle:6,1')->name('password.change.update');
+
     Route::patch('/user/language',  function (\Illuminate\Http\Request $req) {
         $req->validate(['language' => 'required|in:id,en']);
         $req->user()->update(['language' => $req->language]);

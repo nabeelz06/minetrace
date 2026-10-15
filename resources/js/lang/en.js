@@ -899,4 +899,12 @@ export default {
             error: 'Something went wrong. Try again.',
         },
     },
+
+    account: {
+        title:       'Change Password',
+        desc:        'Use a strong password you have not used anywhere else.',
+        forced_desc: 'For security you must change your password before continuing.',
+        current:     'Current password',
+        menu:        'Change password',
+    },
 }

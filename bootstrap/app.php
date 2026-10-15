@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // /api/v1/auth/*) berada di grup `api` tanpa sesi sehingga tidak terkena CSRF.
 
         $middleware->web(append: [
+            \App\Http\Middleware\EnsurePasswordIsChanged::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);

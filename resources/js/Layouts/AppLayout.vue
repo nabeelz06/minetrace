@@ -142,6 +142,9 @@ async function logout() {
                             <span class="mt-0.5 block truncate text-xs font-normal text-muted-foreground">{{ roleLabel }}</span>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem class="min-h-[44px] cursor-pointer gap-2" @select="router.visit('/account/password')">
+                            <AppIcon name="key-round" :size="18" />{{ t('account.menu') }}
+                        </DropdownMenuItem>
                         <DropdownMenuItem class="min-h-[44px] cursor-pointer gap-2" @select="logout">
                             <AppIcon name="log-out" :size="18" />{{ t('nav.sign_out') }}
                         </DropdownMenuItem>

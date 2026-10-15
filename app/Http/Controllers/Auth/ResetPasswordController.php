@@ -45,6 +45,7 @@ class ResetPasswordController extends Controller
             function ($user) use ($request) {
                 $user->forceFill([
                     'password' => Hash::make($request->password),
+                    'force_password_change' => false,   // password baru sudah dipilih sendiri
                 ])->setRememberToken(Str::random(60));
 
                 $user->save();
