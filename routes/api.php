@@ -157,7 +157,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     |──────────────────────────────────────────────────────────────────────
     | 2C. RFID WEB UI ENDPOINTS
     |──────────────────────────────────────────────────────────────────────
-    | Dipanggil dari RfidPanel.vue (Inertia.js / browser session)
+    | Dipanggil dari halaman RFID (Pages/Company/Rfid/Index.vue, sesi browser + CSRF)
     |
     | KENAPA ['web', 'auth'] bukan auth:sanctum?
     |   Inertia.js menggunakan session cookie browser, BUKAN Bearer token.

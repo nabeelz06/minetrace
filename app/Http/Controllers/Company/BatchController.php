@@ -272,7 +272,6 @@ class BatchController extends Controller
             'status'          => 'active',
             'notes'           => $request->notes,
             'created_by'      => Auth::id(),
-            'rfid_tag' => $request->rfid_tag ?? null,
         ]);
 
         $this->qrCodeService->generateForBatch($batch);

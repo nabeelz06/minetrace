@@ -197,6 +197,8 @@ export default {
 
     // ─── Batch ────────────────────────────────────────────────────────────
     batch: {
+        rfid_note_title: 'Tag RFID:',
+        rfid_note:       'Daftarkan tag setelah batch dibuat — dari halaman detail batch (tombol "Daftarkan Tag") atau menu RFID.',
         title:              'Manajemen Batch',
         subtitle:           'Kelola dan pantau seluruh batch material',
         create:             'Buat Batch Baru',
@@ -688,6 +690,28 @@ export default {
     },
 
     rfid: {
+        tag: {
+            title: 'Tag RFID',
+            attached: 'Tag terpasang',
+            none: 'Belum ada tag pada batch ini.',
+            register: 'Daftarkan Tag',
+            release: 'Lepas / ganti tag',
+            release_title: 'Lepas tag dari batch ini?',
+            release_desc: 'Tag dibebaskan dan alasannya dicatat. Riwayat pemindaian lama tetap tersimpan. Setelah dilepas, daftarkan tag baru bila perlu.',
+            reason: 'Alasan',
+            reason_replaced: 'Diganti dengan tag baru',
+            reason_lost: 'Tag hilang',
+            reason_damaged: 'Tag rusak',
+            reason_other: 'Alasan lain',
+            note: 'Catatan (opsional)',
+            confirm: 'Lepas tag',
+            history: 'Riwayat tag',
+            history_empty: 'Belum ada riwayat tag.',
+            ev_registered: 'Didaftarkan',
+            ev_released: 'Dilepas',
+            released_toast: 'Tag dilepas dari batch.',
+            readonly: 'Anda tidak memiliki izin untuk mengubah tag.',
+        },
         title: 'RFID',
         subtitle: 'Daftarkan tag, catat Scan Masuk dan Scan Keluar',
         field_mode: 'Mode Lapangan',

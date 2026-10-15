@@ -44,14 +44,6 @@ class CreateBatchRequest extends FormRequest
             'location_id'     => ['required', 'integer', 'exists:locations,id'],
             'initial_weight'  => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
             'notes'           => ['nullable', 'string', 'max:1000'],
-            'rfid_tag' => [
-                'nullable',
-                'string',
-                'min:8',
-                'max:100',
-                'regex:/^[A-Fa-f0-9]+$/',
-                Rule::unique('batches', 'rfid_tag')->whereNull('deleted_at'),
-            ],
         ];
     }
 

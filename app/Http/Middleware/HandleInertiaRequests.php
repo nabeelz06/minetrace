@@ -75,6 +75,9 @@ class HandleInertiaRequests extends Middleware
                 'bim_export_data'        => $user->hasRole('bim_admin'),
                 'is_bim'                 => $user->hasAnyRole(['bim_admin','bim_viewer','government_auditor']),
 
+                // ── RFID ────────────────────────────────────────────────────
+                'rfid_operate'           => \Illuminate\Support\Facades\Gate::allows('rfid.operate'),
+
                 // ── Company Admin ────────────────────────────────────────────
                 'is_company_admin'       => $user->hasRole('company_admin'),
                 'manage_settings'        => $user->hasRole('company_admin'),

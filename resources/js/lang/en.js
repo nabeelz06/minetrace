@@ -188,6 +188,8 @@ export default {
     },
 
     batch: {
+        rfid_note_title: 'RFID tag:',
+        rfid_note:       'Register the tag after the batch is created — from the batch detail page ("Register Tag" button) or the RFID menu.',
         title:              'Batch Management',
         subtitle:           'Manage and monitor all material batches',
         create:             'Create New Batch',
@@ -630,6 +632,28 @@ export default {
     },
 
     rfid: {
+        tag: {
+            title: 'RFID tag',
+            attached: 'Tag attached',
+            none: 'This batch has no tag yet.',
+            register: 'Register Tag',
+            release: 'Release / replace tag',
+            release_title: 'Release the tag from this batch?',
+            release_desc: 'The tag is freed and the reason is recorded. Earlier scan history is kept. After releasing, register a new tag if needed.',
+            reason: 'Reason',
+            reason_replaced: 'Replaced with a new tag',
+            reason_lost: 'Tag lost',
+            reason_damaged: 'Tag damaged',
+            reason_other: 'Other reason',
+            note: 'Note (optional)',
+            confirm: 'Release tag',
+            history: 'Tag history',
+            history_empty: 'No tag history yet.',
+            ev_registered: 'Registered',
+            ev_released: 'Released',
+            released_toast: 'Tag released from the batch.',
+            readonly: 'You do not have permission to change the tag.',
+        },
         title: 'RFID',
         subtitle: 'Register tags, record Scan IN and Scan OUT',
         field_mode: 'Field Mode',

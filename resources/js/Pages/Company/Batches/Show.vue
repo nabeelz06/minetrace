@@ -4,6 +4,8 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import SnapshotGalleryCard from '@/components/shared/SnapshotGalleryCard.vue'
 
+import BatchTagCard from '@/components/rfid/BatchTagCard.vue'
+
 const props = defineProps({
     batch:    Object,
     timeline: Array,
@@ -239,7 +241,9 @@ const weightRetentionPct = computed(() => {
                         </div>
                     </div>
 
-                    <!-- ─── Weight Progress Bar ─────────────────────────── -->
+                    <BatchTagCard :batch="batch" :can-operate="!!can.rfid_operate" />
+
+            <!-- ─── Weight Progress Bar ─────────────────────────── -->
                     <div class="mt-6 p-4 rounded-xl bg-muted/40 space-y-3">
                         <div class="flex items-center justify-between text-sm">
                             <div>

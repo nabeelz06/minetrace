@@ -3,7 +3,7 @@
  * DevicesPanel — Perangkat & Pengaturan Lanjutan: reader terdaftar, mode otorisasi, ESP32 lama.
  * Administrator mengelola; peran lain hanya melihat (tanpa kunci).
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useNow } from '@vueuse/core'
 import AppIcon from '@/components/app/AppIcon.vue'
 import EmptyState from '@/components/shared/EmptyState.vue'
@@ -35,6 +35,7 @@ const editing = ref(null)
 const keyOpen = ref(false)
 const keyReader = ref(null)
 const keyValue = ref('')
+watch(keyOpen, open => { if (!open) { keyValue.value = ''; keyReader.value = null } })   // kunci tidak tersisa di memori UI
 const rotateTarget = ref(null)
 const rotateOpen = ref(false)
 
