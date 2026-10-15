@@ -166,7 +166,7 @@ class GenerateMonthlyReportJob implements ShouldQueue
                 'summary'    => $data,
             ], function($message) use ($email, $company, $monthLabel, $filePath) {
                 $message->to($email)
-                    ->subject("Laporan Bulanan MINETRA — {$company->name} — {$monthLabel}")
+                    ->subject("Laporan Bulanan MINETRACE — {$company->name} — {$monthLabel}")
                     ->attach(Storage::path($filePath), [
                         'as'   => "Laporan-{$company->code}-{$monthLabel}.pdf",
                         'mime' => 'application/pdf',

@@ -1,4 +1,4 @@
-# MINETRA — Referensi Environment (Lokal vs Produksi)
+# MINETRACE — Referensi Environment (Lokal vs Produksi)
 
 > Ditulis ulang 16 Juli 2026. Versi sebelumnya adalah checklist cutover
 > produksi yang isinya sudah mayoritas selesai/usang (Sanctum sudah
@@ -47,10 +47,10 @@ Sudah selesai dan tidak perlu diverifikasi ulang tiap deploy:
 - ffmpeg tersedia di image Docker (`Dockerfile`).
 - nginx conf produksi hardcode `mining-traceability.com` (SSL/certbot
   dikonfirmasi stabil — jangan disentuh tanpa bukti konkret ada yang
-  rusak, lihat `MINETRA_PROJECT_RESUME_COMPLETE.md`).
+  rusak, lihat `MINETRACE_PROJECT_RESUME_COMPLETE.md`).
 
 Masih perlu perhatian (didokumentasikan lengkap di
-`MINETRA_PROJECT_RESUME_COMPLETE.md` dan `PRESENTASI_BRIEFING.md`):
+`MINETRACE_PROJECT_RESUME_COMPLETE.md` dan `PRESENTASI_BRIEFING.md`):
 - `mediamtx.prod.yml` meng-alias semua jalur kamera (termasuk yang
   berlabel "simulasi") ke satu sumber RTSP fisik yang sama — beda
   struktural dari `mediamtx.yml` lokal.

@@ -1,4 +1,4 @@
-# MINETRA — Skrip Demo untuk Interview
+# MINETRACE — Skrip Demo untuk Interview
 
 > Tujuan dokumen ini: panduan bicara + klik saat demo ke interviewer.
 > Bahasa dibuat sesederhana mungkin — fokus ke **apa fiturnya, buat apa

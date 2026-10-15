@@ -1,6 +1,6 @@
 <script setup>
 /**
- * AppLayout.vue — Root layout MINETRA pasca-login.
+ * AppLayout.vue — Root layout MINETRACE pasca-login.
  *
  * FIX UTAMA: navHardwareRfid sekarang berupa object nav item (bukan boolean)
  * sehingga tidak lagi menghasilkan menu kosong/aneh di sidebar.
@@ -432,7 +432,7 @@ function handleOutsideClick(e) {
             <Transition name="st">
                 <div v-if="sidebarOpen" class="flex-1 min-w-0 overflow-hidden">
                     <p class="font-heading text-[11px] font-black tracking-[0.22em] leading-tight"
-                       style="color:hsl(var(--sidebar-foreground));">MINETRA</p>
+                       style="color:hsl(var(--sidebar-foreground));">MINETRACE</p>
                     <p class="text-[8px] tracking-[0.18em] leading-tight"
                        style="color:hsl(var(--sidebar-foreground)/0.28);">MINERAL TRACEABILITY</p>
                 </div>
@@ -697,7 +697,7 @@ function handleOutsideClick(e) {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125s-8.25 1.847-8.25 4.125m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/>
                     </svg>
                 </div>
-                <span class="font-heading text-sm font-black tracking-widest text-foreground">MINETRA</span>
+                <span class="font-heading text-sm font-black tracking-widest text-foreground">MINETRACE</span>
             </div>
         </div>
 

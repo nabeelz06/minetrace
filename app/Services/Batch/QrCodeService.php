@@ -9,11 +9,10 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 /**
  * QrCodeService — generate dan verifikasi QR Code untuk batch.
  *
- * Format QR Code:
- * MINETRA:{company_id}:{batch_id}:{batch_code}:{checksum}
- *
- * QR Code berisi URL verifikasi yang dapat dibuka di mobile:
- * https://minetra.id/verify/{token}
+ * Payload QR = URL verifikasi publik:
+ *   {APP_URL}/verify/batch/{batch_id}?code={batch_code}&cs={checksum}
+ * cs = 12 karakter pertama HMAC-SHA256("{id}:{batch_code}:{company_id}") dengan APP_KEY.
+ * APP_KEY JANGAN dirotasi: QR yang sudah tercetak di karung akan gagal verifikasi.
  *
  * Arsitektur fleksibel:
  * - Saat RFID ditambahkan, QrCodeService tetap bisa dipakai paralel

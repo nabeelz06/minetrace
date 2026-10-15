@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Auth;
  * ApiBatchController — REST API untuk batch management.
  *
  * Digunakan oleh mobile app dan hardware integration.
- * Semua response menggunakan format JSON standar MINETRA API.
+ * Semua response menggunakan format JSON standar MINETRACE API.
  */
 class ApiBatchController extends Controller
 {

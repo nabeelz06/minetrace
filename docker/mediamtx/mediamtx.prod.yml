@@ -1,4 +1,4 @@
-# mediamtx.prod.yml — MediaMTX config untuk MINETRA PRODUCTION (Phase 2)
+# mediamtx.prod.yml — MediaMTX config untuk MINETRACE PRODUCTION (Phase 2)
 # Konfigurasi ini menghubungkan kamera fisik Tapo C500 ke sistem dan
 # memetakan stream tersebut ke berbagai path untuk kebutuhan UI.
 

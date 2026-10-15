@@ -1,5 +1,5 @@
 #!/bin/bash
-echo 'Stopping MINETRA local Docker services...'
+echo 'Stopping MINETRACE local Docker services...'
 docker compose stop postgres redis mediamtx
 echo ''
 echo 'Docker services stopped.'

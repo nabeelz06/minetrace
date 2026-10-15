@@ -77,7 +77,7 @@ const features = [
                         </svg>
                     </div>
                     <div>
-                        <p class="text-white font-bold text-xl tracking-[0.2em]">MINETRA</p>
+                        <p class="text-white font-bold text-xl tracking-[0.2em]">MINETRACE</p>
                         <p class="text-[11px] tracking-widest uppercase" style="color: #4a7d9c;">Mineral Traceability</p>
                     </div>
                 </div>
@@ -143,7 +143,7 @@ const features = [
                             <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694 4.125-8.25 4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125m16.5 5.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
                         </svg>
                     </div>
-                    <span class="font-bold text-lg tracking-widest text-white">MINETRA</span>
+                    <span class="font-bold text-lg tracking-widest text-white">MINETRACE</span>
                 </div>
 
                 <div class="space-y-1.5 mb-8">
@@ -172,7 +172,7 @@ const features = [
 
                 <div class="absolute bottom-4 left-0 right-0 text-center">
                     <span class="text-[10px]" style="color: #152432;">
-                        MINETRA v1.0 — Mineral Traceability System
+                        MINETRACE v1.0 — Mineral Traceability System
                     </span>
                 </div>
             </div>

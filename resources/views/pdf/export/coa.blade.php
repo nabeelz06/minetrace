@@ -46,7 +46,7 @@
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div>
         <div class="header-title">CERTIFICATE OF ANALYSIS</div>
-        <div class="header-sub">{{ $company->name }} — Mineral Traceability System (MINETRA)</div>
+        <div class="header-sub">{{ $company->name }} — Mineral Traceability System (MINETRACE)</div>
         <div class="header-sub" style="margin-top:4px;">{{ $company->address ?? '' }}, {{ $company->city ?? '' }}</div>
       </div>
       <div class="header-doc">
@@ -185,8 +185,8 @@
   <!-- Footer Signature -->
   <div class="footer">
     <div>
-      <p style="font-size:9px; color:#666;">Dokumen ini digenerate secara otomatis oleh sistem MINETRA.</p>
-      <p style="font-size:9px; color:#666;">Untuk verifikasi, hubungi: {{ $company->email ?? 'info@minetra.id' }}</p>
+      <p style="font-size:9px; color:#666;">Dokumen ini digenerate secara otomatis oleh sistem MINETRACE.</p>
+      <p style="font-size:9px; color:#666;">Untuk verifikasi, hubungi: {{ $company->email ?? config('mail.from.address') }}</p>
     </div>
     <div style="display:flex; gap:40px;">
       <div class="signature-box">

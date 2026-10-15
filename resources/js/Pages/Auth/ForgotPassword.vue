@@ -19,7 +19,7 @@ function submit() {
 </script>
 
 <template>
-    <Head title="Lupa Password — MINETRA" />
+    <Head title="Lupa Password — MINETRACE" />
 
     <AuthLayout
         heading="Lupa Password?"

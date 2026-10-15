@@ -15,7 +15,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * CompanyController (SuperAdmin) — kelola company dalam sistem MINETRA.
+ * CompanyController (SuperAdmin) — kelola company dalam sistem MINETRACE.
  */
 class CompanyController extends Controller
 {

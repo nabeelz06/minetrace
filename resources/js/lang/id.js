@@ -1,11 +1,11 @@
 /**
- * MINETRA — Terjemahan Bahasa Indonesia
+ * MINETRACE — Terjemahan Bahasa Indonesia
  * Lengkap untuk semua modul: auth, nav, batch, lab, export, process, reports, settings
  */
 export default {
     // ─── Sistem ──────────────────────────────────────────────────────────
     app: {
-        name:          'MINETRA',
+        name:          'MINETRACE',
         tagline:       'Sistem Traceability Mineral Logam Tanah Jarang',
         loading:       'Memuat...',
         saving:        'Menyimpan...',
@@ -71,7 +71,7 @@ export default {
         email_placeholder:  'nama@perusahaan.co.id',
         password_placeholder:'Masukkan password',
         remember_me:        'Ingat saya',
-        sign_in:            'Masuk ke MINETRA',
+        sign_in:            'Masuk ke MINETRACE',
         subtitle:           'Sistem Traceability Mineral Logam Tanah Jarang',
         wrong_credentials:  'Email atau password salah.',
         account_inactive:   'Akun Anda tidak aktif. Hubungi administrator.',
@@ -485,7 +485,7 @@ export default {
     // ─── User Management ─────────────────────────────────────────────────
     user: {
         title:              'Kelola User',
-        subtitle:           'Kelola semua pengguna sistem MINETRA',
+        subtitle:           'Kelola semua pengguna sistem MINETRACE',
         create:             'Buat User Baru',
         edit:               'Edit User',
         delete:             'Hapus User',
@@ -533,9 +533,9 @@ export default {
     // ─── Company Management ───────────────────────────────────────────────
     company: {
         title:              'Kelola Perusahaan',
-        subtitle:           'Kelola semua perusahaan dalam ekosistem MINETRA',
+        subtitle:           'Kelola semua perusahaan dalam ekosistem MINETRACE',
         onboard:            'Onboard Perusahaan Baru',
-        onboard_desc:       'Daftarkan perusahaan mining baru ke dalam sistem MINETRA',
+        onboard_desc:       'Daftarkan perusahaan mining baru ke dalam sistem MINETRACE',
         detail:             'Detail Perusahaan',
         activate:           'Aktifkan',
         deactivate:         'Nonaktifkan',

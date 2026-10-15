@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schedule;
 
 /*
 |─────────────────────────────────────────────────────────────────────────────
-| MINETRA — Scheduled Tasks
+| MINETRACE — Scheduled Tasks
 |─────────────────────────────────────────────────────────────────────────────
 |
 | Scheduler berjalan di container scheduler (lihat docker-compose.yml).

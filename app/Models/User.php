@@ -14,7 +14,7 @@ use Spatie\Permission\Traits\HasRoles;
 use Spatie\Activitylog\Traits\CausesActivity;
 
 /**
- * Model User — semua pengguna sistem MINETRA.
+ * Model User — semua pengguna sistem MINETRACE.
  *
  * Menggunakan Spatie HasRoles dengan teams mode (scope per company).
  * Mendukung 8 roles: super_admin, bim_admin, bim_viewer,
@@ -169,7 +169,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Kirim notifikasi reset password bermerek MINETRA (mengganti default
+     * Kirim notifikasi reset password bermerek MINETRACE (mengganti default
      * Laravel yang mengarah ke route Blade, diarahkan ke halaman Vue kita).
      */
     public function sendPasswordResetNotification($token): void

@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * UserRole — semua role yang valid dalam sistem MINETRA.
+ * UserRole — semua role yang valid dalam sistem MINETRACE.
  *
  * WORKFLOW LENGKAP:
  * ┌─────────────────────────────────────────────────────────────────────┐

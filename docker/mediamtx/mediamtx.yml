@@ -1,4 +1,4 @@
-# mediamtx.yml — MediaMTX config untuk MINETRA local dev
+# mediamtx.yml — MediaMTX config untuk MINETRACE local dev
 # RTSP-to-HLS/WebRTC bridge — 3 simulation stream (cam_gate1, cam_wet,
 # cam_warehouse) + 1 live proxy kamera fisik asli (live_gate1)
 # Image: bluenviron/mediamtx:latest-ffmpeg (ffmpeg built-in)

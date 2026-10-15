@@ -166,7 +166,7 @@ class RfidService
                 'status'  => 'failed',
                 'name'    => 'Tidak Ada Sesi',
                 'message' => 'Tidak ada sesi',
-                'detail'  => 'Mulai sesi registrasi dari panel web MINETRA terlebih dahulu.',
+                'detail'  => 'Mulai sesi registrasi dari panel web MINETRACE terlebih dahulu.',
             ];
         }
 

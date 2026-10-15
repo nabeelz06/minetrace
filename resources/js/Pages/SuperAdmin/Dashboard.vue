@@ -29,7 +29,7 @@ function formatNumber(n) {
                 <div>
                     <h1 class="text-2xl font-bold text-foreground tracking-tight">System Dashboard</h1>
                     <p class="text-sm text-muted-foreground mt-0.5">
-                        MINETRA — Mineral Traceability Platform Overview
+                        MINETRACE — Mineral Traceability Platform Overview
                     </p>
                 </div>
                 <div class="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/50">

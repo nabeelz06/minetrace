@@ -11,7 +11,7 @@ use Database\Seeders\Companies\PtTimah\PtTimahWorkflowSeeder;
 use Database\Seeders\Companies\PtTimah\PtTimahCctvCameraSeeder;
 
 /**
- * DatabaseSeeder — master entry point semua seeder MINETRA.
+ * DatabaseSeeder — master entry point semua seeder MINETRACE.
  *
  * Urutan eksekusi penting karena ada foreign key dependencies:
  * 1. Roles & Permissions (tidak ada dependency)
@@ -29,7 +29,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->command->info('');
         $this->command->info('╔══════════════════════════════════════════╗');
-        $this->command->info('║   MINETRA — Database Seeding             ║');
+        $this->command->info('║   MINETRACE — Database Seeding             ║');
         $this->command->info('╚══════════════════════════════════════════╝');
         $this->command->newLine();
 

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |─────────────────────────────────────────────────────────────────────────────
-| MINETRA Web Routes — 11 Roles
+| MINETRACE Web Routes — 11 Roles
 |─────────────────────────────────────────────────────────────────────────────
 |
 | ROLE WORKFLOW:

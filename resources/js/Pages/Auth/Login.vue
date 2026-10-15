@@ -25,7 +25,7 @@ function submit() {
 </script>
 
 <template>
-    <Head title="Login — MINETRA" />
+    <Head title="Login — MINETRACE" />
 
     <AuthLayout
         heading="Selamat Datang"

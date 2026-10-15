@@ -29,7 +29,7 @@
 <div class="header">
   <div>
     <div class="header-title">PACKING LIST</div>
-    <div class="header-sub">{{ $company->name }} — MINETRA Mineral Traceability</div>
+    <div class="header-sub">{{ $company->name }} — MINETRACE Mineral Traceability</div>
   </div>
   <div style="text-align:right;">
     <div style="font-size:9px; opacity:0.7;">TANGGAL</div>
@@ -100,7 +100,7 @@
 @endif
 
 <div class="footer">
-  <p>Dokumen ini digenerate otomatis oleh MINETRA Mineral Traceability System pada {{ now()->format('d F Y, H:i') }} WIB.</p>
+  <p>Dokumen ini digenerate otomatis oleh MINETRACE Mineral Traceability System pada {{ now()->format('d F Y, H:i') }} WIB.</p>
   <p>{{ $company->name }} | {{ $company->address ?? '' }} | {{ $company->email ?? '' }}</p>
 </div>
 

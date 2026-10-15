@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Model Company — entitas perusahaan dalam sistem multi-tenant MINETRA.
+ * Model Company — entitas perusahaan dalam sistem multi-tenant MINETRACE.
  *
  * Arsitektur fleksibel:
  * - is_regulator: memisahkan BIM dari company operasional

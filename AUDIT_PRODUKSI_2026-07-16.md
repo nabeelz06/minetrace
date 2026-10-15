@@ -1,3 +1,5 @@
+> Catatan: nama produk saat dokumen ini ditulis adalah MINETRA (kini MINETRACE). Dokumen historis — isi tidak diubah.
+
 # MINETRA — Audit Produksi Langsung (16 Juli 2026)
 
 > Dokumen referensi teknis mentah. Untuk ringkasan presentasi, lihat

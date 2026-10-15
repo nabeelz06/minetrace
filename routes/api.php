@@ -47,7 +47,7 @@ Route::prefix('rfid')->group(function () {
 
 /*
 |==============================================================================
-| BAGIAN 2 — MINETRA REST API v1
+| BAGIAN 2 — MINETRACE REST API v1
 |==============================================================================
 */
 Route::prefix('v1')->name('api.v1.')->group(function () {
@@ -67,7 +67,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 'version' => 'v1',
                 'time'    => now()->toIso8601String(),
             ],
-            'message' => 'MINETRA API is running.',
+            'message' => 'MINETRACE API is running.',
         ]);
     })->name('health');
 

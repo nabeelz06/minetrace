@@ -1,4 +1,4 @@
-# MINETRA — Briefing Presentasi untuk Prof. Iwan Vanany
+# MINETRACE — Briefing Presentasi untuk Prof. Iwan Vanany
 
 > Disusun 14 Juli 2026, berdasarkan audit teknis menyeluruh sesi ini.
 > **Diverifikasi langsung terhadap produksi: 16 Juli 2026** — audit lanjutan
@@ -6,7 +6,7 @@
 > termasuk satu live-fire test nyata (login → buat batch → registrasi RFID
 > → scan → percobaan snapshot CCTV → generate laporan PDF & Excel) langsung
 > terhadap `https://mining-traceability.com`, bukan lingkungan lokal.
-> Baca bersama `MINETRA_PROJECT_RESUME_COMPLETE.md` (detail teknis lengkap
+> Baca bersama `MINETRACE_PROJECT_RESUME_COMPLETE.md` (detail teknis lengkap
 > + bukti per klaim), `SKRIP_DEMO_LIVE.md` (langkah demo langsung), dan
 > `AUDIT_PRODUKSI_2026-07-16.md` (bukti mentah lengkap sesi audit produksi).
 
@@ -14,7 +14,7 @@
 
 ## (a) Ringkasan Eksekutif
 
-MINETRA adalah sistem traceability mineral berbasis web (Laravel 11 + Vue 3
+MINETRACE adalah sistem traceability mineral berbasis web (Laravel 11 + Vue 3
 + Inertia) yang dibangun untuk PT Timah Tbk, melacak batch mineral (fokus
 Zircon/ZIR, Ilmenite/ILM, Monazite/MON) melalui 6 tahap proses — Lab Kimia,
 Receiving, Wet Process, Dry Process, Warehouse, hingga Project Plant/LTJ —

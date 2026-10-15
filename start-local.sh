@@ -2,7 +2,7 @@
 set -e
 
 echo '════════════════════════════════════════════════════'
-echo '  MINETRA — Local Development Environment Startup  '
+echo '  MINETRACE — Local Development Environment Startup  '
 echo '════════════════════════════════════════════════════'
 
 # ─── Step 1: Ensure .env exists and has correct LOCAL values ───────────
@@ -109,7 +109,7 @@ echo '  ✓ Laravel optimized'
 
 echo ''
 echo '════════════════════════════════════════════════════'
-echo '  ✅ MINETRA LOCAL siap dijalankan!'
+echo '  ✅ MINETRACE LOCAL siap dijalankan!'
 echo ''
 echo '  Buka 3 terminal baru dan jalankan:'
 echo '  [1] php artisan serve'

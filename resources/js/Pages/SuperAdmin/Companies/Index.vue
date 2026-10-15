@@ -24,7 +24,7 @@ function toggleActive(id) {
             <div class="flex items-center justify-between animate-fade-in">
                 <div>
                     <h1 class="text-2xl font-bold text-foreground tracking-tight">Company Management</h1>
-                    <p class="text-sm text-muted-foreground mt-0.5">Kelola semua perusahaan dalam ekosistem MINETRA</p>
+                    <p class="text-sm text-muted-foreground mt-0.5">Kelola semua perusahaan dalam ekosistem MINETRACE</p>
                 </div>
                 <Link
                     href="/super-admin/companies/create"

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Log;
  * KONDISI SAAT INI — 1 KAMERA FISIK MELAYANI SEMUA CHECKPOINT
  *
  * Perusahaan baru memasang SATU kamera fisik (TP-Link Tapo C500 di
- * 192.168.18.38), namun MINETRA melacak 5 checkpoint/stage produksi
+ * 192.168.18.38), namun MINETRACE melacak 5 checkpoint/stage produksi
  * (receiving, wet_process, dry_process, warehouse, project_plant). Sesuai
  * arahan operasional, kamera fisik yang sama ini didaftarkan untuk KELIMA
  * stage — setiap RFID scan di stage manapun akan memakai kamera yang sama

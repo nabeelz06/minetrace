@@ -1,4 +1,4 @@
-# MINETRA — Project Resume & Changelog
+# MINETRACE — Project Resume & Changelog
 
 > **Diaudit ulang: 14 Juli 2026** — Audit menyeluruh sesi ini: seluruh
 > backend (Controllers, Models, Services, Jobs, Requests, Enums, Traits,

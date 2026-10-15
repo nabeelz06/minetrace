@@ -8,7 +8,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * UserSeeder — 13 users default MINETRA.
+ * UserSeeder — 13 users default MINETRACE.
  *
  * PT Timah roles per workflow:
  * ┌────────────────────────────────────┬───────────────────────────────┐

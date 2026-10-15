@@ -60,7 +60,7 @@ class ApiVerifyController extends Controller
                 'is_hazardous'  => $batch->productCode?->is_hazardous ?? false,
                 'verified_at'   => now()->toIso8601String(),
             ],
-            'message' => '✅ Batch terverifikasi — data asli dari MINETRA.',
+            'message' => '✅ Batch terverifikasi — data asli dari MINETRACE.',
         ]);
     }
 }

@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   MINETRA — Global Stylesheet
+   MINETRACE — Global Stylesheet
    Urutan: Variables → Fonts → Dark Mode → Base → Animations → Utilities
    ════════════════════════════════════════════════════════════════════════ */
 
@@ -343,7 +343,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .text-pretty   { text-wrap: pretty; }
 .ring-primary  { --tw-ring-color: hsl(var(--ring)); }
 
-/* Gradient teks MINETRA */
+/* Gradient teks MINETRACE */
 .text-gradient-primary {
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(207 50% 65%));
     -webkit-background-clip: text;

@@ -41,7 +41,7 @@
     <tr>
       <td>
         <div class="h-title">LAPORAN ANALISIS LAB — LOGAM TANAH JARANG (LTJ)</div>
-        <div class="h-sub">{{ $company->name }} &mdash; MINETRA Mineral Traceability System</div>
+        <div class="h-sub">{{ $company->name }} &mdash; MINETRACE Mineral Traceability System</div>
         <div class="h-sub">Periode: {{ $date_from }} &mdash; {{ $date_to }}</div>
       </td>
       <td style="text-align:right; font-size:7.5px; opacity:0.8; vertical-align:top;">
@@ -171,7 +171,7 @@
 
 <div class="footer">
   <table width="100%"><tr>
-    <td>MINETRA Mineral Traceability System &mdash; {{ $generated_at }} &mdash; Satuan: % = persen berat, kg = kilogram</td>
+    <td>MINETRACE Mineral Traceability System &mdash; {{ $generated_at }} &mdash; Satuan: % = persen berat, kg = kilogram</td>
     <td style="text-align:right;">{{ $company->name }} &mdash; Confidential</td>
   </tr></table>
 </div>

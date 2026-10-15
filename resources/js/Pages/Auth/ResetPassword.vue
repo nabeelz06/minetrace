@@ -34,7 +34,7 @@ function submit() {
 </script>
 
 <template>
-    <Head title="Reset Password — MINETRA" />
+    <Head title="Reset Password — MINETRACE" />
 
     <AuthLayout
         heading="Buat Password Baru"

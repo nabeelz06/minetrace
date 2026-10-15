@@ -1,5 +1,5 @@
 /**
- * useI18n — Composable utama untuk internasionalisasi MINETRA.
+ * useI18n — Composable utama untuk internasionalisasi MINETRACE.
  *
  * Arsitektur:
  * - Reactive shared ref (satu instance di seluruh app)

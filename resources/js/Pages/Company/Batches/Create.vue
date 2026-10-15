@@ -808,7 +808,7 @@ const hasBarcodeDetector = computed(() => 'BarcodeDetector' in window)
                                 </p>
                                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
                                       style="background:rgba(62,92,116,0.12);color:hsl(var(--primary))">
-                                    MINETRA RFID-Ready
+                                    MINETRACE RFID-Ready
                                 </span>
                             </div>
                         </div>

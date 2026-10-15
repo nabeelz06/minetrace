@@ -47,7 +47,7 @@
     <tr>
       <td>
         <div class="h-title">LAPORAN PRODUKSI BULANAN</div>
-        <div class="h-sub">{{ $company->name }} &mdash; MINETRA Mineral Traceability System</div>
+        <div class="h-sub">{{ $company->name }} &mdash; MINETRACE Mineral Traceability System</div>
         <div class="h-sub">Periode: {{ $date_from }} &mdash; {{ $date_to }}</div>
       </td>
       <td style="text-align:right; font-size:8px; opacity:0.8; vertical-align:top;">
@@ -306,7 +306,7 @@
 <div class="footer">
   <table width="100%">
     <tr>
-      <td>Laporan digenerate otomatis oleh MINETRA Mineral Traceability System pada {{ $generated_at }}</td>
+      <td>Laporan digenerate otomatis oleh MINETRACE Mineral Traceability System pada {{ $generated_at }}</td>
       <td style="text-align:right;">{{ $company->name }} &mdash; Confidential</td>
     </tr>
   </table>

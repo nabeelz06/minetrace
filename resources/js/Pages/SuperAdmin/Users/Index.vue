@@ -73,7 +73,7 @@ function roleBadge(role) {
             <div class="flex items-center justify-between animate-fade-in">
                 <div>
                     <h1 class="text-2xl font-bold text-foreground tracking-tight">User Management</h1>
-                    <p class="text-sm text-muted-foreground mt-0.5">Kelola semua pengguna sistem MINETRA</p>
+                    <p class="text-sm text-muted-foreground mt-0.5">Kelola semua pengguna sistem MINETRACE</p>
                 </div>
                 <Link
                     href="/super-admin/users/create"

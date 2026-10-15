@@ -1,10 +1,10 @@
 /**
- * MINETRA — English Translations
+ * MINETRACE — English Translations
  * Complete coverage for all modules
  */
 export default {
     app: {
-        name:          'MINETRA',
+        name:          'MINETRACE',
         tagline:       'Rare Earth Mineral Traceability System',
         loading:       'Loading...',
         saving:        'Saving...',
@@ -69,7 +69,7 @@ export default {
         email_placeholder:  'name@company.co.id',
         password_placeholder:'Enter your password',
         remember_me:        'Remember me',
-        sign_in:            'Sign in to MINETRA',
+        sign_in:            'Sign in to MINETRACE',
         subtitle:           'Rare Earth Mineral Traceability System',
         wrong_credentials:  'Invalid email or password.',
         account_inactive:   'Your account is inactive. Contact your administrator.',
@@ -439,7 +439,7 @@ export default {
 
     user: {
         title:              'User Management',
-        subtitle:           'Manage all MINETRA system users',
+        subtitle:           'Manage all MINETRACE system users',
         create:             'Create New User',
         edit:               'Edit User',
         delete:             'Delete User',
@@ -481,9 +481,9 @@ export default {
 
     company: {
         title:              'Company Management',
-        subtitle:           'Manage all companies in the MINETRA ecosystem',
+        subtitle:           'Manage all companies in the MINETRACE ecosystem',
         onboard:            'Onboard New Company',
-        onboard_desc:       'Register a new mining company to the MINETRA system',
+        onboard_desc:       'Register a new mining company to the MINETRACE system',
         detail:             'Company Detail',
         activate:           'Activate',
         deactivate:         'Deactivate',

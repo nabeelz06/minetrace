@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  MINETRA — Production Deployment Script"
+echo "  MINETRACE — Production Deployment Script"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ── Pull latest code ──────────────────────────────────────────

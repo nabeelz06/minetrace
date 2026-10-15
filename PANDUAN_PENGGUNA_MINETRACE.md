@@ -1,4 +1,4 @@
-# Buku Panduan Pengguna — MINETRA
+# Buku Panduan Pengguna — MINETRACE
 ### Enterprise Mineral Traceability System — PT Timah Tbk
 
 > Dokumen ini adalah kerangka isi (poin-poin + teks prosedur siap pakai) untuk
@@ -37,7 +37,7 @@
 
 ## 1.1 Mengakses Sistem
 
-**Fungsi**: Titik masuk pertama pengguna ke dalam sistem MINETRA.
+**Fungsi**: Titik masuk pertama pengguna ke dalam sistem MINETRACE.
 
 **Langkah-langkah:**
 1. Buka browser (disarankan Google Chrome atau Microsoft Edge versi terbaru).
@@ -97,7 +97,7 @@ perlu menghubungi administrator, apabila lupa password akun.
    sistem kami, link reset password sudah dikirim. Silakan cek kotak
    masuk (dan folder spam) Anda."* — pesan ini akan selalu muncul sama
    baik email terdaftar maupun tidak, sebagai langkah keamanan standar.
-6. Buka email yang masuk dengan subjek **"Reset Password — MINETRA"**,
+6. Buka email yang masuk dengan subjek **"Reset Password — MINETRACE"**,
    lalu klik tombol **"Reset Password"** di dalam email.
 7. Anda akan diarahkan ke halaman **"Buat Password Baru"** dengan kolom
    email yang sudah terisi otomatis.

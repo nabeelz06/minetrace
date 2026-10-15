@@ -6,7 +6,7 @@ import { createInertiaApp } from '@inertiajs/vue3'
 import { createPinia }      from 'pinia'
 import { ZiggyVue }         from '../../vendor/tightenco/ziggy'
 
-const appName = import.meta.env.VITE_APP_NAME || 'MINETRA'
+const appName = import.meta.env.VITE_APP_NAME || 'MINETRACE'
 
 // ─── WSL2 Fix: Parse data-page manual ────────────────────────────────────
 const appEl       = document.getElementById('app')
