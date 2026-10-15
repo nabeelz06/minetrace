@@ -116,5 +116,6 @@ export default {
 
     plugins: [
         require('@tailwindcss/forms'),
+        require('tailwindcss-animate'),   // animasi Dialog/Sheet/Tabs (reka-ui)
     ],
 }

@@ -34,6 +34,9 @@ class HandleInertiaRequests extends Middleware
                 'name' => config('app.name'),
             ],
 
+            // ─── Definisi tahap proses (satu sumber: ProcessFlow) untuk navigasi & UI ───
+            'stages' => \App\Support\ProcessFlow::forFrontend(),
+
             // ─── Auth & User ──────────────────────────────────────────────
             'auth' => [
                 'user' => $user ? [

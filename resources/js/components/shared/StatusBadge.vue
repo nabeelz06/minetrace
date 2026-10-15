@@ -1,69 +1,70 @@
 <script setup>
-import { LANG_KEY, readPref } from '@/lib/brand'
 /**
- * StatusBadge — badge status yang konsisten dipakai di seluruh aplikasi.
- * Mendukung: batch status, export status, lab status, user status.
+ * StatusBadge — badge status konsisten (ikon + teks + warna; tidak mengandalkan warna saja).
+ * Warna berasal dari token status semantik (success/warning/danger/info/neutral).
  */
+import { computed } from 'vue'
+import AppIcon from '@/components/app/AppIcon.vue'
+import { useI18n } from '@/composables/core/useI18n.js'
+
 const props = defineProps({
-    status: { type: String, required: true },
-    type:   { type: String, default: 'batch' }, // 'batch' | 'export' | 'lab' | 'user'
-    size:   { type: String, default: 'sm' },     // 'xs' | 'sm' | 'md'
-    pulse:  { type: Boolean, default: false },
+    status: { type: [String, Boolean], required: true },
+    type:   { type: String, default: 'batch' },   // 'batch' | 'export' | 'lab' | 'user'
+    size:   { type: String, default: 'sm' },      // 'xs' | 'sm' | 'md'
+    pulse:  { type: Boolean, default: false },    // dipertahankan (tak dipakai; tanpa animasi berkedip)
 })
 
-const configs = {
+const { lang } = useI18n()
+
+// tone: success | warning | danger | info | neutral
+const CONFIG = {
     batch: {
-        active:       { class: 'badge-active',      label: { id: 'Aktif',       en: 'Active' } },
-        in_transit:   { class: 'badge-transit',     label: { id: 'Transit',     en: 'In Transit' } },
-        in_process:   { class: 'badge-process',     label: { id: 'Diproses',    en: 'Processing' } },
-        in_warehouse: { class: 'badge-warehouse',   label: { id: 'Di Gudang',   en: 'In Warehouse' } },
-        completed:    { class: 'badge-completed',   label: { id: 'Selesai',     en: 'Completed' } },
-        split:        { class: 'badge-split',       label: { id: 'Di-split',    en: 'Split' } },
-        transformed:  { class: 'badge-transformed', label: { id: 'Ditransformasi', en: 'Transformed' } },
-        exported:     { class: 'badge-exported',    label: { id: 'Diekspor',    en: 'Exported' } },
-        terminated:   { class: 'badge-terminated',  label: { id: 'Terminal',    en: 'Terminal' } },
-        draft:        { class: 'badge-completed',   label: { id: 'Draft',       en: 'Draft' } },
+        active:       { tone: 'success', icon: 'circle-check', id: 'Aktif',          en: 'Active' },
+        in_transit:   { tone: 'warning', icon: 'truck',        id: 'Dalam pengiriman', en: 'In transit' },
+        in_process:   { tone: 'info',    icon: 'activity',     id: 'Diproses',       en: 'Processing' },
+        in_warehouse: { tone: 'neutral', icon: 'warehouse',    id: 'Di gudang',      en: 'In warehouse' },
+        completed:    { tone: 'neutral', icon: 'check-check',  id: 'Selesai',        en: 'Completed' },
+        split:        { tone: 'info',    icon: 'layers',       id: 'Dipecah',        en: 'Split' },
+        transformed:  { tone: 'info',    icon: 'layers',       id: 'Ditransformasi', en: 'Transformed' },
+        exported:     { tone: 'success', icon: 'ship',         id: 'Diekspor',       en: 'Exported' },
+        terminated:   { tone: 'danger',  icon: 'ban',          id: 'Dihentikan',     en: 'Terminated' },
+        draft:        { tone: 'neutral', icon: 'pencil',       id: 'Draf',           en: 'Draft' },
     },
     export: {
-        draft:     { class: 'badge-completed', label: { id: 'Draft',          en: 'Draft' } },
-        confirmed: { class: 'badge-active',    label: { id: 'Dikonfirmasi',   en: 'Confirmed' } },
-        shipped:   { class: 'badge-process',   label: { id: 'Dikirim',        en: 'Shipped' } },
-        delivered: { class: 'badge-exported',  label: { id: 'Diterima',       en: 'Delivered' } },
+        draft:     { tone: 'neutral', icon: 'pencil',      id: 'Draf',         en: 'Draft' },
+        confirmed: { tone: 'success', icon: 'circle-check', id: 'Dikonfirmasi', en: 'Confirmed' },
+        shipped:   { tone: 'info',    icon: 'ship',        id: 'Dikirim',      en: 'Shipped' },
+        delivered: { tone: 'success', icon: 'badge-check', id: 'Diterima',     en: 'Delivered' },
     },
     lab: {
-        true:  { class: 'badge-active',    label: { id: 'Tervalidasi', en: 'Validated' } },
-        false: { class: 'badge-transit',   label: { id: 'Pending',     en: 'Pending' } },
+        true:  { tone: 'success', icon: 'badge-check', id: 'Tervalidasi', en: 'Validated' },
+        false: { tone: 'warning', icon: 'hourglass',   id: 'Menunggu',    en: 'Pending' },
     },
     user: {
-        true:  { class: 'badge-active',    label: { id: 'Aktif',     en: 'Active' } },
-        false: { class: 'badge-completed', label: { id: 'Nonaktif',  en: 'Inactive' } },
+        true:  { tone: 'success', icon: 'circle-check', id: 'Aktif',    en: 'Active' },
+        false: { tone: 'neutral', icon: 'circle-x',     id: 'Nonaktif', en: 'Inactive' },
     },
 }
 
-const sizeClass = {
-    xs: 'text-[10px] px-1.5 py-0.5',
-    sm: 'text-xs px-2 py-0.5',
-    md: 'text-sm px-2.5 py-1',
+const TONE = {
+    success: 'bg-success-soft text-success',
+    warning: 'bg-warning-soft text-warning',
+    danger:  'bg-danger-soft text-danger',
+    info:    'bg-info-soft text-info',
+    neutral: 'bg-neutral-soft text-neutral',
 }
+const SIZE = { xs: 'text-xs px-1.5 py-0.5 gap-1', sm: 'text-xs px-2 py-1 gap-1.5', md: 'text-sm px-2.5 py-1 gap-1.5' }
 
-function getConfig() {
-    const typeConfig = configs[props.type] ?? configs.batch
+const cfg = computed(() => {
+    const group = CONFIG[props.type] ?? CONFIG.batch
     const key = String(props.status)
-    return typeConfig[key] ?? { class: 'badge-completed', label: { id: key, en: key } }
-}
-
-const lang = readPref(LANG_KEY) || 'id'
+    return group[key] ?? { tone: 'neutral', icon: 'circle-dashed', id: key, en: key }
+})
 </script>
 
 <template>
-    <span
-        class="inline-flex items-center gap-1.5 rounded-lg font-semibold"
-        :class="[getConfig().class, sizeClass[size]]"
-    >
-        <div
-            v-if="pulse && status === 'active'"
-            class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"
-        />
-        {{ getConfig().label[lang] ?? getConfig().label.id }}
+    <span class="inline-flex items-center rounded-md font-semibold whitespace-nowrap" :class="[TONE[cfg.tone], SIZE[size]]">
+        <AppIcon :name="cfg.icon" :size="size === 'md' ? 16 : 14" />
+        {{ lang === 'en' ? cfg.en : cfg.id }}
     </span>
 </template>

@@ -5,6 +5,16 @@
 export default {
     // ─── Sistem ──────────────────────────────────────────────────────────
     app: {
+        theme:            'Tema',
+        theme_system:     'Sistem',
+        theme_light:      'Terang',
+        theme_dark:       'Gelap',
+        language_switch:  'Ganti bahasa (ID/EN)',
+        sign_out_confirm: 'Apakah Anda yakin ingin keluar?',
+        type_to_confirm:  'Ketik "{word}" untuk melanjutkan',
+        retry:            'Coba lagi',
+        no_data:          'Belum ada data',
+        actions:          'Aksi',
         skip_to_content: 'Lewati ke konten utama',
         language:        'Bahasa',
         name:          'MINETRACE',
@@ -63,6 +73,36 @@ export default {
 
     // ─── Auth ─────────────────────────────────────────────────────────────
     auth: {
+        welcome:            'Selamat datang',
+        login_subtitle:     'Masuk menggunakan akun yang telah didaftarkan',
+        forgot_link:        'Lupa password?',
+        show_password:      'Tampilkan password',
+        hide_password:      'Sembunyikan password',
+        signing_in:         'Memproses…',
+        restricted:         'Akses terbatas. Hubungi administrator jika mengalami kendala.',
+        forgot_title:       'Lupa Password',
+        forgot_subtitle:    'Masukkan email akun Anda. Kami akan mengirim tautan untuk membuat password baru.',
+        send_reset:         'Kirim Tautan Reset',
+        back_to_login:      'Kembali ke halaman masuk',
+        reset_title:        'Buat Password Baru',
+        reset_subtitle:     'Pastikan password baru Anda kuat dan mudah diingat',
+        new_password:       'Password Baru',
+        confirm_password:   'Konfirmasi Password Baru',
+        save_new_password:  'Simpan Password Baru',
+        password_rules:     'Syarat password',
+        rule_length:        'Minimal 8 karakter',
+        rule_letter:        'Mengandung huruf',
+        rule_number:        'Mengandung angka',
+        rule_symbol:        'Mengandung simbol',
+        rule_ok:            '(terpenuhi)',
+        rule_todo:          '(belum terpenuhi)',
+        passwords_mismatch: 'Konfirmasi password tidak sama.',
+        hero_title:         'Ketertelusuran mineral, dari tambang hingga ekspor.',
+        hero_desc:          'Platform terpusat untuk melacak Logam Tanah Jarang di setiap tahap proses.',
+        f_trace:            'Pelacakan batch real-time',
+        f_lab:              'Analisis laboratorium LTJ',
+        f_warehouse:        'Manajemen gudang & ekspor',
+        f_audit:            'Jejak audit yang dapat diverifikasi',
         login:              'Masuk',
         logout:             'Keluar',
         logout_confirm:     'Apakah Anda yakin ingin keluar dari sistem?',
@@ -82,6 +122,13 @@ export default {
 
     // ─── Navigasi ─────────────────────────────────────────────────────────
     nav: {
+        main:         'Menu utama',
+        open_menu:    'Buka menu',
+        rfid:         'RFID',
+        cctv:         'CCTV',
+        cctv_monitor: 'Monitor CCTV',
+        cctv_history: 'Riwayat Capture CCTV',
+        sign_out_confirm: 'Apakah Anda yakin ingin keluar?',
         dashboard:          'Dashboard',
         batches:            'Manajemen Batch',
         batch_list:         'Daftar Batch',
@@ -619,5 +666,24 @@ export default {
             in_warehouse: 'Di gudang', exported: 'Diekspor', split: 'Dipecah',
             transformed: 'Ditransformasi', completed: 'Selesai', terminated: 'Dihentikan',
         },
+    },
+
+    roles: {
+        super_admin:          'Super Admin',
+        bim_admin:            'Admin BIM',
+        bim_viewer:           'Viewer BIM',
+        government_auditor:   'Auditor ESDM',
+        company_admin:        'Administrator',
+        operator_lab_station: 'Operator Lab Kimia',
+        operator_lab_ltj:     'Analis Lab LTJ',
+        operator_wet:         'Operator Wet Process',
+        operator_dry:         'Operator Dry Process',
+        operator_warehouse:   'Operator Gudang',
+        company_auditor:      'Auditor Internal',
+    },
+
+    brand: {
+        tagline:       'Sistem Ketertelusuran Mineral',
+        tagline_short: 'Ketertelusuran Mineral',
     },
 }

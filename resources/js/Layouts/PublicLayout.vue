@@ -39,7 +39,7 @@ onMounted(() => document.documentElement.setAttribute('lang', lang.value))
         </main>
 
         <footer class="border-t border-border py-4 text-center text-xs text-muted-foreground">
-            {{ BRAND.name }} — {{ lang === 'en' ? BRAND.taglineEn : BRAND.taglineId }}
+            {{ BRAND.name }} — {{ t('brand.tagline') }}
         </footer>
     </div>
 </template>
