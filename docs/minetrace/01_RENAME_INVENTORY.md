@@ -55,6 +55,7 @@ Aturan: regex idempoten `(?i)minetra(?!ce)`; pemetaan MINETRA→MINETRACE, Minet
 5. Kunci lama `minetra-theme`/`minetra-lang` pada kode migrasi preferensi (`resources/js/lib/brand.js`, skrip anti-FOUC) — kompatibilitas mundur.
 6. Dokumen historis: `AUDIT_PRODUKSI_2026-07-16.md` (hanya ditambah catatan di atasnya), entri lama di RESUME, rujukan nama jaringan/jalur VPS di PRESENTASI_BRIEFING (62, 203).
 7. `docs/minetrace/*` — menyebut nama lama saat menjelaskan rename.
+9. `README.md:8` ("Sebelumnya bernama MINETRA"), komentar pin di `.env.example` 33–34 (nilai lama yang harus di-pin), `PRESENTASI_BRIEFING.md:174` (rujukan jalur/infrastruktur VPS).
 8. `package-lock.json`/`package.json` nama paket npm (`name`) — bukan tampilan; diganti hanya bila aman.
 
 ## Dampak operasional `APP_NAME` (untuk pemilik)
