@@ -5,7 +5,11 @@ namespace App\Http\Controllers\Api\V1\Hardware;
 use App\Http\Controllers\Controller;
 use App\Models\Batch;
 use App\Models\Location;
+use App\Exceptions\DeviceAuthException;
+use App\Services\Hardware\RfidDeviceService;
+use App\Services\Hardware\RfidScanService;
 use App\Services\Hardware\RfidService;
+use App\Support\RfidApi;
 use App\Services\Hardware\HardwareEventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,121 +32,52 @@ class ApiHardwareController extends Controller
     ) {}
 
     /**
-     * POST /api/v1/hardware/rfid-scan
-     * Endpoint untuk RFID reader mengirim scan event.
+     * POST /api/v1/hardware/rfid-scan — endpoint scan terpadu untuk reader baru (mis. UHF EPC Gen2).
      *
-     * Body: { rfid_tag, location_id, signal_strength?, antenna_port? }
+     * Header: X-Device-Key (reader terdaftar; wajib) · X-Event-Id (idempotensi; opsional).
+     * Body  : { uid, direction: "in"|"out", stage?, event_id?, rssi?, antenna_port? }
+     * Respons: { success, code, message, message_en, data: {...hasil scan} } (format UI; bukan format LCD).
+     * Reader terdaftar membawa read point tetap (tahap + arah) — body `stage` hanya bila reader fleksibel.
      */
     public function rfidScan(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'rfid_tag'        => 'required|string|max:100',
-            'location_id'     => 'required|integer|exists:locations,id',
-            'signal_strength' => 'nullable|numeric',
-            'antenna_port'    => 'nullable|integer',
-            'reader_id'       => 'nullable|string|max:50',
+        try {
+            $ctx = app(RfidDeviceService::class)->resolveContext($request);
+        } catch (DeviceAuthException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $e->httpStatus);
+        }
+        if (! $ctx->reader) {
+            return response()->json(['success' => false, 'message' => 'X-Device-Key wajib untuk endpoint ini.'], 401);
+        }
+
+        $v = $request->validate([
+            'uid'          => 'required|string|min:4|max:100',
+            'direction'    => 'required|in:in,out',
+            'stage'        => 'nullable|string|in:receiving,wet_process,dry_process,warehouse,project_plant',
+            'event_id'     => ['nullable', 'string', 'regex:/^[A-Za-z0-9._:\-]{8,64}$/'],
+            'rssi'         => 'nullable|integer',
+            'antenna_port' => 'nullable|integer',
         ]);
 
-        $result = $this->rfidService->processScan(
-            $validated['rfid_tag'],
-            $validated['location_id'],
+        [$result, $duplicate] = app(RfidScanService::class)->scan(
+            $ctx, $v['direction'], $v['uid'], $v['stage'] ?? null,
             [
-                'signal_strength' => $validated['signal_strength'] ?? null,
-                'antenna_port'    => $validated['antenna_port'] ?? null,
-                'reader_id'       => $validated['reader_id'] ?? null,
+                'origin'   => $ctx->reader->device_type === 'uhf_epc_gen2' ? 'real_uhf' : 'api',
+                'event_id' => $v['event_id'] ?? $request->header('X-Event-Id'),
+                'ip'       => $request->ip(),
             ]
         );
 
-        // ─── Dispatch event ke antrian untuk frontend polling ──────────────
-        if ($result['status'] === 'success' && isset($result['batch'])) {
-            $batch = Batch::find($result['batch']['id']);
-            if ($batch) {
-                $this->hardwareEventService->dispatchRfidScan($result, $batch->company_id);
-            }
+        if ($result['status'] !== 'success') {
+            return RfidApi::fail($result['_code'] ?? 'validation_failed', 422, ['detail' => $result['detail'] ?? null]);
         }
 
-        $statusCode = match($result['status']) {
-            'success'   => 200,
-            'duplicate' => 200,
-            default     => 422,
-        };
-
-        return response()->json([
-            'success' => $result['status'] === 'success',
-            'data'    => $result,
-            'message' => $result['message'],
-        ], $statusCode);
-    }
-
-    /**
-     * POST /api/v1/hardware/rfid-assign
-     * Assign RFID tag ke batch (saat tag baru dipasang ke kantung).
-     *
-     * Body: { batch_id, rfid_tag }
-     */
-    public function rfidAssign(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'batch_id' => 'required|integer|exists:batches,id',
-            'rfid_tag' => 'required|string|max:100',
-        ]);
-
-        $batch = Batch::findOrFail($validated['batch_id']);
-
-        // Pastikan batch milik company user
-        abort_unless($batch->company_id === Auth::user()->company_id, 403);
-
-        $success = $this->rfidService->assignTagToBatch($batch, $validated['rfid_tag']);
-
-        if (!$success) {
-            return response()->json([
-                'success' => false,
-                'data'    => null,
-                'message' => "Tag [{$validated['rfid_tag']}] sudah digunakan batch lain.",
-            ], 409);
+        $data = array_filter($result, fn ($k) => ! str_starts_with((string) $k, '_'), ARRAY_FILTER_USE_KEY);
+        if ($batch = Batch::find($result['batch_id'] ?? 0)) {
+            $this->hardwareEventService->dispatchRfidScan($data, $batch->company_id);
         }
 
-        return response()->json([
-            'success' => true,
-            'data'    => [
-                'batch_code' => $batch->batch_code,
-                'rfid_tag'   => $validated['rfid_tag'],
-                'assigned_at'=> now()->toIso8601String(),
-            ],
-            'message' => "Tag RFID berhasil di-assign ke batch {$batch->batch_code}.",
-        ]);
-    }
-
-    /**
-     * POST /api/v1/hardware/simulate-scan
-     * Simulasi RFID scan untuk testing & demo (tanpa hardware fisik).
-     *
-     * Body: { batch_id, location_id }
-     */
-    public function simulateScan(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'batch_id'    => 'required|integer|exists:batches,id',
-            'location_id' => 'required|integer|exists:locations,id',
-        ]);
-
-        $batch = Batch::findOrFail($validated['batch_id']);
-        abort_unless($batch->company_id === Auth::user()->company_id, 403);
-
-        $result = $this->rfidService->simulateScan(
-            $validated['batch_id'],
-            $validated['location_id']
-        );
-
-        if ($result['status'] === 'success') {
-            $this->hardwareEventService->dispatchRfidScan($result, $batch->company_id);
-        }
-
-        return response()->json([
-            'success' => $result['status'] === 'success',
-            'data'    => $result,
-            'message' => $result['message'],
-        ]);
+        return RfidApi::ok($duplicate ? 'scan_duplicate' : 'scan_recorded', $data + ['duplicate' => $duplicate]);
     }
 
     /**

@@ -1,6 +1,6 @@
 <?php
 
-use App\Jobs\GenerateMonthlyReportJob;
+use App\Jobs\Reports\GenerateMonthlyReportJob;
 use App\Models\Company;
 use Illuminate\Support\Facades\Schedule;
 
@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schedule;
 | MINETRACE — Scheduled Tasks
 |─────────────────────────────────────────────────────────────────────────────
 |
-| Scheduler berjalan di container scheduler (lihat docker-compose.yml).
+| Scheduler berjalan di container `scheduler` (docker-compose.prod.yml: `php artisan schedule:work`).
 | Setiap task dijalankan dalam timezone Asia/Jakarta.
 |
 */
@@ -28,7 +28,6 @@ Schedule::call(function () {
     foreach ($companies as $company) {
         // Dispatch ke queue — setiap company diproses independent
         GenerateMonthlyReportJob::dispatch($company->id, $reportMonth)
-            ->onQueue('reports')
             ->delay(now()->addSeconds($companies->search($company) * 30));
             // 30 detik delay antar company agar tidak overload PDF generator
     }

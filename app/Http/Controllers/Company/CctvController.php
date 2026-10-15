@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Company;
 
+use Illuminate\Support\Facades\Gate;
 use App\Http\Controllers\Controller;
 use App\Jobs\CaptureCctvSnapshotJob;
 use App\Models\CctvCamera;
@@ -77,7 +78,7 @@ class CctvController extends Controller
      */
     public function monitor(): Response
     {
-        $companyId = Auth::user()->company_id ?? 1;
+        $companyId = $this->tenantId();
 
         $cameras = CctvCamera::where('company_id', $companyId)
             ->active()
@@ -144,7 +145,7 @@ class CctvController extends Controller
      */
     public function settings(): Response
     {
-        $companyId = Auth::user()->company_id ?? 1;
+        $companyId = $this->tenantId();
 
         $cameras = CctvCamera::where('company_id', $companyId)
             ->orderBy('id')
@@ -386,7 +387,7 @@ class CctvController extends Controller
         // Sama seperti monitor()/settings() — badge "simulation" merepresentasikan
         // SELURUH armada company ini, bukan flag global env('CCTV_USE_REAL').
         // Lihat CctvCamera::isSimulationCamera().
-        $companyId    = Auth::user()->company_id ?? 1;
+        $companyId    = $this->tenantId();
         $allSimulated = CctvCamera::where('company_id', $companyId)
             ->active()
             ->get()
@@ -422,7 +423,7 @@ class CctvController extends Controller
      */
     public function recentSnapshots(): JsonResponse
     {
-        $companyId = Auth::user()->company_id ?? 1;
+        $companyId = $this->tenantId();
 
         try {
             // Gunakan whereRaw untuk perbandingan kolom json di PostgreSQL.
@@ -495,12 +496,15 @@ class CctvController extends Controller
      */
     public function snapshot(Request $request, int $cameraId): JsonResponse
     {
-        $companyId = Auth::user()->company_id ?? 1;
+        $companyId = $this->tenantId();
         $camera    = CctvCamera::where('company_id', $companyId)->findOrFail($cameraId);
 
-        $validated = $request->validate([
-            'checkpoint_id' => 'required|integer|exists:checkpoints,id',
-        ]);
+        Gate::authorize('rfid.operate');
+
+        $validated = $request->validate(['checkpoint_id' => 'required|integer']);
+
+        // IDOR: checkpoint harus milik perusahaan pengguna (sebelumnya hanya exists:checkpoints,id).
+        Checkpoint::where('company_id', $companyId)->findOrFail($validated['checkpoint_id']);
 
         dispatch(new CaptureCctvSnapshotJob(
             checkpointId: (int) $validated['checkpoint_id'],
@@ -514,5 +518,14 @@ class CctvController extends Controller
             'message' => 'Snapshot CCTV sedang diproses.',
             'camera'  => $camera->name,
         ]);
+    }
+
+    /** Tenant pengguna. Akun tanpa perusahaan (super_admin/BIM) ditolak — tanpa fallback ke id=1. */
+    private function tenantId(): int
+    {
+        $companyId = Auth::user()?->company_id;
+        abort_if(! $companyId, 403, 'Akun ini tidak terikat perusahaan.');
+
+        return (int) $companyId;
     }
 }

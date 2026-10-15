@@ -50,7 +50,7 @@ return [
     |
     */
 
-    'expiration' => null,
+    'expiration' => (int) env('SANCTUM_EXPIRATION', 720),   // menit; null = tak pernah kedaluwarsa (tidak disarankan)
 
     /*
     |--------------------------------------------------------------------------

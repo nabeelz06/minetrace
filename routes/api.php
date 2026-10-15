@@ -81,7 +81,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     })->name('health');
 
     // Auth login (public — belum login)
+    // Throttle login: 5 percobaan/menit per IP (anti brute-force token API).
     Route::post('auth/login', [ApiAuthController::class, 'login'])
+        ->middleware('throttle:5,1')
         ->name('auth.login');
 
     // Verifikasi batch via QR code (public)
@@ -115,14 +117,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('auth/refresh', [ApiAuthController::class, 'refresh'])->name('auth.refresh');
 
         // Company endpoints
-        Route::prefix('company')->name('company.')->group(function () {
+        Route::prefix('company')->name('company.')->middleware('roles:company_admin,operator_lab_station,operator_lab_ltj,operator_wet,operator_dry,operator_warehouse,company_auditor')->group(function () {
 
             Route::get('info', [ApiCompanyController::class, 'info'])->name('info');
 
             // Batches
             Route::prefix('batches')->name('batches.')->group(function () {
                 Route::get('/',                [ApiBatchController::class, 'index'])->name('index');
-                Route::post('/',               [ApiBatchController::class, 'store'])->name('store');
+                Route::post('/',               [ApiBatchController::class, 'store'])->middleware('roles:company_admin,operator_lab_station,operator_wet')->name('store');
                 Route::get('{batch}',          [ApiBatchController::class, 'show'])->name('show');
                 Route::get('{batch}/qr',       [ApiBatchController::class, 'qrCode'])->name('qr');
                 Route::get('{batch}/timeline', [ApiBatchController::class, 'timeline'])->name('timeline');
@@ -130,22 +132,20 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
             // Checkpoints
             Route::prefix('checkpoints')->name('checkpoints.')->group(function () {
-                Route::post('{batch}', [ApiCheckpointController::class, 'store'])->name('store');
+                Route::post('{batch}', [ApiCheckpointController::class, 'store'])->middleware('roles:company_admin,operator_lab_station,operator_lab_ltj,operator_wet,operator_dry,operator_warehouse')->name('store');
                 Route::get('{batch}',  [ApiCheckpointController::class, 'index'])->name('index');
             }); // end prefix('checkpoints')
 
             // Hardware (generic)
             Route::prefix('hardware')->name('hardware.')->group(function () {
-                Route::post('rfid-assign',   [ApiHardwareController::class, 'rfidAssign'])->name('rfid-assign');
-                Route::post('simulate-scan', [ApiHardwareController::class, 'simulateScan'])->name('simulate-scan');
-                Route::post('weight',        [ApiHardwareController::class, 'weightInput'])->name('weight');
+                Route::post('weight',        [ApiHardwareController::class, 'weightInput'])->middleware('roles:company_admin,operator_lab_station,operator_lab_ltj,operator_wet,operator_dry,operator_warehouse')->name('weight');
                 Route::get('events',         [ApiHardwareController::class, 'pollEvents'])->name('events');
             }); // end prefix('hardware')
 
         }); // end prefix('company')
 
         // BIM endpoints
-        Route::prefix('bim')->name('bim.')->group(function () {
+        Route::prefix('bim')->name('bim.')->middleware('roles:super_admin,bim_admin,bim_viewer,government_auditor')->group(function () {
             Route::get('overview',  [ApiCompanyController::class, 'overview'])->name('overview');
             Route::get('companies', [ApiCompanyController::class, 'list'])->name('companies');
             Route::get('alerts',    [ApiBatchController::class, 'alerts'])->name('alerts');

@@ -12,10 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health:     '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        
-        $middleware->validateCsrfTokens(except: [
-            'api/*', // Mengecualikan semua rute yang berawalan /api/
-        ]);
+        // CSRF aktif untuk SEMUA rute grup `web`, termasuk rute UI bersesi di /api/v1/company/*
+        // (mutasi RFID/CCTV). Endpoint perangkat & token (/api/rfid/*, /api/v1/hardware/*,
+        // /api/v1/auth/*) berada di grup `api` tanpa sesi sehingga tidak terkena CSRF.
 
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
@@ -27,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission'         => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
 
+            'roles'              => \App\Http\Middleware\RequireRoles::class,   // API ber-token (Sanctum)
             'set.team'           => \App\Http\Middleware\SetPermissionsTeamId::class,
         ]);
     })
