@@ -53,7 +53,7 @@ class ApiHardwareController extends Controller
         $v = $request->validate([
             'uid'          => 'required|string|min:4|max:100',
             'direction'    => 'required|in:in,out',
-            'stage'        => 'nullable|string|in:receiving,wet_process,dry_process,warehouse,project_plant',
+            'stage'        => 'nullable|string|in:' . implode(',', \App\Support\ProcessFlow::rfidStages()),
             'event_id'     => ['nullable', 'string', 'regex:/^[A-Za-z0-9._:\-]{8,64}$/'],
             'rssi'         => 'nullable|integer',
             'antenna_port' => 'nullable|integer',

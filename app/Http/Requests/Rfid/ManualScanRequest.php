@@ -17,7 +17,7 @@ class ManualScanRequest extends FormRequest
         return [
             'uid'       => ['required', 'string', 'min:4', 'max:50'],
             'direction' => ['required', Rule::in(['in', 'out'])],
-            'stage'     => ['nullable', Rule::in(StoreReaderRequest::STAGES)],
+            'stage'     => ['nullable', Rule::in(StoreReaderRequest::stages())],
             'reader_id' => ['nullable', 'integer'],
             'event_id'  => ['nullable', 'string', 'regex:/^[A-Za-z0-9._:\-]{8,64}$/'],
             'simulate'  => ['sometimes', 'boolean'],

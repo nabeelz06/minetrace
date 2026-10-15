@@ -6,6 +6,7 @@ use App\Exceptions\DeviceAuthException;
 use App\Http\Controllers\Controller;
 use App\Models\Batch;
 use App\Services\Hardware\DeviceContext;
+use App\Support\ProcessFlow;
 use App\Services\Hardware\RfidAuthorizationService;
 use App\Services\Hardware\RfidDeviceService;
 use App\Services\Hardware\RfidRegistrationService;
@@ -234,7 +235,7 @@ class ApiRfidController extends Controller
             // Accept BOTH old names (login/logout) dan new names (scan_in/scan_out)
             // untuk backward compatibility dengan ESP32 firmware dan kode lama
             'mode'  => 'required|string|in:scan_in,scan_out,login,logout,register,idle',
-            'stage' => 'required_unless:mode,idle|nullable|string|in:receiving,wet_process,dry_process,warehouse,project_plant',
+            'stage' => 'required_unless:mode,idle|nullable|string|in:' . implode(',', ProcessFlow::rfidStages()),
         ]);
 
         // ─── Normalize mode name ────────────────────────────────────────────────
@@ -262,13 +263,7 @@ class ApiRfidController extends Controller
         $stage = $validated['stage'];
         $this->rfid->setActiveMode($mode, $stage, $companyId);
 
-        $stageLabels = [
-            'receiving'     => 'Receiving Area',
-            'wet_process'   => 'Wet Process',
-            'dry_process'   => 'Dry Process',
-            'warehouse'     => 'LTJ Warehouse',
-            'project_plant' => 'Lab Analisis LTJ',
-        ];
+        $stageLabels = array_map(fn ($f) => $f['label'], ProcessFlow::rfidFlow());
         $stageLabel = $stageLabels[$stage] ?? $stage;
         $modeLabel  = match($mode) {
             'scan_in'  => 'SCAN IN (Karung Masuk)',
@@ -424,7 +419,7 @@ class ApiRfidController extends Controller
         Gate::authorize('rfid.manage');
 
         $validated = $request->validate([
-            'stage' => 'required|string|in:receiving,wet_process,dry_process,warehouse,project_plant',
+            'stage' => 'required|string|in:' . implode(',', ProcessFlow::rfidStages()),
             'mode'  => 'required|string|in:audit_only,scan_to_receive,scan_to_dispatch',
         ]);
 

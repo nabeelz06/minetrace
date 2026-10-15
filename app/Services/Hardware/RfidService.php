@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\Checkpoint;
 use App\Models\CompanySetting;
 use App\Models\Location;
+use App\Support\ProcessFlow;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -47,57 +48,11 @@ class RfidService
         return self::CACHE_ACTIVE_MODE . $companyId . '_stages';
     }
 
-    /**
-     * Konfigurasi stage untuk menentukan ENUM checkpoint_stage yang valid.
-     *
-     * CATATAN: in_checkpoint dan out_checkpoint HANYA digunakan untuk
-     * mencatat audit trail RFID scan. TIDAK ada perubahan process_stage
-     * atau status batch yang dilakukan di sini.
-     *
-     * Perpindahan stage tetap melalui ProcessController (web panel).
-     */
-    private const STAGE_FLOW = [
-        'receiving' => [
-            'prev_stage'     => 'lab_kimia',
-            'in_checkpoint'  => 'receiving_verify',
-            'out_checkpoint' => 'in_transit',
-            'location_type'  => 'receiving',
-            'label'          => 'Receiving Area',
-            'label_en'       => 'Receiving Area',
-        ],
-        'wet_process' => [
-            'prev_stage'     => 'receiving',
-            'in_checkpoint'  => 'wet_process_input',
-            'out_checkpoint' => 'wet_process_output',
-            'location_type'  => 'wet_process',
-            'label'          => 'Wet Process',
-            'label_en'       => 'Wet Process',
-        ],
-        'dry_process' => [
-            'prev_stage'     => 'wet_process',
-            'in_checkpoint'  => 'dry_process_input',
-            'out_checkpoint' => 'dry_process_output',
-            'location_type'  => 'dry_process',
-            'label'          => 'Dry Process',
-            'label_en'       => 'Dry Process',
-        ],
-        'warehouse' => [
-            'prev_stage'     => 'dry_process',
-            'in_checkpoint'  => 'warehouse_inbound',
-            'out_checkpoint' => 'warehouse_transfer',
-            'location_type'  => 'warehouse',
-            'label'          => 'LTJ Warehouse',
-            'label_en'       => 'LTJ Warehouse',
-        ],
-        'project_plant' => [
-            'prev_stage'     => 'warehouse',
-            'in_checkpoint'  => 'project_plant_input',
-            'out_checkpoint' => 'project_plant_output',
-            'location_type'  => 'project_plant',
-            'label'          => 'Lab Analisis LTJ',
-            'label_en'       => 'LTJ Lab Analysis',
-        ],
-    ];
+    /** Konfigurasi tahap RFID (label LCD + checkpoint audit): satu sumber di ProcessFlow. */
+    private function stageFlow(): array
+    {
+        return ProcessFlow::rfidFlow();
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // SCAN IN — Rekam audit trail karung MASUK area (MANUAL)
@@ -146,11 +101,11 @@ class RfidService
         }
 
         // Fallback ke stage saat ini batch jika stage tidak valid
-        if (!isset(self::STAGE_FLOW[$scanStage])) {
+        if (!isset($this->stageFlow()[$scanStage])) {
             $scanStage = $batch->process_stage;
         }
 
-        $stageConfig  = self::STAGE_FLOW[$scanStage] ?? null;
+        $stageConfig  = $this->stageFlow()[$scanStage] ?? null;
         $inCheckpoint = $stageConfig['in_checkpoint'] ?? 'in_transit';
         $stageLabel   = $stageConfig['label'] ?? $scanStage;
 
@@ -262,11 +217,11 @@ class RfidService
             $scanStage  = $activeMode['stage'] ?? $batch->process_stage;
         }
 
-        if (!isset(self::STAGE_FLOW[$scanStage])) {
+        if (!isset($this->stageFlow()[$scanStage])) {
             $scanStage = $batch->process_stage;
         }
 
-        $stageConfig   = self::STAGE_FLOW[$scanStage] ?? null;
+        $stageConfig   = $this->stageFlow()[$scanStage] ?? null;
         $outCheckpoint = $stageConfig['out_checkpoint'] ?? 'in_transit';   // tahap di luar STAGE_FLOW (mis. lab_kimia)
         $stageLabel    = $stageConfig['label'] ?? $scanStage;
 
@@ -350,7 +305,7 @@ class RfidService
             $scanStage  = $activeMode['stage'] ?? $batch->process_stage;
         }
 
-        if (!isset(self::STAGE_FLOW[$scanStage])) {
+        if (!isset($this->stageFlow()[$scanStage])) {
             $scanStage = $batch->process_stage;
         }
 
@@ -376,7 +331,7 @@ class RfidService
      */
     public function setActiveMode(string $mode, string $stage, int $companyId): void
     {
-        $stageLabel = self::STAGE_FLOW[$stage]['label'] ?? $stage;
+        $stageLabel = $this->stageFlow()[$stage]['label'] ?? $stage;
 
         Cache::put($this->modeKey($companyId, $stage), [
             'mode'      => $mode,
@@ -452,7 +407,7 @@ class RfidService
     /** Daftar stage yang tersedia untuk dropdown UI */
     public function getAvailableStages(): array
     {
-        return collect(self::STAGE_FLOW)->map(fn ($config, $stage) => [
+        return collect($this->stageFlow())->map(fn ($config, $stage) => [
             'stage'    => $stage,
             'label'    => $config['label'],
             'label_en' => $config['label_en'],

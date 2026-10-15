@@ -17,7 +17,7 @@ class UpdateReaderRequest extends FormRequest
     {
         return [
             'name'        => ['sometimes', 'string', 'max:100'],
-            'stage'       => ['sometimes', 'nullable', Rule::in(StoreReaderRequest::STAGES)],
+            'stage'       => ['sometimes', 'nullable', Rule::in(StoreReaderRequest::stages())],
             'direction'   => ['sometimes', Rule::in(RfidReader::DIRECTIONS)],
             'device_type' => ['sometimes', Rule::in(RfidReader::DEVICE_TYPES)],
             'is_active'   => ['sometimes', 'boolean'],

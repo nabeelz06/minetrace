@@ -78,7 +78,7 @@ class RfidAuthorizationService
             ->map(fn ($r) => $r->mode)
             ->toArray();
 
-        $stages = ['receiving', 'wet_process', 'dry_process', 'warehouse', 'project_plant'];
+        $stages = \App\Support\ProcessFlow::rfidStages();
         $result = [];
 
         foreach ($stages as $stage) {
