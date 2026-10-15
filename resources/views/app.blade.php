@@ -38,7 +38,7 @@
                 }
             } catch (e) {}
             var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (stored === 'dark' || (!stored && sysDark)) {
+            if (stored === 'dark' || ((!stored || stored === 'system') && sysDark)) {
                 document.documentElement.classList.add('dark');
             }
         })();

@@ -20,10 +20,13 @@ if (!initialPage) {
     console.error('❌ data-page tidak ditemukan di #app element')
 }
 
+// Code-splitting per halaman (bundel awal kecil; hls.js hanya dimuat di halaman CCTV).
+const pages = import.meta.glob('./Pages/**/*.vue')
+
 // ─── Apply dark mode sebelum render ──────────────────────────────────────
 const savedTheme = readPref(THEME_KEY)
 if (savedTheme === 'dark' ||
-    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    ((!savedTheme || savedTheme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.documentElement.classList.add('dark')
 }
 
@@ -33,19 +36,10 @@ createInertiaApp({
     // WSL2 Fix: inject page data manual
     page: initialPage,
 
-    // WSL2 Fix: eager loading + manual resolution
     resolve: (name) => {
-        const pages     = import.meta.glob('./Pages/**/*.vue', { eager: true })
-        const component = pages[`./Pages/${name}.vue`]
-
-        if (!component) {
-            console.error(`❌ Komponen tidak ditemukan: ./Pages/${name}.vue`)
-            console.log('Available pages:', Object.keys(pages))
-        } else {
-            console.log(`✅ Resolved: ${name}`)
-        }
-
-        return component
+        const importPage = pages[`./Pages/${name}.vue`]
+        if (!importPage) throw new Error(`Komponen halaman tidak ditemukan: ./Pages/${name}.vue`)
+        return importPage()
     },
 
     setup({ el, App, props, plugin }) {
