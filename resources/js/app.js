@@ -1,6 +1,9 @@
 import './bootstrap'
 import '../css/app.css'
 
+// Daftarkan aset statis (font) ke manifest Vite agar bisa di-preload lewat Vite::asset() di app.blade.php
+import.meta.glob(['../fonts/*.woff2'])
+
 import { createApp, h }     from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { createPinia }      from 'pinia'
@@ -70,7 +73,7 @@ createInertiaApp({
     },
 
     progress: {
-        color: '#3E5C74',
+        color: 'hsl(207 40% 31%)',
         showSpinner: false,
     },
 })

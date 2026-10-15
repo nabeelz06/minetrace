@@ -6,25 +6,19 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#14181f" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#14181e" media="(prefers-color-scheme: dark)">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="icon" href="/favicon.ico" sizes="48x48">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
     <title inertia>{{ config('app.name', 'MINETRACE') }}</title>
 
-    <!-- ─── Preconnect Google Fonts ─────────────────────────────────── -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
     <!--
-        Font stack:
-        - Inter      : UI teks, angka, label (variable font, sangat sharp)
-        - Plus Jakarta Sans : Heading/judul (modern, premium feel)
-        Fallback: system-ui → sans-serif
+        Font: Inter Variable di-self-host (resources/fonts) — tanpa CDN pihak ketiga, aman untuk jaringan lemah.
+        Preload hanya berkas kritis (subset Latin); font-display: swap di app.css.
     -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..800;1,14..32,300..700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preload" href="{{ Vite::asset('resources/fonts/inter-latin-wght-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
 
     <!-- ─── Dark mode init — prevent FOUC ───────────────────────────── -->
     <!--

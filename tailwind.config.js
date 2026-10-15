@@ -15,9 +15,9 @@ export default {
         extend: {
             /* ─── Typography ──────────────────────────────────────────── */
             fontFamily: {
-                sans:    ['Inter', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-                heading: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
-                mono:    ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'monospace'],
+                sans:    ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+                heading: ['Inter', 'system-ui', 'sans-serif'],
+                mono:    ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'Liberation Mono', 'monospace'],
             },
 
             /* ─── Colors — mapped ke CSS variables ────────────────────── */
@@ -53,12 +53,20 @@ export default {
                 input:   'hsl(var(--input) / <alpha-value>)',
                 ring:    'hsl(var(--ring) / <alpha-value>)',
 
+                // Status semantik — teks/ikon (DEFAULT) + latar lembut (soft)
+                success: { DEFAULT: 'hsl(var(--success) / <alpha-value>)', soft: 'hsl(var(--success-soft) / <alpha-value>)' },
+                warning: { DEFAULT: 'hsl(var(--warning) / <alpha-value>)', soft: 'hsl(var(--warning-soft) / <alpha-value>)' },
+                danger:  { DEFAULT: 'hsl(var(--danger) / <alpha-value>)',  soft: 'hsl(var(--danger-soft) / <alpha-value>)' },
+                info:    { DEFAULT: 'hsl(var(--info) / <alpha-value>)',    soft: 'hsl(var(--info-soft) / <alpha-value>)' },
+                neutral: { DEFAULT: 'hsl(var(--neutral) / <alpha-value>)',  soft: 'hsl(var(--neutral-soft) / <alpha-value>)' },
+
                 // Sidebar
                 sidebar: {
-                    DEFAULT:     'hsl(var(--sidebar-background))',
-                    foreground:  'hsl(var(--sidebar-foreground))',
-                    border:      'hsl(var(--sidebar-border))',
-                    accent:      'hsl(var(--sidebar-accent))',
+                    DEFAULT:     'hsl(var(--sidebar-background) / <alpha-value>)',
+                    foreground:  'hsl(var(--sidebar-foreground) / <alpha-value>)',
+                    border:      'hsl(var(--sidebar-border) / <alpha-value>)',
+                    accent:      'hsl(var(--sidebar-accent) / <alpha-value>)',
+                    primary:     'hsl(var(--sidebar-primary) / <alpha-value>)',
                 },
             },
 
@@ -67,9 +75,9 @@ export default {
                 sm:   'var(--radius-sm)',
                 DEFAULT: 'var(--radius)',
                 lg:   'var(--radius-lg)',
-                xl:   '1rem',
+                xl:   '0.75rem',
                 '2xl':'var(--radius-2xl)',
-                '3xl':'1.5rem',
+                '3xl':'1rem',
             },
 
             /* ─── Box Shadow ──────────────────────────────────────────── */
@@ -83,23 +91,25 @@ export default {
 
             /* ─── Font Size ───────────────────────────────────────────── */
             fontSize: {
-                '2xs': ['0.625rem',  { lineHeight: '1rem' }],
+                // Tak ada teks fungsional < 12px. '2xs' dipertahankan sebagai alias 12px (kompatibilitas).
+                '2xs': ['0.75rem',   { lineHeight: '1.125rem' }],
                 xs:    ['0.75rem',   { lineHeight: '1.125rem' }],
-                sm:    ['0.8125rem', { lineHeight: '1.25rem' }],
-                base:  ['0.875rem',  { lineHeight: '1.5rem' }],
-                lg:    ['1rem',      { lineHeight: '1.625rem' }],
-                xl:    ['1.125rem',  { lineHeight: '1.75rem' }],
-                '2xl': ['1.25rem',   { lineHeight: '1.875rem' }],
-                '3xl': ['1.5rem',    { lineHeight: '2rem' }],
+                sm:    ['0.875rem',  { lineHeight: '1.375rem' }],
+                base:  ['0.9375rem', { lineHeight: '1.5rem' }],
+                lg:    ['1.0625rem', { lineHeight: '1.625rem' }],
+                xl:    ['1.1875rem', { lineHeight: '1.75rem' }],
+                '2xl': ['1.375rem',  { lineHeight: '1.875rem' }],
+                '3xl': ['1.625rem',  { lineHeight: '2.125rem' }],
+                '4xl': ['2rem',      { lineHeight: '2.5rem' }],
             },
 
             /* ─── Animations ──────────────────────────────────────────── */
             animation: {
-                'fade-in':     'fade-in 0.28s ease-out both',
-                'fade-in-up':  'fade-in-up 0.32s ease-out both',
-                'scale-in':    'scale-in 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) both',
-                'slide-right': 'slide-in-right 0.28s ease-out both',
-                'slide-left':  'slide-in-left 0.28s ease-out both',
+                'fade-in':     'fade-in 0.2s ease-out both',
+                'fade-in-up':  'fade-in-up 0.24s ease-out both',
+                'scale-in':    'scale-in 0.18s ease-out both',
+                'slide-right': 'slide-in-right 0.2s ease-out both',
+                'slide-left':  'slide-in-left 0.2s ease-out both',
             },
         },
     },
