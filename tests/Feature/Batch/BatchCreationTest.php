@@ -134,7 +134,12 @@ class BatchCreationTest extends TestCase
     {
         // Buat company dan batch lain
         $otherCompany = Company::factory()->create(['is_regulator' => false]);
-        $otherBatch   = Batch::factory()->create(['company_id' => $otherCompany->id]);
+        // Kode produk dari perusahaan seeder: perusahaan baru tidak punya kode produk sendiri (FK).
+        $productCode  = ProductCode::where('company_id', $this->company->id)->firstOrFail();
+        $otherBatch   = Batch::factory()->create([
+            'company_id'      => $otherCompany->id,
+            'product_code_id' => $productCode->id,
+        ]);
 
         $response = $this->actingAs($this->operator)
             ->get("/company/batches/{$otherBatch->id}");
