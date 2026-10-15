@@ -29,7 +29,7 @@ function format(kg) {
 }
 
 const sizeClass = {
-    xs: 'text-[11px]',
+    xs: 'text-xs',
     sm: 'text-xs',
     md: 'text-sm',
     lg: 'text-base',

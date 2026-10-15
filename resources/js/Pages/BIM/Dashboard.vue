@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
 import { computed }     from 'vue'
 import { Head, Link }   from '@inertiajs/vue3'
 import AppLayout        from '@/Layouts/AppLayout.vue'
@@ -22,8 +23,8 @@ function formatWeight(kg) {
 }
 
 function stageIcon(s) {
-    const m = { lab_kimia:'🧪', receiving:'📥', wet_process:'💧', dry_process:'🔥', project_plant:'⚗️', warehouse:'🏭', smelter:'⚡', exported:'🚢' }
-    return m[s] ?? '📦'
+    const m = { lab_kimia:'flask-conical', receiving:'package-open', wet_process:'droplets', dry_process:'flame', project_plant:'microscope', warehouse:'warehouse', smelter:'zap', exported:'ship' }
+    return m[s] ?? 'package'
 }
 
 // Chart: Combined trend
@@ -52,7 +53,7 @@ const companies = computed(() =>
     })) ?? []
 )
 
-const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
+const lineColors = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--info))', 'hsl(var(--warning))', 'hsl(var(--info))']
 </script>
 
 <template>
@@ -76,7 +77,7 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                 </div>
                 <div class="flex items-center gap-2 px-3 py-2 rounded-xl border"
                      style="border-color: hsl(var(--border)); background: hsl(var(--muted)/0.5);">
-                    <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"/>
+                    <div class="w-2 h-2 rounded-full bg-success animate-pulse"/>
                     <span class="text-xs font-semibold text-foreground">
                         {{ lang === 'en' ? 'Live Data' : 'Data Real-time' }}
                     </span>
@@ -86,16 +87,16 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
             <!-- ─── System Overview KPIs ──────────────────────────────────── -->
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div v-for="(item, i) in [
-                    { key: 'total_companies',  label: lang==='en'?'Companies':'Perusahaan', value: overview?.total_companies, icon: '🏢', color: 'text-primary' },
-                    { key: 'total_batches',    label: lang==='en'?'Total Batches':'Total Batch', value: overview?.total_batches, icon: '📦', color: 'text-blue-500' },
-                    { key: 'active_batches',   label: lang==='en'?'Active Batches':'Batch Aktif', value: overview?.active_batches, icon: '⚡', color: 'text-emerald-500' },
-                    { key: 'total_exports',    label: lang==='en'?'Total Exports':'Total Ekspor', value: overview?.total_exports, icon: '🚢', color: 'text-cyan-500' },
-                    { key: 'active_alerts',    label: lang==='en'?'Alerts':'Alert', value: overview?.active_alerts, icon: '⚠️', color: 'text-red-500' },
-                    { key: 'total_weight',     label: lang==='en'?'Active Weight':'Tonase Aktif', value: formatWeight(overview?.total_weight_kg), icon: '⚖️', color: 'text-amber-500', isFormatted: true },
+                    { key: 'total_companies',  label: lang==='en'?'Companies':'Perusahaan', value: overview?.total_companies, icon: 'building-2', color: 'text-primary' },
+                    { key: 'total_batches',    label: lang==='en'?'Total Batches':'Total Batch', value: overview?.total_batches, icon: 'package', color: 'text-info' },
+                    { key: 'active_batches',   label: lang==='en'?'Active Batches':'Batch Aktif', value: overview?.active_batches, icon: 'zap', color: 'text-success' },
+                    { key: 'total_exports',    label: lang==='en'?'Total Exports':'Total Ekspor', value: overview?.total_exports, icon: 'ship', color: 'text-info' },
+                    { key: 'active_alerts',    label: lang==='en'?'Alerts':'Alert', value: overview?.active_alerts, icon: 'triangle-alert', color: 'text-danger' },
+                    { key: 'total_weight',     label: lang==='en'?'Active Weight':'Tonase Aktif', value: formatWeight(overview?.total_weight_kg), icon: 'scale', color: 'text-warning', isFormatted: true },
                 ]" :key="item.key"
                      class="rounded-xl border border-border bg-card p-4 text-center animate-fade-in"
                      :style="`animation-delay: ${i*60}ms`">
-                    <div class="text-2xl mb-1">{{ item.icon }}</div>
+                    <AppIcon :name="item.icon || 'circle'" :size="28" />
                     <p class="text-xs font-medium text-muted-foreground mb-1">{{ item.label }}</p>
                     <p class="text-xl font-bold" :class="item.color">
                         {{ item.isFormatted ? item.value : (item.value ?? 0).toLocaleString() }}
@@ -119,7 +120,7 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                         <div class="flex items-center justify-between mb-4">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-sm flex-shrink-0"
-                                     :style="`background: ${co.primary_color ?? '#3E5C74'};`">
+                                     :style="`background: ${co.primary_color ?? 'hsl(var(--primary))'};`">
                                     {{ co.code?.slice(0,2) }}
                                 </div>
                                 <div class="min-w-0">
@@ -128,8 +129,8 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                                 </div>
                             </div>
                             <div class="flex items-center gap-1.5">
-                                <div class="w-2 h-2 rounded-full" :class="co.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'"/>
-                                <span class="text-xs font-medium" :class="co.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'">
+                                <div class="w-2 h-2 rounded-full" :class="co.is_active ? 'bg-success animate-pulse' : 'bg-muted-foreground'"/>
+                                <span class="text-xs font-medium" :class="co.is_active ? 'text-success ' : 'text-muted-foreground'">
                                     {{ co.is_active ? (lang==='en'?'Active':'Aktif') : (lang==='en'?'Inactive':'Nonaktif') }}
                                 </span>
                             </div>
@@ -139,20 +140,20 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                         <div class="grid grid-cols-3 gap-3 mb-4">
                             <div class="text-center p-2 rounded-lg bg-muted/40">
                                 <p class="text-lg font-bold text-foreground">{{ co.active_batches }}</p>
-                                <p class="text-[10px] text-muted-foreground uppercase tracking-wider">Batch</p>
+                                <p class="text-xs text-muted-foreground uppercase tracking-wider">Batch</p>
                             </div>
                             <div class="text-center p-2 rounded-lg bg-muted/40">
                                 <p class="text-lg font-bold text-foreground">{{ co.exports_month }}</p>
-                                <p class="text-[10px] text-muted-foreground uppercase tracking-wider">
+                                <p class="text-xs text-muted-foreground uppercase tracking-wider">
                                     {{ lang === 'en' ? 'Export' : 'Ekspor' }}
                                 </p>
                             </div>
                             <div class="text-center p-2 rounded-lg"
-                                 :class="co.alerts > 0 ? 'bg-red-50 dark:bg-red-950/20' : 'bg-muted/40'">
-                                <p class="text-lg font-bold" :class="co.alerts > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground'">
+                                 :class="co.alerts > 0 ? 'bg-danger-soft ' : 'bg-muted/40'">
+                                <p class="text-lg font-bold" :class="co.alerts > 0 ? 'text-danger ' : 'text-foreground'">
                                     {{ co.alerts }}
                                 </p>
-                                <p class="text-[10px] text-muted-foreground uppercase tracking-wider">Alert</p>
+                                <p class="text-xs text-muted-foreground uppercase tracking-wider">Alert</p>
                             </div>
                         </div>
 
@@ -176,7 +177,7 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                     <!-- Empty state -->
                     <div v-if="!company_statuses?.length"
                          class="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground col-span-full">
-                        <div class="text-4xl mb-3">🏢</div>
+                        <div class="text-4xl mb-3"></div>
                         <p class="text-sm font-medium">{{ lang === 'en' ? 'No companies onboarded yet.' : 'Belum ada perusahaan terdaftar.' }}</p>
                     </div>
                 </div>
@@ -269,7 +270,7 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                             :style="`animation-delay: ${i*40}ms`"
                         >
                             <div class="text-lg flex-shrink-0">
-                                {{ exp.type === 'international' ? '🌍' : '🏭' }}
+                                {{ exp.type === 'international' ? 'globe' : 'warehouse' }}
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p class="text-xs font-semibold text-foreground truncate">{{ exp.destination }}</p>
@@ -279,7 +280,7 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                             </div>
                             <div class="text-right flex-shrink-0">
                                 <p class="text-xs font-bold text-foreground">{{ formatWeight(exp.weight_kg) }}</p>
-                                <p class="text-[10px] text-muted-foreground">{{ exp.time_diff }}</p>
+                                <p class="text-xs text-muted-foreground">{{ exp.time_diff }}</p>
                             </div>
                         </div>
                     </div>
@@ -287,15 +288,15 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
 
                 <!-- Alert Monitor -->
                 <div class="rounded-2xl border bg-card overflow-hidden animate-fade-in delay-300"
-                     :class="alert_monitor?.length ? 'border-red-200/60 dark:border-red-900/40' : 'border-border'">
+                     :class="alert_monitor?.length ? 'border-danger/30 ' : 'border-border'">
                     <div class="px-5 py-4 border-b"
-                         :class="alert_monitor?.length ? 'border-red-200/60 dark:border-red-900/40 bg-red-50/30 dark:bg-red-950/10' : 'border-border'">
+                         :class="alert_monitor?.length ? 'border-danger/30 bg-danger-soft ' : 'border-border'">
                         <div class="flex items-center gap-2">
-                            <h3 class="text-sm font-semibold" :class="alert_monitor?.length ? 'text-red-700 dark:text-red-400' : 'text-foreground'">
+                            <h3 class="text-sm font-semibold" :class="alert_monitor?.length ? 'text-danger ' : 'text-foreground'">
                                 {{ lang === 'en' ? 'Alert Monitor' : 'Monitor Alert' }}
                             </h3>
                             <span v-if="alert_monitor?.length"
-                                  class="text-xs px-1.5 py-0.5 rounded font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                  class="text-xs px-1.5 py-0.5 rounded font-bold bg-danger-soft text-danger">
                                 {{ alert_monitor.length }}
                             </span>
                         </div>
@@ -305,8 +306,8 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                     </div>
 
                     <div v-if="!alert_monitor?.length" class="py-10 text-center space-y-2">
-                        <div class="text-3xl">✅</div>
-                        <p class="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                        <div class="text-3xl"></div>
+                        <p class="text-sm font-medium text-success">
                             {{ lang === 'en' ? 'No active alerts!' : 'Tidak ada alert aktif!' }}
                         </p>
                         <p class="text-xs text-muted-foreground">
@@ -314,14 +315,14 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                         </p>
                     </div>
 
-                    <div v-else class="divide-y divide-red-100/50 dark:divide-red-900/20 max-h-72 overflow-y-auto">
+                    <div v-else class="divide-y divide-danger/30 max-h-72 overflow-y-auto">
                         <div
                             v-for="(alert, i) in alert_monitor"
                             :key="alert.id"
-                            class="flex items-center gap-3 px-5 py-3.5 hover:bg-red-50/30 dark:hover:bg-red-950/10 transition-colors"
+                            class="flex items-center gap-3 px-5 py-3.5 hover:bg-danger-soft transition-colors"
                         >
-                            <div class="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-red-100 dark:bg-red-900/30">
-                                <svg class="w-3.5 h-3.5 text-red-600 dark:text-red-400 animate-bounce-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <div class="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-danger-soft">
+                                <svg class="w-3.5 h-3.5 text-danger animate-bounce-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
                                 </svg>
                             </div>
@@ -335,8 +336,8 @@ const lineColors = ['#3E5C74', '#059669', '#7c3aed', '#ea580c', '#db2777']
                                 </p>
                             </div>
                             <div class="text-right flex-shrink-0">
-                                <p class="text-xs font-bold text-red-600 dark:text-red-400">-{{ alert.loss_pct }}%</p>
-                                <p class="text-[10px] text-muted-foreground">{{ alert.updated_at }}</p>
+                                <p class="text-xs font-bold text-danger">-{{ alert.loss_pct }}%</p>
+                                <p class="text-xs text-muted-foreground">{{ alert.updated_at }}</p>
                             </div>
                         </div>
                     </div>

@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
 import { ref, computed } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
@@ -52,16 +53,16 @@ function statusBadge(s) {
 
 function stageBadge(s) {
     const map = {
-        lab_kimia:     { icon: '🧪', label: 'Lab Kimia', color: 'text-violet-500 dark:text-violet-400' },
-        receiving:     { icon: '📥', label: 'Receiving', color: 'text-blue-500 dark:text-blue-400' },
-        wet_process:   { icon: '💧', label: 'Wet Process', color: 'text-cyan-500 dark:text-cyan-400' },
-        dry_process:   { icon: '🔥', label: 'Dry Process', color: 'text-orange-500 dark:text-orange-400' },
-        project_plant: { icon: '⚗️', label: 'Project Plant', color: 'text-emerald-500 dark:text-emerald-400' },
-        warehouse:     { icon: '🏭', label: 'Warehouse', color: 'text-primary' },
-        smelter:       { icon: '⚡', label: 'Smelter', color: 'text-red-500 dark:text-red-400' },
-        exported:      { icon: '🚢', label: 'Diekspor', color: 'text-green-500 dark:text-green-400' },
+        lab_kimia:     { icon: 'flask-conical', label: 'Lab Kimia', color: 'text-info ' },
+        receiving:     { icon: 'package-open', label: 'Receiving', color: 'text-info ' },
+        wet_process:   { icon: 'droplets', label: 'Wet Process', color: 'text-info ' },
+        dry_process:   { icon: 'flame', label: 'Dry Process', color: 'text-warning ' },
+        project_plant: { icon: 'microscope', label: 'Project Plant', color: 'text-success ' },
+        warehouse:     { icon: 'warehouse', label: 'Warehouse', color: 'text-primary' },
+        smelter:       { icon: 'zap', label: 'Smelter', color: 'text-danger ' },
+        exported:      { icon: 'ship', label: 'Diekspor', color: 'text-success ' },
     }
-    return map[s] ?? { icon: '📦', label: s, color: 'text-muted-foreground' }
+    return map[s] ?? { icon: 'package', label: s, color: 'text-muted-foreground' }
 }
 
 // ─── Format weight untuk display ──────────────────────────────────────────
@@ -127,11 +128,11 @@ function formatDate(dateStr) {
                 <div class="rounded-2xl border border-border bg-card p-5 animate-fade-in delay-100 card-interactive">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Aktif</span>
-                        <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"/>
+                        <div class="w-9 h-9 rounded-xl bg-success-soft flex items-center justify-center">
+                            <div class="w-2.5 h-2.5 rounded-full bg-success animate-pulse"/>
                         </div>
                     </div>
-                    <p class="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{{ stats?.active ?? 0 }}</p>
+                    <p class="text-3xl font-bold text-success">{{ stats?.active ?? 0 }}</p>
                     <p class="text-xs text-muted-foreground mt-1">Sedang berproses</p>
                 </div>
 
@@ -139,35 +140,35 @@ function formatDate(dateStr) {
                 <div class="rounded-2xl border border-border bg-card p-5 animate-fade-in delay-150 card-interactive">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Di Gudang</span>
-                        <div class="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center">
-                            <svg class="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <div class="w-9 h-9 rounded-xl bg-info-soft flex items-center justify-center">
+                            <svg class="w-5 h-5 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
                             </svg>
                         </div>
                     </div>
-                    <p class="text-3xl font-bold text-violet-600 dark:text-violet-400">{{ stats?.in_warehouse ?? 0 }}</p>
+                    <p class="text-3xl font-bold text-info">{{ stats?.in_warehouse ?? 0 }}</p>
                     <p class="text-xs text-muted-foreground mt-1">Tersimpan di warehouse</p>
                 </div>
 
                 <!-- Alert -->
                 <div class="rounded-2xl border bg-card p-5 animate-fade-in delay-200 card-interactive"
-                     :class="(stats?.has_alert ?? 0) > 0 ? 'border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20' : 'border-border'">
+                     :class="(stats?.has_alert ?? 0) > 0 ? 'border-danger/30 bg-danger-soft ' : 'border-border'">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs font-semibold uppercase tracking-wider"
-                              :class="(stats?.has_alert ?? 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'">
+                              :class="(stats?.has_alert ?? 0) > 0 ? 'text-danger ' : 'text-muted-foreground'">
                             Alert
                         </span>
                         <div class="w-9 h-9 rounded-xl flex items-center justify-center"
-                             :class="(stats?.has_alert ?? 0) > 0 ? 'bg-red-500/15' : 'bg-muted'">
-                            <svg class="w-5 h-5" :class="(stats?.has_alert ?? 0) > 0 ? 'text-red-500 animate-bounce-subtle' : 'text-muted-foreground'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                             :class="(stats?.has_alert ?? 0) > 0 ? 'bg-danger-soft' : 'bg-muted'">
+                            <svg class="w-5 h-5" :class="(stats?.has_alert ?? 0) > 0 ? 'text-danger animate-bounce-subtle' : 'text-muted-foreground'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                             </svg>
                         </div>
                     </div>
-                    <p class="text-3xl font-bold" :class="(stats?.has_alert ?? 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground'">
+                    <p class="text-3xl font-bold" :class="(stats?.has_alert ?? 0) > 0 ? 'text-danger ' : 'text-foreground'">
                         {{ stats?.has_alert ?? 0 }}
                     </p>
-                    <p class="text-xs mt-1" :class="(stats?.has_alert ?? 0) > 0 ? 'text-red-500/80' : 'text-muted-foreground'">
+                    <p class="text-xs mt-1" :class="(stats?.has_alert ?? 0) > 0 ? 'text-danger' : 'text-muted-foreground'">
                         Mass balance discrepancy
                     </p>
                 </div>
@@ -176,13 +177,13 @@ function formatDate(dateStr) {
                 <div class="rounded-2xl border border-border bg-card p-5 animate-fade-in delay-300 card-interactive">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Tonase</span>
-                        <div class="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                            <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <div class="w-9 h-9 rounded-xl bg-warning-soft flex items-center justify-center">
+                            <svg class="w-5 h-5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 01-2.031.352 5.989 5.989 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971z" />
                             </svg>
                         </div>
                     </div>
-                    <p class="text-xl font-bold text-amber-600 dark:text-amber-400 leading-tight">
+                    <p class="text-xl font-bold text-warning leading-tight">
                         {{ formatWeight(stats?.total_weight_kg ?? 0) }}
                     </p>
                     <p class="text-xs text-muted-foreground mt-1">Batch aktif & proses</p>
@@ -204,7 +205,7 @@ function formatDate(dateStr) {
                         @input="onSearchInput"
                         type="text"
                         placeholder="Cari kode batch..."
-                        class="w-full pl-9 pr-4 h-9 rounded-xl text-sm bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                        class="w-full pl-9 pr-4 h-9 rounded-xl text-sm bg-card border border-border text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                 </div>
 
@@ -212,7 +213,7 @@ function formatDate(dateStr) {
                 <select
                     v-model="status"
                     @change="applyFilters"
-                    class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                    class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 cursor-pointer"
                 >
                     <option value="all">Semua Status</option>
                     <option value="active">Aktif</option>
@@ -228,7 +229,7 @@ function formatDate(dateStr) {
                 <select
                     v-model="stage"
                     @change="applyFilters"
-                    class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                    class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 cursor-pointer"
                 >
                     <option value="all">Semua Stage</option>
                     <option value="lab_kimia">Lab Kimia</option>
@@ -243,9 +244,7 @@ function formatDate(dateStr) {
                 <!-- Alert Filter Toggle -->
                 <button
                     @click="alertsOnly = !alertsOnly; applyFilters()"
-                    :class="alertsOnly
-                        ? 'bg-red-500/15 border-red-500/40 text-red-600 dark:text-red-400'
-                        : 'bg-card border-border text-muted-foreground hover:border-red-500/30 hover:text-red-500'"
+                    :class="alertsOnly ? 'bg-danger-soft border-danger/30 text-danger ' : 'bg-card border-border text-muted-foreground hover:border-danger/30 hover:text-danger'"
                     class="h-9 px-3 rounded-xl text-sm border flex items-center gap-1.5 transition-all duration-200"
                 >
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -303,7 +302,7 @@ function formatDate(dateStr) {
                                 v-for="(batch, i) in batches.data"
                                 :key="batch.id"
                                 class="group transition-colors duration-150 hover:bg-muted/30"
-                                :class="batch.has_discrepancy ? 'bg-red-50/40 dark:bg-red-950/10' : ''"
+                                :class="batch.has_discrepancy ? 'bg-danger-soft ' : ''"
                                 :style="`animation: fade-in 0.3s ease-out ${i * 40}ms both;`"
                             >
                                 <!-- Kode Batch -->
@@ -312,7 +311,7 @@ function formatDate(dateStr) {
                                         <!-- Alert indicator -->
                                         <div
                                             v-if="batch.has_discrepancy"
-                                            class="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"
+                                            class="w-2 h-2 rounded-full bg-danger animate-pulse flex-shrink-0"
                                             title="Mass balance discrepancy"
                                         />
                                         <div>
@@ -333,10 +332,10 @@ function formatDate(dateStr) {
                                         <div
                                             v-if="batch.product_code?.is_hazardous"
                                             class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
-                                            style="background: rgba(168,85,247,0.12);"
+                                            style="background: hsl(var(--info-soft));"
                                             title="Material radioaktif/berbahaya"
                                         >
-                                            <span style="font-size:11px;">☢</span>
+                                            <span style="font-size:11px;"></span>
                                         </div>
                                         <div>
                                             <p class="font-semibold text-foreground">{{ batch.product_code?.code }}</p>
@@ -348,7 +347,7 @@ function formatDate(dateStr) {
                                     <!-- Export blocked -->
                                     <span
                                         v-if="batch.product_code?.is_export_blocked"
-                                        class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded badge-export-blocked"
+                                        class="inline-flex items-center gap-1 mt-1 text-xs font-semibold px-1.5 py-0.5 rounded badge-export-blocked"
                                     >
                                         <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -360,7 +359,7 @@ function formatDate(dateStr) {
                                 <!-- Stage -->
                                 <td class="px-4 py-4">
                                     <div class="flex items-center gap-1.5">
-                                        <span style="font-size:14px;">{{ stageBadge(batch.process_stage).icon }}</span>
+                                        <AppIcon :name="stageBadge(batch.process_stage).icon || 'circle'" :size="15" />
                                         <span class="font-medium text-xs" :class="stageBadge(batch.process_stage).color">
                                             {{ stageBadge(batch.process_stage).label }}
                                         </span>
@@ -380,7 +379,7 @@ function formatDate(dateStr) {
                                         {{ formatWeight(batch.current_weight) }}
                                     </p>
                                     <p v-if="batch.mass_loss_pct !== null" class="text-xs mt-0.5"
-                                       :class="batch.has_discrepancy ? 'text-red-500 dark:text-red-400 font-semibold' : 'text-muted-foreground'">
+                                       :class="batch.has_discrepancy ? 'text-danger font-semibold' : 'text-muted-foreground'">
                                         -{{ batch.mass_loss_pct }}%
                                     </p>
                                 </td>
@@ -432,9 +431,7 @@ function formatDate(dateStr) {
                                 v-if="link.url"
                                 :href="link.url"
                                 class="w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-all duration-150"
-                                :class="link.active
-                                    ? 'text-white shadow-sm'
-                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+                                :class="link.active ? 'text-white shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
                                 :style="link.active ? 'background: hsl(var(--primary));' : ''"
                                 v-html="link.label"
                                 preserve-scroll

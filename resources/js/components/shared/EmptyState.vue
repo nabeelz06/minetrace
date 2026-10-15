@@ -17,13 +17,14 @@ const props = defineProps({
 
 const emit = defineEmits(['action'])
 const paddingClass = { sm: 'py-8', md: 'py-12', lg: 'py-16' }
-const isIconName = computed(() => /^[a-z0-9-]+$/.test(props.icon))
+const iconName = computed(() => props.icon && /^[a-z0-9-]+$/.test(props.icon) ? props.icon : 'package')
+const isIconName = computed(() => !props.icon || /^[a-z0-9-]+$/.test(props.icon))
 </script>
 
 <template>
     <div class="text-center space-y-3" :class="paddingClass[size]">
         <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <AppIcon v-if="isIconName" :name="icon" :size="24" />
+            <AppIcon v-if="isIconName" :name="iconName" :size="24" />
             <span v-else class="text-2xl" aria-hidden="true">{{ icon }}</span>
         </div>
         <div>

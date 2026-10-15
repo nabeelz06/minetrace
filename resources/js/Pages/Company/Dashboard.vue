@@ -1,4 +1,7 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
+import StatCard from '@/components/app/StatCard.vue'
+import { formatWeightKg } from '@/lib/format'
 /**
  * Company/Dashboard.vue — Dashboard kontekstual per role.
  *
@@ -20,7 +23,7 @@ import WeightDisplay            from '@/components/shared/WeightDisplay.vue'
 import EmptyState               from '@/components/shared/EmptyState.vue'
 import { useI18n }              from '@/composables/core/useI18n.js'
 
-const { t, lang, formatWeight } = useI18n()
+const { t, lang, loc, formatWeight } = useI18n()
 const page = usePage()
 const can  = computed(() => page.props.can ?? {})
 
@@ -85,13 +88,13 @@ function toggleBatch(id) {
 
 // ─── Stage color mapping ───────────────────────────────────────────────────
 const stageColors = {
-    lab_kimia:     { bg: 'bg-violet-50 dark:bg-violet-950/20', text: 'text-violet-600 dark:text-violet-400', dot: 'bg-violet-500' },
-    receiving:     { bg: 'bg-blue-50 dark:bg-blue-950/20',     text: 'text-blue-600 dark:text-blue-400',     dot: 'bg-blue-500' },
-    wet_process:   { bg: 'bg-cyan-50 dark:bg-cyan-950/20',     text: 'text-cyan-600 dark:text-cyan-400',     dot: 'bg-cyan-500' },
-    dry_process:   { bg: 'bg-amber-50 dark:bg-amber-950/20',   text: 'text-amber-600 dark:text-amber-400',   dot: 'bg-amber-500' },
-    project_plant: { bg: 'bg-emerald-50 dark:bg-emerald-950/20',text:'text-emerald-600 dark:text-emerald-400',dot:'bg-emerald-500' },
-    warehouse:     { bg: 'bg-teal-50 dark:bg-teal-950/20',     text: 'text-teal-600 dark:text-teal-400',     dot: 'bg-teal-500' },
-    exported:      { bg: 'bg-slate-50 dark:bg-slate-950/20',   text: 'text-slate-600 dark:text-slate-400',   dot: 'bg-slate-500' },
+    lab_kimia:     { bg: 'bg-info-soft ', text: 'text-info ', dot: 'bg-info' },
+    receiving:     { bg: 'bg-info-soft ',     text: 'text-info ',     dot: 'bg-info' },
+    wet_process:   { bg: 'bg-info-soft ',     text: 'text-info ',     dot: 'bg-info' },
+    dry_process:   { bg: 'bg-warning-soft ',   text: 'text-warning ',   dot: 'bg-warning' },
+    project_plant: { bg: 'bg-success-soft ',text:'text-success ',dot:'bg-success' },
+    warehouse:     { bg: 'bg-success-soft ',     text: 'text-success ',     dot: 'bg-success' },
+    exported:      { bg: 'bg-muted ',   text: 'text-muted-foreground ',   dot: 'bg-muted-foreground' },
 }
 
 function stageColor(stage) {
@@ -100,23 +103,23 @@ function stageColor(stage) {
 
 // ─── Context icon ──────────────────────────────────────────────────────────
 const contextIcon = computed(() => ({
-    lab_station:  '🧪',
-    wet_process:  '💧',
-    dry_process:  '🔥',
-    lab_ltj:      '⚗️',
-    warehouse:    '🏭',
-    admin:        '📊',
-    auditor:      '👁',
-}[props.page_context] ?? '📦'))
+    lab_station:  'flask-conical',
+    wet_process:  'droplets',
+    dry_process:  'flame',
+    lab_ltj:      'microscope',
+    warehouse:    'warehouse',
+    admin:        'gauge',
+    auditor:      'eye',
+}[props.page_context] ?? 'package'))
 
 const contextBadgeStyle = computed(() => ({
-    lab_station:  'background:rgba(16,185,129,0.12);color:#34d399',
-    wet_process:  'background:rgba(6,182,212,0.12);color:#22d3ee',
-    dry_process:  'background:rgba(245,158,11,0.12);color:#fbbf24',
-    lab_ltj:      'background:rgba(124,58,237,0.12);color:#a78bfa',
-    warehouse:    'background:rgba(20,184,166,0.12);color:#2dd4bf',
-    admin:        'background:rgba(62,92,116,0.18);color:#7cb4d4',
-    auditor:      'background:rgba(107,114,128,0.12);color:#9ca3af',
+    lab_station:  'background:hsl(var(--success-soft));color:hsl(var(--success))',
+    wet_process:  'background:hsl(var(--info-soft));color:hsl(var(--info))',
+    dry_process:  'background:hsl(var(--warning-soft));color:hsl(var(--warning))',
+    lab_ltj:      'background:hsl(var(--info-soft));color:hsl(var(--info))',
+    warehouse:    'background:hsl(var(--success-soft));color:hsl(var(--success))',
+    admin:        'background:hsl(var(--primary)/0.18);color:hsl(var(--primary))',
+    auditor:      'background:hsl(var(--neutral-soft));color:hsl(var(--neutral))',
 }[props.page_context] ?? ''))
 </script>
 
@@ -135,11 +138,11 @@ const contextBadgeStyle = computed(() => ({
             <div class="flex items-start justify-between gap-4 animate-fade-in">
                 <div class="space-y-1.5">
                     <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-2xl">{{ contextIcon }}</span>
+                        <AppIcon :name="contextIcon" :size="28" class="text-muted-foreground" />
                         <h1 class="font-heading text-2xl font-bold text-foreground tracking-tight">
                             {{ page_title }}
                         </h1>
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider"
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase tracking-wider"
                               :style="contextBadgeStyle">
                             {{ role?.replace(/_/g,' ') }}
                         </span>
@@ -151,8 +154,8 @@ const contextBadgeStyle = computed(() => ({
                 <div class="flex-shrink-0 hidden md:block">
                     <div class="rounded-2xl border border-border bg-card px-4 py-3 text-right space-y-1 shadow-sm">
                         <div class="flex items-center justify-end gap-1.5">
-                            <div class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"/>
-                            <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            <div class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"/>
+                            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                 {{ lang === 'en' ? 'System Time' : 'Waktu Sistem' }}
                             </span>
                         </div>
@@ -174,16 +177,16 @@ const contextBadgeStyle = computed(() => ({
                 <!-- KPI Stats -->
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div v-for="(item, i) in [
-                        { label: lang==='en'?'Created Today':'Dibuat Hari Ini',     value: stats?.today_created,      color:'text-primary',                               icon:'📦' },
-                        { label: lang==='en'?'This Month':'Bulan Ini',              value: stats?.month_created,      color:'text-emerald-600 dark:text-emerald-400',     icon:'📊' },
-                        { label: lang==='en'?'Total Weight Today':'Berat Hari Ini', value: null, weight: stats?.total_today_weight, color:'text-foreground',             icon:'⚖️' },
-                        { label: lang==='en'?'My Total Batches':'Total Batch Saya', value: stats?.my_total_batches,   color:'text-muted-foreground',                     icon:'🗂️' },
+                        { label: lang==='en'?'Created Today':'Dibuat Hari Ini',     value: stats?.today_created,      color:'text-primary',                               icon:'package' },
+                        { label: lang==='en'?'This Month':'Bulan Ini',              value: stats?.month_created,      color:'text-success ',     icon:'gauge' },
+                        { label: lang==='en'?'Total Weight Today':'Berat Hari Ini', value: null, weight: stats?.total_today_weight, color:'text-foreground',             icon:'scale' },
+                        { label: lang==='en'?'My Total Batches':'Total Batch Saya', value: stats?.my_total_batches,   color:'text-muted-foreground',                     icon:'layers' },
                     ]" :key="item.label"
                          class="rounded-2xl border border-border bg-card p-5 animate-fade-in"
                          :style="`animation-delay:${i*60}ms`">
                         <div class="flex items-start justify-between mb-3">
                             <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">{{ item.label }}</p>
-                            <span class="text-xl">{{ item.icon }}</span>
+                            <AppIcon :name="item.icon || 'circle'" :size="22" />
                         </div>
                         <p class="font-heading text-3xl font-bold tabular-nums" :class="item.color">
                             <template v-if="item.weight !== undefined">
@@ -231,7 +234,7 @@ const contextBadgeStyle = computed(() => ({
                             </span>
                         </div>
                         <EmptyState v-if="!today_batches?.length"
-                            icon="📦" size="sm"
+                            icon='package' size="sm"
                             :title="lang === 'en' ? 'No batches today yet' : 'Belum ada batch hari ini'"
                             :description="lang === 'en' ? 'Create your first batch of the day.' : 'Buat batch pertama hari ini.'"
                         />
@@ -250,7 +253,7 @@ const contextBadgeStyle = computed(() => ({
                                                   @click.stop>
                                                 {{ batch.batch_code }}
                                             </Link>
-                                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                            <span class="text-xs font-bold px-1.5 py-0.5 rounded"
                                                   :class="[stageColor(batch.process_stage).bg, stageColor(batch.process_stage).text]">
                                                 {{ batch.product?.code }}
                                             </span>
@@ -258,13 +261,13 @@ const contextBadgeStyle = computed(() => ({
                                         </div>
                                         <div class="flex items-center gap-3 mt-1">
                                             <WeightDisplay :kg="batch.initial_weight" size="xs"/>
-                                            <span class="text-muted-foreground text-[10px]">{{ batch.location?.name ?? '—' }}</span>
+                                            <span class="text-muted-foreground text-xs">{{ batch.location?.name ?? '—' }}</span>
                                         </div>
                                     </div>
                                     <!-- Timestamp detail -->
                                     <div class="text-right flex-shrink-0">
-                                        <p class="text-[10px] font-semibold text-foreground">{{ batch.created_at_time }}</p>
-                                        <p class="text-[10px] text-muted-foreground">{{ batch.created_at_diff }}</p>
+                                        <p class="text-xs font-semibold text-foreground">{{ batch.created_at_time }}</p>
+                                        <p class="text-xs text-muted-foreground">{{ batch.created_at_diff }}</p>
                                     </div>
                                 </div>
 
@@ -272,20 +275,20 @@ const contextBadgeStyle = computed(() => ({
                                 <Transition name="accord">
                                     <div v-if="expandedBatch === batch.id"
                                          class="mt-2 pl-5 pt-2 border-t border-border space-y-1">
-                                        <p class="text-[10px] text-muted-foreground">
+                                        <p class="text-xs text-muted-foreground">
                                             <span class="font-semibold text-foreground">{{ lang === 'en' ? 'Batch Code:' : 'Kode Batch:' }}</span>
                                             {{ batch.batch_code }}
                                         </p>
-                                        <p class="text-[10px] text-muted-foreground">
+                                        <p class="text-xs text-muted-foreground">
                                             <span class="font-semibold text-foreground">{{ lang === 'en' ? 'Lot Number:' : 'Lot Number:' }}</span>
                                             {{ batch.lot_number ?? '—' }}
                                         </p>
-                                        <p class="text-[10px] text-muted-foreground">
+                                        <p class="text-xs text-muted-foreground">
                                             <span class="font-semibold text-foreground">{{ lang === 'en' ? 'Created:' : 'Dibuat:' }}</span>
                                             {{ batch.created_at }}
                                         </p>
-                                        <p v-if="batch.product?.is_hazardous" class="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
-                                            ☢ {{ lang === 'en' ? 'Hazardous / Radioactive Material' : 'Material Berbahaya / Radioaktif' }}
+                                        <p v-if="batch.product?.is_hazardous" class="text-xs text-warning font-bold">
+                                            {{ lang === 'en' ? 'Hazardous / Radioactive Material' : 'Material Berbahaya / Radioaktif' }}
                                         </p>
                                     </div>
                                 </Transition>
@@ -305,7 +308,7 @@ const contextBadgeStyle = computed(() => ({
                             </Link>
                         </div>
                         <EmptyState v-if="!recent_activity?.length"
-                            icon="📋" size="sm"
+                            icon='clipboard-list' size="sm"
                             :title="lang === 'en' ? 'No recent activity' : 'Belum ada riwayat'"
                         />
                         <div v-else class="divide-y divide-border max-h-[380px] overflow-y-auto">
@@ -314,20 +317,19 @@ const contextBadgeStyle = computed(() => ({
                                  :style="`animation: fade-in 0.28s ease-out ${i*30}ms both`">
                                 <div class="w-7 h-7 rounded-xl flex items-center justify-center text-xs flex-shrink-0"
                                      :class="stageColor(item.stage).bg">
-                                    📦
-                                </div>
+                                                                    </div>
                                 <div class="flex-1 min-w-0">
                                     <Link :href="`/company/batches/${item.id}`"
                                           class="font-mono text-xs font-bold text-foreground hover:text-primary transition-colors">
                                         {{ item.batch_code }}
                                     </Link>
-                                    <p class="text-[10px] text-muted-foreground">
+                                    <p class="text-xs text-muted-foreground">
                                         {{ item.product }} · {{ item.weight_kg ? item.weight_kg.toLocaleString('id-ID') + ' kg' : '—' }}
                                     </p>
                                 </div>
                                 <div class="text-right flex-shrink-0">
-                                    <p class="text-[10px] font-semibold text-foreground">{{ item.created_at_diff }}</p>
-                                    <p class="text-[10px] text-muted-foreground">{{ item.created_at }}</p>
+                                    <p class="text-xs font-semibold text-foreground">{{ item.created_at_diff }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ item.created_at }}</p>
                                 </div>
                             </div>
                         </div>
@@ -343,24 +345,24 @@ const contextBadgeStyle = computed(() => ({
                 <!-- Stats -->
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div v-for="(item, i) in [
-                        { label: lang==='en'?'Waiting at Receiving':'Menunggu di Receiving', value: stats?.waiting_receiving, color:'text-amber-600 dark:text-amber-400', icon:'📥', urgent: stats?.waiting_receiving > 0 },
-                        { label: lang==='en'?'In Wet Process':'Di Wet Process',          value: stats?.in_wet_process,    color:'text-cyan-600 dark:text-cyan-400',   icon:'💧' },
-                        { label: lang==='en'?'Total Weight Active':'Berat Aktif',        value: null, weight: stats?.total_weight_active, color:'text-foreground', icon:'⚖️' },
-                        { label: lang==='en'?'Processed Today':'Diproses Hari Ini',      value: stats?.processed_today,   color:'text-emerald-600 dark:text-emerald-400', icon:'✅' },
+                        { label: lang==='en'?'Waiting at Receiving':'Menunggu di Receiving', value: stats?.waiting_receiving, color:'text-warning ', icon:'package-open', urgent: stats?.waiting_receiving > 0 },
+                        { label: lang==='en'?'In Wet Process':'Di Wet Process',          value: stats?.in_wet_process,    color:'text-info ',   icon:'droplets' },
+                        { label: lang==='en'?'Total Weight Active':'Berat Aktif',        value: null, weight: stats?.total_weight_active, color:'text-foreground', icon:'scale' },
+                        { label: lang==='en'?'Processed Today':'Diproses Hari Ini',      value: stats?.processed_today,   color:'text-success ', icon:'circle-check' },
                     ]" :key="item.label"
                          class="rounded-2xl border p-5 animate-fade-in"
-                         :class="item.urgent ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20' : 'border-border bg-card'"
+                         :class="item.urgent ? 'border-warning/30 bg-warning-soft ' : 'border-border bg-card'"
                          :style="`animation-delay:${i*60}ms`">
                         <div class="flex items-start justify-between mb-3">
                             <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">{{ item.label }}</p>
-                            <span class="text-xl">{{ item.icon }}</span>
+                            <AppIcon :name="item.icon || 'circle'" :size="22" />
                         </div>
                         <p class="font-heading text-3xl font-bold tabular-nums" :class="item.color">
                             <template v-if="item.weight !== undefined"><WeightDisplay :kg="item.weight" size="lg"/></template>
                             <template v-else>{{ item.value ?? 0 }}</template>
                         </p>
-                        <p v-if="item.urgent" class="text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
-                            ⚠ {{ lang === 'en' ? 'Requires attention' : 'Perlu diproses' }}
+                        <p v-if="item.urgent" class="text-xs font-semibold text-warning mt-1">
+                            {{ lang === 'en' ? 'Requires attention' : 'Perlu diproses' }}
                         </p>
                     </div>
                 </div>
@@ -372,16 +374,16 @@ const contextBadgeStyle = computed(() => ({
                     <div class="rounded-2xl border border-border bg-card overflow-hidden animate-fade-in delay-150">
                         <div class="px-5 py-4 border-b border-border flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"/>
+                                <div class="w-2 h-2 rounded-full bg-warning animate-pulse"/>
                                 <h3 class="font-heading text-sm font-bold text-foreground">
                                     {{ lang === 'en' ? 'Waiting at Receiving Area' : 'Menunggu di Receiving Area' }}
                                 </h3>
                             </div>
-                            <span class="text-xs font-bold text-amber-600 dark:text-amber-400">
+                            <span class="text-xs font-bold text-warning">
                                 {{ waiting_receiving?.length ?? 0 }} batch
                             </span>
                         </div>
-                        <EmptyState v-if="!waiting_receiving?.length" icon="📥" size="sm"
+                        <EmptyState v-if="!waiting_receiving?.length" icon='package-open' size="sm"
                             :title="lang === 'en' ? 'No batches waiting' : 'Tidak ada batch menunggu'"
                             :description="lang === 'en' ? 'All batches have been received.' : 'Semua batch telah diterima.'"
                         />
@@ -395,17 +397,17 @@ const contextBadgeStyle = computed(() => ({
                                               class="font-mono text-xs font-bold text-foreground hover:text-primary transition-colors">
                                             {{ batch.batch_code }}
                                         </Link>
-                                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                        <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-info-soft text-info">
                                             {{ batch.product?.code }}
                                         </span>
                                     </div>
                                     <div class="flex items-center gap-3 mt-1">
                                         <WeightDisplay :kg="batch.initial_weight" size="xs"/>
-                                        <span class="text-muted-foreground text-[10px]">{{ batch.created_at_diff }}</span>
+                                        <span class="text-muted-foreground text-xs">{{ batch.created_at_diff }}</span>
                                     </div>
                                 </div>
                                 <Link :href="`/company/process/receiving`"
-                                      class="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white transition-all active:scale-95"
+                                      class="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white transition-all active:scale-95"
                                       style="background: hsl(var(--primary));">
                                     {{ lang === 'en' ? 'Receive →' : 'Terima →' }}
                                 </Link>
@@ -417,16 +419,16 @@ const contextBadgeStyle = computed(() => ({
                     <div class="rounded-2xl border border-border bg-card overflow-hidden animate-fade-in delay-200">
                         <div class="px-5 py-4 border-b border-border flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"/>
+                                <div class="w-2 h-2 rounded-full bg-info animate-pulse"/>
                                 <h3 class="font-heading text-sm font-bold text-foreground">
                                     {{ lang === 'en' ? 'Active in Wet Process' : 'Aktif di Wet Process' }}
                                 </h3>
                             </div>
-                            <span class="text-xs font-bold text-cyan-600 dark:text-cyan-400">
+                            <span class="text-xs font-bold text-info">
                                 {{ in_wet_process?.length ?? 0 }} batch
                             </span>
                         </div>
-                        <EmptyState v-if="!in_wet_process?.length" icon="💧" size="sm"
+                        <EmptyState v-if="!in_wet_process?.length" icon='droplets' size="sm"
                             :title="lang === 'en' ? 'No active batches' : 'Tidak ada batch aktif'"
                         />
                         <div v-else class="divide-y divide-border max-h-[320px] overflow-y-auto">
@@ -440,15 +442,15 @@ const contextBadgeStyle = computed(() => ({
                                             {{ batch.batch_code }}
                                         </Link>
                                         <StatusBadge :status="batch.status" size="xs"/>
-                                        <span v-if="batch.has_discrepancy" class="text-[10px] font-bold text-red-500">⚠</span>
+                                        <span v-if="batch.has_discrepancy" class="text-xs font-bold text-danger"></span>
                                     </div>
                                     <div class="flex items-center gap-3 mt-1">
                                         <WeightDisplay :kg="batch.current_weight" size="xs"/>
-                                        <span class="text-muted-foreground text-[10px]">{{ batch.updated_at_diff }}</span>
+                                        <span class="text-muted-foreground text-xs">{{ batch.updated_at_diff }}</span>
                                     </div>
                                 </div>
                                 <Link :href="`/company/process/wet_process`"
-                                      class="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95"
+                                      class="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
                                       style="background:hsl(var(--primary)/0.1);color:hsl(var(--primary))">
                                     {{ lang === 'en' ? 'Process' : 'Proses' }}
                                 </Link>
@@ -471,27 +473,27 @@ const contextBadgeStyle = computed(() => ({
                         <div v-for="(cp, i) in recent_checkpoints" :key="cp.id"
                              class="flex items-start gap-3 px-5 py-3 hover:bg-muted/20 transition-colors"
                              :style="`animation: fade-in 0.28s ease-out ${i*25}ms both`">
-                            <div class="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5"
-                                 :class="cp.has_discrepancy ? 'bg-red-100 dark:bg-red-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'">
-                                {{ cp.has_discrepancy ? '⚠' : '✓' }}
+                            <div class="w-6 h-6 rounded-lg flex items-center justify-center text-xs flex-shrink-0 mt-0.5"
+                                 :class="cp.has_discrepancy ? 'bg-danger-soft ' : 'bg-success-soft '">
+                                {{ cp.has_discrepancy ? 'triangle-alert' : '' }}
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <Link :href="`/company/batches/${cp.batch_id}`"
-                                          class="font-mono text-[11px] font-bold text-foreground hover:text-primary transition-colors">
+                                          class="font-mono text-xs font-bold text-foreground hover:text-primary transition-colors">
                                         {{ cp.batch_code }}
                                     </Link>
-                                    <span class="text-[10px] text-muted-foreground">{{ cp.stage?.replace(/_/g,' ') }}</span>
-                                    <span v-if="cp.weight_loss_pct" class="text-[10px] font-bold"
-                                          :class="parseFloat(cp.weight_loss_pct)>5?'text-red-500':'text-muted-foreground'">
+                                    <span class="text-xs text-muted-foreground">{{ cp.stage?.replace(/_/g,' ') }}</span>
+                                    <span v-if="cp.weight_loss_pct" class="text-xs font-bold"
+                                          :class="parseFloat(cp.weight_loss_pct)>5?'text-danger':'text-muted-foreground'">
                                         Susut {{ cp.weight_loss_pct }}%
                                     </span>
                                 </div>
-                                <p class="text-[10px] text-muted-foreground">{{ cp.location }} · {{ cp.recorded_by }}</p>
+                                <p class="text-xs text-muted-foreground">{{ cp.location }} · {{ cp.recorded_by }}</p>
                             </div>
                             <div class="text-right flex-shrink-0">
-                                <p class="text-[10px] font-semibold text-foreground">{{ cp.recorded_at_diff }}</p>
-                                <p class="text-[10px] text-muted-foreground">{{ cp.recorded_at }}</p>
+                                <p class="text-xs font-semibold text-foreground">{{ cp.recorded_at_diff }}</p>
+                                <p class="text-xs text-muted-foreground">{{ cp.recorded_at }}</p>
                             </div>
                         </div>
                     </div>
@@ -506,18 +508,18 @@ const contextBadgeStyle = computed(() => ({
                 <!-- Stats -->
                 <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                     <div v-for="(item, i) in [
-                        { label: lang==='en'?'Ready for Dry':'Siap Diproses',  value: stats?.ready_for_dry,   color:'text-amber-600 dark:text-amber-400', icon:'⏳' },
-                        { label: lang==='en'?'In Dry Process':'Di Dry Process',value: stats?.in_dry_process,  color:'text-foreground', icon:'🔥' },
-                        { label: lang==='en'?'Output Today':'Output Hari Ini', value: stats?.output_today,    color:'text-emerald-600 dark:text-emerald-400', icon:'📤' },
-                        { label: 'MON (kg)',  value: null, weight: stats?.mon_today_kg, color:'text-red-500',    icon:'⛏' },
-                        { label: 'ZIR (kg)',  value: null, weight: stats?.zir_today_kg, color:'text-blue-500',   icon:'💎' },
-                        { label: 'ILM (kg)',  value: null, weight: stats?.ilm_today_kg, color:'text-amber-500',  icon:'🪨' },
+                        { label: lang==='en'?'Ready for Dry':'Siap Diproses',  value: stats?.ready_for_dry,   color:'text-warning ', icon:'⏳' },
+                        { label: lang==='en'?'In Dry Process':'Di Dry Process',value: stats?.in_dry_process,  color:'text-foreground', icon:'flame' },
+                        { label: lang==='en'?'Output Today':'Output Hari Ini', value: stats?.output_today,    color:'text-success ', icon:'arrow-up-from-line' },
+                        { label: 'MON (kg)',  value: null, weight: stats?.mon_today_kg, color:'text-danger',    icon:'pickaxe' },
+                        { label: 'ZIR (kg)',  value: null, weight: stats?.zir_today_kg, color:'text-info',   icon:'gem' },
+                        { label: 'ILM (kg)',  value: null, weight: stats?.ilm_today_kg, color:'text-warning',  icon:'mountain' },
                     ]" :key="item.label"
                          class="rounded-2xl border border-border bg-card p-4 animate-fade-in"
                          :style="`animation-delay:${i*50}ms`">
                         <div class="flex items-start justify-between mb-2">
-                            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">{{ item.label }}</p>
-                            <span class="text-lg">{{ item.icon }}</span>
+                            <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">{{ item.label }}</p>
+                            <AppIcon :name="item.icon || 'circle'" :size="20" />
                         </div>
                         <p class="font-heading text-2xl font-bold tabular-nums" :class="item.color">
                             <template v-if="item.weight !== undefined"><WeightDisplay :kg="item.weight" size="sm"/></template>
@@ -535,7 +537,7 @@ const contextBadgeStyle = computed(() => ({
                             <h3 class="font-heading text-sm font-bold text-foreground">
                                 {{ lang === 'en' ? 'From Wet Process (Ready)' : 'Dari Wet Process (Siap)' }}
                             </h3>
-                            <span class="text-xs font-bold text-amber-600 dark:text-amber-400">{{ ready_for_dry?.length ?? 0 }}</span>
+                            <span class="text-xs font-bold text-warning">{{ ready_for_dry?.length ?? 0 }}</span>
                         </div>
                         <EmptyState v-if="!ready_for_dry?.length" icon="⏳" size="sm"
                             :title="lang === 'en' ? 'No batches from Wet Process' : 'Belum ada batch dari Wet Process'"
@@ -551,13 +553,13 @@ const contextBadgeStyle = computed(() => ({
                                     </Link>
                                     <div class="flex items-center gap-2 mt-1">
                                         <WeightDisplay :kg="batch.current_weight" size="xs"/>
-                                        <span class="text-[10px] text-muted-foreground">{{ batch.updated_at_diff }}</span>
+                                        <span class="text-xs text-muted-foreground">{{ batch.updated_at_diff }}</span>
                                     </div>
                                     <!-- Timestamp -->
-                                    <p class="text-[10px] text-muted-foreground mt-0.5">{{ batch.updated_at }}</p>
+                                    <p class="text-xs text-muted-foreground mt-0.5">{{ batch.updated_at }}</p>
                                 </div>
                                 <Link :href="`/company/process/dry_process`"
-                                      class="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-95"
+                                      class="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white active:scale-95"
                                       style="background: hsl(var(--primary));">
                                     {{ lang === 'en' ? 'Process →' : 'Proses →' }}
                                 </Link>
@@ -571,9 +573,9 @@ const contextBadgeStyle = computed(() => ({
                             <h3 class="font-heading text-sm font-bold text-foreground">
                                 {{ lang === 'en' ? "Today's Output (ZIR + ILM + MON)" : "Output Hari Ini (ZIR + ILM + MON)" }}
                             </h3>
-                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">{{ output_today?.length ?? 0 }}</span>
+                            <span class="text-xs font-bold text-success">{{ output_today?.length ?? 0 }}</span>
                         </div>
-                        <EmptyState v-if="!output_today?.length" icon="📤" size="sm"
+                        <EmptyState v-if="!output_today?.length" icon='arrow-up-from-line' size="sm"
                             :title="lang === 'en' ? 'No output today' : 'Belum ada output hari ini'"
                         />
                         <div v-else class="divide-y divide-border max-h-[320px] overflow-y-auto">
@@ -581,7 +583,7 @@ const contextBadgeStyle = computed(() => ({
                                  class="flex items-center gap-3 px-5 py-3.5 hover:bg-muted/20"
                                  :style="`animation: fade-in 0.28s ease-out ${i*40}ms both`">
                                 <div class="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                                     :style="batch.product?.code==='MON'?'background:#ef4444':batch.product?.code==='ZIR'?'background:#3b82f6':'background:#f59e0b'">
+                                     :style="batch.product?.code==='MON'?'background:hsl(var(--danger))':batch.product?.code==='ZIR'?'background:hsl(var(--info))':'background:hsl(var(--warning))'">
                                     {{ batch.product?.code?.slice(0,3) }}
                                 </div>
                                 <div class="flex-1 min-w-0">
@@ -589,7 +591,7 @@ const contextBadgeStyle = computed(() => ({
                                           class="font-mono text-xs font-bold text-foreground hover:text-primary">
                                         {{ batch.batch_code }}
                                     </Link>
-                                    <p class="text-[10px] text-muted-foreground">{{ batch.created_at_diff }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ batch.created_at_diff }}</p>
                                 </div>
                                 <WeightDisplay :kg="batch.current_weight" size="xs"/>
                             </div>
@@ -598,10 +600,10 @@ const contextBadgeStyle = computed(() => ({
                 </div>
 
                 <!-- Transformasi instruction box -->
-                <div class="rounded-2xl border border-amber-200 dark:border-amber-800/40 p-5 animate-fade-in delay-300"
-                     style="background: rgba(245,158,11,0.05);">
+                <div class="rounded-2xl border border-warning/30 p-5 animate-fade-in delay-300"
+                     style="background: hsl(var(--warning-soft));">
                     <div class="flex items-start gap-3">
-                        <span class="text-2xl flex-shrink-0">🔥</span>
+                        <span class="text-2xl flex-shrink-0"></span>
                         <div>
                             <p class="text-sm font-bold text-foreground">
                                 {{ lang === 'en' ? 'Dry Process — Magnetic Separator' : 'Dry Process — Magnetic Separator' }}
@@ -612,7 +614,7 @@ const contextBadgeStyle = computed(() => ({
                                     : 'Proses batch MIK yang masuk melalui magnetic separator untuk memisahkan menjadi 3 konsentrat: Monasit (MON), Zirkon (ZIR), dan Ilmenit (ILM). Input berat dan persentase masing-masing output konsentrat.' }}
                             </p>
                             <Link href="/company/process/dry_process"
-                                  class="inline-flex items-center gap-1.5 mt-2.5 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
+                                  class="inline-flex items-center gap-1.5 mt-2.5 px-3 py-1.5 rounded-lg text-xs font-bold text-warning hover:bg-warning-soft transition-colors">
                                 {{ lang === 'en' ? 'Go to Dry Process Stage →' : 'Ke Halaman Dry Process →' }}
                             </Link>
                         </div>
@@ -628,21 +630,21 @@ const contextBadgeStyle = computed(() => ({
                 <!-- Stats -->
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div v-for="(item, i) in [
-                        { label: lang==='en'?'Monazite Pending':'MON Pending Analisis', value: stats?.pending_monazite, color:'text-red-600 dark:text-red-400', icon:'⛏', urgent: stats?.pending_monazite > 0 },
-                        { label: lang==='en'?'In Project Plant':'Di Project Plant',     value: stats?.in_project_plant, color:'text-emerald-600 dark:text-emerald-400', icon:'⚗️' },
-                        { label: lang==='en'?'Analyzed This Month':'Dianalisis Bulan Ini', value: stats?.analyzed_month, color:'text-primary', icon:'🔬' },
-                        { label: lang==='en'?'Avg REO (%)':'Rata-rata REO (%)',         value: `${stats?.avg_reo_month ?? 0}%`, color:'text-violet-600 dark:text-violet-400', icon:'📊' },
+                        { label: lang==='en'?'Monazite Pending':'MON Pending Analisis', value: stats?.pending_monazite, color:'text-danger ', icon:'pickaxe', urgent: stats?.pending_monazite > 0 },
+                        { label: lang==='en'?'In Project Plant':'Di Project Plant',     value: stats?.in_project_plant, color:'text-success ', icon:'microscope' },
+                        { label: lang==='en'?'Analyzed This Month':'Dianalisis Bulan Ini', value: stats?.analyzed_month, color:'text-primary', icon:'microscope' },
+                        { label: lang==='en'?'Avg REO (%)':'Rata-rata REO (%)',         value: `${stats?.avg_reo_month ?? 0}%`, color:'text-info ', icon:'gauge' },
                     ]" :key="item.label"
                          class="rounded-2xl border p-5 animate-fade-in"
-                         :class="item.urgent ? 'border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/10' : 'border-border bg-card'"
+                         :class="item.urgent ? 'border-danger/30 bg-danger-soft ' : 'border-border bg-card'"
                          :style="`animation-delay:${i*60}ms`">
                         <div class="flex items-start justify-between mb-3">
                             <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">{{ item.label }}</p>
-                            <span class="text-xl">{{ item.icon }}</span>
+                            <AppIcon :name="item.icon || 'circle'" :size="22" />
                         </div>
                         <p class="font-heading text-3xl font-bold tabular-nums" :class="item.color">{{ item.value ?? 0 }}</p>
-                        <p v-if="item.urgent" class="text-[10px] font-semibold text-red-600 dark:text-red-400 mt-1">
-                            ⚠ {{ lang === 'en' ? 'Requires analysis' : 'Perlu dianalisis' }}
+                        <p v-if="item.urgent" class="text-xs font-semibold text-danger mt-1">
+                            {{ lang === 'en' ? 'Requires analysis' : 'Perlu dianalisis' }}
                         </p>
                     </div>
                 </div>
@@ -654,13 +656,13 @@ const contextBadgeStyle = computed(() => ({
                     <div class="rounded-2xl border border-border bg-card overflow-hidden animate-fade-in delay-150">
                         <div class="px-5 py-4 border-b border-border flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                <div class="w-2 h-2 rounded-full bg-red-400 animate-pulse"/>
+                                <div class="w-2 h-2 rounded-full bg-danger animate-pulse"/>
                                 <h3 class="font-heading text-sm font-bold text-foreground">
                                     {{ lang === 'en' ? 'Monazite — Pending LTJ Analysis' : 'Monasit — Pending Analisis LTJ' }}
                                 </h3>
                             </div>
                         </div>
-                        <EmptyState v-if="!pending_monazite?.length" icon="⚗️" size="sm"
+                        <EmptyState v-if="!pending_monazite?.length" icon='microscope' size="sm"
                             :title="lang === 'en' ? 'No Monazite batches pending' : 'Tidak ada batch Monasit pending'"
                             :description="lang === 'en' ? 'All Monazite batches have been analyzed.' : 'Semua batch Monasit sudah dianalisis.'"
                         />
@@ -668,7 +670,7 @@ const contextBadgeStyle = computed(() => ({
                             <div v-for="(batch, i) in pending_monazite" :key="batch.id"
                                  class="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/20"
                                  :style="`animation: fade-in 0.28s ease-out ${i*40}ms both`">
-                                <div class="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-xs font-bold text-red-700 dark:text-red-300 flex-shrink-0">
+                                <div class="w-8 h-8 rounded-xl bg-danger-soft flex items-center justify-center text-xs font-bold text-danger flex-shrink-0">
                                     MON
                                 </div>
                                 <div class="flex-1 min-w-0">
@@ -678,12 +680,12 @@ const contextBadgeStyle = computed(() => ({
                                     </Link>
                                     <div class="flex items-center gap-2 mt-1">
                                         <WeightDisplay :kg="batch.current_weight" size="xs"/>
-                                        <span class="text-[10px] text-muted-foreground">{{ batch.location?.name }}</span>
+                                        <span class="text-xs text-muted-foreground">{{ batch.location?.name }}</span>
                                     </div>
-                                    <p class="text-[10px] text-muted-foreground">{{ batch.updated_at }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ batch.updated_at }}</p>
                                 </div>
                                 <Link :href="`/company/batches/${batch.id}/lab/create`"
-                                      class="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-95"
+                                      class="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white active:scale-95"
                                       style="background: hsl(var(--primary));">
                                     {{ lang === 'en' ? 'Analyze →' : 'Analisis →' }}
                                 </Link>
@@ -701,7 +703,7 @@ const contextBadgeStyle = computed(() => ({
                                 {{ lang === 'en' ? 'View All →' : 'Lihat Semua →' }}
                             </Link>
                         </div>
-                        <EmptyState v-if="!recent_analyses?.length" icon="🔬" size="sm"
+                        <EmptyState v-if="!recent_analyses?.length" icon='microscope' size="sm"
                             :title="lang === 'en' ? 'No analyses this month' : 'Belum ada analisis bulan ini'"
                         />
                         <div v-else class="divide-y divide-border max-h-[320px] overflow-y-auto">
@@ -716,23 +718,23 @@ const contextBadgeStyle = computed(() => ({
                                                 {{ la.batch_code }}
                                             </Link>
                                             <span :class="la.is_validated ? 'badge-active' : 'badge-transit'"
-                                                  class="text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                                  class="text-xs font-bold px-1.5 py-0.5 rounded-md">
                                                 {{ la.is_validated ? (lang==='en'?'Validated':'Tervalidasi') : (lang==='en'?'Pending':'Pending') }}
                                             </span>
                                         </div>
                                         <!-- REO breakdown -->
                                         <div class="flex items-center gap-2 mt-1 flex-wrap">
-                                            <span class="text-[10px] font-bold text-violet-600 dark:text-violet-400">
+                                            <span class="text-xs font-bold text-info">
                                                 REO {{ la.total_reo_pct ?? '—' }}%
                                             </span>
-                                            <span class="text-[10px] text-muted-foreground">La {{ la.la_pct ?? '—' }}%</span>
-                                            <span class="text-[10px] text-muted-foreground">Ce {{ la.ce_pct ?? '—' }}%</span>
-                                            <span class="text-[10px] text-muted-foreground">Nd {{ la.nd_pct ?? '—' }}%</span>
+                                            <span class="text-xs text-muted-foreground">La {{ la.la_pct ?? '—' }}%</span>
+                                            <span class="text-xs text-muted-foreground">Ce {{ la.ce_pct ?? '—' }}%</span>
+                                            <span class="text-xs text-muted-foreground">Nd {{ la.nd_pct ?? '—' }}%</span>
                                         </div>
                                     </div>
                                     <div class="text-right flex-shrink-0">
-                                        <p class="text-[10px] font-semibold text-foreground">{{ la.analyzed_at_diff }}</p>
-                                        <p class="text-[10px] text-muted-foreground">{{ la.analyzed_at }}</p>
+                                        <p class="text-xs font-semibold text-foreground">{{ la.analyzed_at_diff }}</p>
+                                        <p class="text-xs text-muted-foreground">{{ la.analyzed_at }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -741,10 +743,10 @@ const contextBadgeStyle = computed(() => ({
                 </div>
 
                 <!-- Instruksi workflow -->
-                <div class="rounded-2xl border border-violet-200 dark:border-violet-800/40 p-5 animate-fade-in delay-300"
-                     style="background: rgba(124,58,237,0.04);">
+                <div class="rounded-2xl border border-info/30 p-5 animate-fade-in delay-300"
+                     style="background: hsl(var(--info-soft));">
                     <div class="flex items-start gap-3">
-                        <span class="text-2xl flex-shrink-0">⚗️</span>
+                        <span class="text-2xl flex-shrink-0"></span>
                         <div>
                             <p class="text-sm font-bold text-foreground">
                                 {{ lang === 'en' ? 'LTJ Analysis Workflow' : 'Alur Kerja Lab LTJ Analisis' }}
@@ -768,19 +770,19 @@ const contextBadgeStyle = computed(() => ({
                 <!-- Warehouse Stats -->
                 <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
                     <div v-for="(item, i) in [
-                        { label: lang==='en'?'Total Stock':'Total Stok',      value: stats?.total_in_warehouse, color:'text-foreground',                               icon:'📦', span:'col-span-2' },
-                        { label: lang==='en'?'Ready Export':'Siap Ekspor',    value: stats?.ready_for_export,   color:'text-emerald-600 dark:text-emerald-400',         icon:'🚢' },
-                        { label: lang==='en'?'Send to Lab LTJ':'Ke Lab LTJ', value: stats?.ready_for_ltj_lab, color:'text-violet-600 dark:text-violet-400',            icon:'⚗️' },
-                        { label: 'MON (batch)',                                value: stats?.mon_count,          color:'text-red-500',                                  icon:'⛏' },
-                        { label: 'ZIR (batch)',                                value: stats?.zir_count,          color:'text-blue-500',                                 icon:'💎' },
-                        { label: 'ILM (batch)',                                value: stats?.ilm_count,          color:'text-amber-500',                                icon:'🪨' },
+                        { label: lang==='en'?'Total Stock':'Total Stok',      value: stats?.total_in_warehouse, color:'text-foreground',                               icon:'package', span:'col-span-2' },
+                        { label: lang==='en'?'Ready Export':'Siap Ekspor',    value: stats?.ready_for_export,   color:'text-success ',         icon:'ship' },
+                        { label: lang==='en'?'Send to Lab LTJ':'Ke Lab LTJ', value: stats?.ready_for_ltj_lab, color:'text-info ',            icon:'microscope' },
+                        { label: 'MON (batch)',                                value: stats?.mon_count,          color:'text-danger',                                  icon:'pickaxe' },
+                        { label: 'ZIR (batch)',                                value: stats?.zir_count,          color:'text-info',                                 icon:'gem' },
+                        { label: 'ILM (batch)',                                value: stats?.ilm_count,          color:'text-warning',                                icon:'mountain' },
                     ]" :key="item.label"
                          class="rounded-2xl border border-border bg-card p-4 animate-fade-in"
                          :class="item.span ?? ''"
                          :style="`animation-delay:${i*50}ms`">
                         <div class="flex items-start justify-between mb-2">
-                            <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">{{ item.label }}</p>
-                            <span class="text-lg">{{ item.icon }}</span>
+                            <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">{{ item.label }}</p>
+                            <AppIcon :name="item.icon || 'circle'" :size="20" />
                         </div>
                         <p class="font-heading text-2xl font-bold tabular-nums" :class="item.color">{{ item.value ?? 0 }}</p>
                     </div>
@@ -804,7 +806,7 @@ const contextBadgeStyle = computed(() => ({
                                  class="flex items-center gap-3 animate-fade-in"
                                  :style="`animation-delay:${i*50}ms`">
                                 <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                                     :style="item.code==='MON'?'background:#ef4444':item.code==='ZIR'?'background:#3b82f6':item.code==='ILM'?'background:#f59e0b':'background:#6b7280'">
+                                     :style="item.code==='MON'?'background:hsl(var(--danger))':item.code==='ZIR'?'background:hsl(var(--info))':item.code==='ILM'?'background:hsl(var(--warning))':'background:hsl(var(--neutral))'">
                                     {{ item.code?.slice(0,3) }}
                                 </div>
                                 <div class="flex-1 min-w-0">
@@ -812,13 +814,13 @@ const contextBadgeStyle = computed(() => ({
                                         <p class="text-xs font-bold text-foreground">{{ item.code }}</p>
                                         <div class="flex items-center gap-1">
                                             <span v-if="item.is_blocked"
-                                                  class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+                                                  class="text-xs font-bold px-1.5 py-0.5 rounded bg-danger-soft text-danger">
                                                 {{ lang === 'en' ? 'BLOCKED' : 'DIBLOKIR' }}
                                             </span>
                                         </div>
                                     </div>
                                     <div class="flex items-center justify-between mt-0.5">
-                                        <span class="text-[10px] text-muted-foreground">{{ item.count }} batch</span>
+                                        <span class="text-xs text-muted-foreground">{{ item.count }} batch</span>
                                         <WeightDisplay :kg="item.weight_kg" size="xs"/>
                                     </div>
                                 </div>
@@ -837,20 +839,20 @@ const contextBadgeStyle = computed(() => ({
                                 {{ lang === 'en' ? '+ Export' : '+ Ekspor' }}
                             </Link>
                         </div>
-                        <EmptyState v-if="!ready_for_export?.length" icon="🚢" size="sm"
+                        <EmptyState v-if="!ready_for_export?.length" icon='ship' size="sm"
                             :title="lang === 'en' ? 'No batches ready for export' : 'Tidak ada batch siap ekspor'"
                         />
                         <div v-else class="divide-y divide-border max-h-[280px] overflow-y-auto">
                             <div v-for="(batch, i) in ready_for_export" :key="batch.id"
                                  class="flex items-center gap-3 px-5 py-3 hover:bg-muted/20"
                                  :style="`animation: fade-in 0.28s ease-out ${i*30}ms both`">
-                                <div class="w-7 h-7 rounded-lg text-[9px] font-bold text-white flex items-center justify-center flex-shrink-0"
-                                     :style="batch.product?.code==='ZIR'?'background:#3b82f6':batch.product?.code==='ILM'?'background:#f59e0b':'background:#6b7280'">
+                                <div class="w-7 h-7 rounded-lg text-xs font-bold text-white flex items-center justify-center flex-shrink-0"
+                                     :style="batch.product?.code==='ZIR'?'background:hsl(var(--info))':batch.product?.code==='ILM'?'background:hsl(var(--warning))':'background:hsl(var(--neutral))'">
                                     {{ batch.product?.code?.slice(0,3) }}
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <Link :href="`/company/batches/${batch.id}`"
-                                          class="font-mono text-[11px] font-bold text-foreground hover:text-primary">
+                                          class="font-mono text-xs font-bold text-foreground hover:text-primary">
                                         {{ batch.batch_code }}
                                     </Link>
                                     <div class="flex items-center gap-1 mt-0.5">
@@ -867,11 +869,11 @@ const contextBadgeStyle = computed(() => ({
                             <h3 class="font-heading text-sm font-bold text-foreground">
                                 {{ lang === 'en' ? 'MON → Send to Lab LTJ' : 'MON → Kirim ke Lab LTJ' }}
                             </h3>
-                            <span class="text-xs font-bold text-violet-600 dark:text-violet-400">
+                            <span class="text-xs font-bold text-info">
                                 {{ ready_for_ltj_lab?.length ?? 0 }} batch
                             </span>
                         </div>
-                        <EmptyState v-if="!ready_for_ltj_lab?.length" icon="⚗️" size="sm"
+                        <EmptyState v-if="!ready_for_ltj_lab?.length" icon='microscope' size="sm"
                             :title="lang === 'en' ? 'No Monazite batches' : 'Tidak ada batch Monasit'"
                             :description="lang === 'en' ? 'All Monazite is in LTJ analysis or already processed.' : 'Semua Monasit sedang dianalisis atau sudah diproses.'"
                         />
@@ -879,18 +881,18 @@ const contextBadgeStyle = computed(() => ({
                             <div v-for="(batch, i) in ready_for_ltj_lab" :key="batch.id"
                                  class="flex items-center gap-3 px-5 py-3 hover:bg-muted/20"
                                  :style="`animation: fade-in 0.28s ease-out ${i*30}ms both`">
-                                <div class="w-7 h-7 rounded-lg bg-red-100 dark:bg-red-900/30 text-[9px] font-bold text-red-700 dark:text-red-300 flex items-center justify-center flex-shrink-0">
+                                <div class="w-7 h-7 rounded-lg bg-danger-soft text-xs font-bold text-danger flex items-center justify-center flex-shrink-0">
                                     MON
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <Link :href="`/company/batches/${batch.id}`"
-                                          class="font-mono text-[11px] font-bold text-foreground hover:text-primary">
+                                          class="font-mono text-xs font-bold text-foreground hover:text-primary">
                                         {{ batch.batch_code }}
                                     </Link>
                                     <WeightDisplay :kg="batch.current_weight" size="xs"/>
                                 </div>
                                 <Link :href="`/company/process/warehouse`"
-                                      class="px-2 py-1 rounded-lg text-[9px] font-bold text-white flex-shrink-0 active:scale-95"
+                                      class="px-2 py-1 rounded-lg text-xs font-bold text-white flex-shrink-0 active:scale-95"
                                       style="background: hsl(207 40% 45%);">
                                     {{ lang === 'en' ? 'Send' : 'Kirim' }}
                                 </Link>
@@ -917,18 +919,18 @@ const contextBadgeStyle = computed(() => ({
                              class="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/20"
                              :style="`animation: fade-in 0.28s ease-out ${i*30}ms both`">
                             <div class="w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0">
-                                {{ exp.export_type === 'international' ? '🌍' : '🏭' }}
+                                <AppIcon :name="exp.export_type === 'international' ? 'globe' : 'warehouse'" :size="18" />
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p class="text-xs font-bold text-foreground truncate">{{ exp.destination }}</p>
                                 <div class="flex items-center gap-2 mt-0.5">
                                     <WeightDisplay :kg="exp.weight_kg" size="xs"/>
-                                    <span class="text-[10px] text-muted-foreground capitalize">{{ exp.status }}</span>
+                                    <span class="text-xs text-muted-foreground capitalize">{{ exp.status }}</span>
                                 </div>
                             </div>
                             <div class="text-right flex-shrink-0">
-                                <p class="text-[10px] font-semibold text-foreground">#{{ String(exp.id).padStart(6,'0') }}</p>
-                                <p class="text-[10px] text-muted-foreground">{{ exp.exported_at }}</p>
+                                <p class="text-xs font-semibold text-foreground">#{{ String(exp.id).padStart(6,'0') }}</p>
+                                <p class="text-xs text-muted-foreground">{{ exp.exported_at }}</p>
                             </div>
                         </div>
                     </div>
@@ -942,13 +944,9 @@ const contextBadgeStyle = computed(() => ({
 
                 <!-- KPI Cards (Admin/Auditor) -->
                 <div v-if="kpi_cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div v-for="(card, i) in kpi_cards" :key="card.key"
-                         class="rounded-2xl border border-border bg-card p-5 animate-fade-in"
-                         :style="`animation-delay:${i*60}ms`">
-                        <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{{ card.label }}</p>
-                        <p class="font-heading text-3xl font-bold text-foreground tabular-nums">{{ card.value ?? 0 }}</p>
-                        <p v-if="card.subtitle" class="text-xs text-muted-foreground mt-1">{{ card.subtitle }}</p>
-                    </div>
+                    <StatCard v-for="(card, key) in kpi_cards" :key="key" :label="loc(card)"
+                              :value="card.unit === 'kg' ? formatWeightKg(card.value, lang) : (card.value ?? 0)"
+                              :hint="card.subtitle" :tone="key === 'active_alerts' && card.value > 0 ? 'danger' : 'neutral'" />
                 </div>
 
                 <!-- Recent Batches (Admin/Auditor) -->
@@ -961,7 +959,7 @@ const contextBadgeStyle = computed(() => ({
                             {{ lang === 'en' ? 'View All →' : 'Lihat Semua →' }}
                         </Link>
                     </div>
-                    <EmptyState v-if="!recent_batches?.length" icon="📦" size="sm"
+                    <EmptyState v-if="!recent_batches?.length" icon='package' size="sm"
                         :title="lang === 'en' ? 'No batches yet' : 'Belum ada batch'"
                     />
                     <div v-else class="overflow-x-auto">
@@ -982,10 +980,10 @@ const contextBadgeStyle = computed(() => ({
                                     :style="`animation: fade-in 0.28s ease-out ${i*40}ms both`">
                                     <td class="px-5 py-3.5">
                                         <div class="flex items-center gap-2">
-                                            <div v-if="batch.has_discrepancy" class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0"/>
+                                            <div v-if="batch.has_discrepancy" class="w-1.5 h-1.5 rounded-full bg-danger animate-pulse flex-shrink-0"/>
                                             <div>
                                                 <p class="font-mono text-xs font-bold text-foreground">{{ batch.batch_code }}</p>
-                                                <p class="text-[10px] text-muted-foreground">{{ batch.product?.code }}</p>
+                                                <p class="text-xs text-muted-foreground">{{ batch.product?.code }}</p>
                                             </div>
                                         </div>
                                     </td>
@@ -1001,12 +999,12 @@ const contextBadgeStyle = computed(() => ({
                                         <StatusBadge :status="batch.status" size="xs"/>
                                     </td>
                                     <td class="px-4 py-3.5">
-                                        <p class="text-[10px] font-semibold text-foreground">{{ batch.created_at_time }}</p>
-                                        <p class="text-[10px] text-muted-foreground">{{ batch.created_at_date }}</p>
+                                        <p class="text-xs font-semibold text-foreground">{{ batch.created_at_time }}</p>
+                                        <p class="text-xs text-muted-foreground">{{ batch.created_at_date }}</p>
                                     </td>
                                     <td class="px-4 py-3.5">
                                         <Link :href="`/company/batches/${batch.id}`"
-                                              class="opacity-0 group-hover:opacity-100 transition-opacity px-2.5 py-1 rounded-lg text-[10px] font-bold"
+                                              class="opacity-0 group-hover:opacity-100 transition-opacity px-2.5 py-1 rounded-lg text-xs font-bold"
                                               style="background:hsl(var(--primary)/0.1);color:hsl(var(--primary))">
                                             Detail
                                         </Link>

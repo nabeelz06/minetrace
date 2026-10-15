@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
 import { ref, computed } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
@@ -35,9 +36,9 @@ function handleDelete({ id, reason }) {
 
 // ─── Badge status snapshot CCTV per checkpoint ─────────────────────────────────
 function snapshotStatusBadge(status) {
-    if (status === 'captured') return { cls: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', label: 'Captured' }
-    if (status === 'pending')  return { cls: 'text-amber-400 border-amber-500/30 bg-amber-500/10', label: 'Pending' }
-    if (status === 'failed')   return { cls: 'text-red-400 border-red-500/30 bg-red-500/10', label: 'Failed' }
+    if (status === 'captured') return { cls: 'text-success border-success/30 bg-success-soft', label: 'Captured' }
+    if (status === 'pending')  return { cls: 'text-warning border-warning/30 bg-warning-soft', label: 'Pending' }
+    if (status === 'failed')   return { cls: 'text-danger border-danger/30 bg-danger-soft', label: 'Failed' }
     return null
 }
 
@@ -45,23 +46,23 @@ function snapshotStatusBadge(status) {
 const activeTab = ref('overview')
 const tabs = computed(() => {
     const base = [
-        { id: 'overview',    label: 'Ringkasan',   icon: '📊' },
+        { id: 'overview',    label: 'Ringkasan',   icon: 'gauge' },
         { id: 'timeline',    label: 'Timeline',     icon: '⏱' },
-        { id: 'checkpoints', label: 'Checkpoint',   icon: '📍' },
-        { id: 'photos',      label: 'Galeri Foto',  icon: '📷' },
+        { id: 'checkpoints', label: 'Checkpoint',   icon: 'map-pin' },
+        { id: 'photos',      label: 'Galeri Foto',  icon: 'camera' },
     ]
     if (props.batch?.lab_analyses?.length) {
-        base.push({ id: 'lab',    label: 'Lab Analisis', icon: '🧬' })
+        base.push({ id: 'lab',    label: 'Lab Analisis', icon: 'dna' })
     }
     if (props.batch?.parent_batch?.checkpoints?.length) {
-        base.push({ id: 'parent', label: 'Batch Induk',  icon: '🔗' })
+        base.push({ id: 'parent', label: 'Batch Induk',  icon: 'link' })
     }
     return base
 })
 
 function rfidOriginBadge(origin) {
-    if (origin === 'real_esp32')  return { label: 'ESP32',       cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
-    if (origin === 'simulation')  return { label: 'Simulasi',    cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+    if (origin === 'real_esp32')  return { label: 'ESP32',       cls: 'bg-success-soft text-success  ' }
+    if (origin === 'simulation')  return { label: 'Simulasi',    cls: 'bg-info-soft text-info  ' }
     if (origin === 'api')         return { label: 'API',         cls: 'bg-muted text-muted-foreground' }
     return null
 }
@@ -80,11 +81,11 @@ function statusClass(s) {
 
 function stageIcon(s) {
     const m = {
-        lab_kimia:'🧪', receiving:'📥', wet_process:'💧',
-        dry_process:'🔥', project_plant:'⚗️', warehouse:'🏭',
-        smelter:'⚡', exported:'🚢',
+        lab_kimia:'flask-conical', receiving:'package-open', wet_process:'droplets',
+        dry_process:'flame', project_plant:'microscope', warehouse:'warehouse',
+        smelter:'zap', exported:'ship',
     }
-    return m[s] ?? '📦'
+    return m[s] ?? 'package'
 }
 
 function statusLabel(s) {
@@ -107,9 +108,9 @@ function stageLabel(s) {
 
 // ─── Timeline helpers ─────────────────────────────────────────────────────
 function timelineColor(item) {
-    if (item.has_alert) return 'bg-red-500'
+    if (item.has_alert) return 'bg-danger'
     if (item.type === 'created') return 'bg-primary'
-    return 'bg-emerald-500'
+    return 'bg-success'
 }
 
 /**
@@ -182,13 +183,13 @@ const weightRetentionPct = computed(() => {
                             <!-- Batch code + status -->
                             <div class="flex items-center gap-3 flex-wrap">
                                 <div class="flex items-center gap-2">
-                                    <span style="font-size:24px;">{{ stageIcon(batch.process_stage) }}</span>
+                                    <AppIcon :name="stageIcon(batch.process_stage) || 'circle'" :size="26" />
                                     <h1 class="text-2xl font-bold font-mono tracking-wide text-foreground">
                                         {{ batch.batch_code }}
                                     </h1>
                                 </div>
                                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold" :class="statusClass(batch.status)">
-                                    <div v-if="batch.status === 'active'" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>
+                                    <div v-if="batch.status === 'active'" class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"/>
                                     {{ statusLabel(batch.status) }}
                                 </span>
                                 <span v-if="batch.has_discrepancy"
@@ -229,7 +230,7 @@ const weightRetentionPct = computed(() => {
                         <div class="flex flex-col items-end gap-2">
                             <span v-if="batch.product_code?.is_hazardous"
                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold badge-radioactive">
-                                <span>☢</span> Material Radioaktif
+                                <span></span> Material Radioaktif
                             </span>
                             <span v-if="batch.product_code?.is_export_blocked"
                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold badge-export-blocked">
@@ -255,7 +256,7 @@ const weightRetentionPct = computed(() => {
                                 <span class="text-xl font-bold text-foreground">{{ formatWeight(batch.current_weight) }}</span>
                                 <span v-if="batch.mass_loss_pct !== null"
                                       class="ml-2 text-xs font-semibold"
-                                      :class="batch.has_discrepancy ? 'text-red-500' : 'text-emerald-500'">
+                                      :class="batch.has_discrepancy ? 'text-danger' : 'text-success'">
                                     -{{ batch.mass_loss_pct }}%
                                 </span>
                             </div>
@@ -268,7 +269,7 @@ const weightRetentionPct = computed(() => {
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-xs text-muted-foreground">Retensi: {{ weightRetentionPct.toFixed(1) }}%</span>
-                            <span class="text-xs font-medium" :class="batch.has_discrepancy ? 'text-red-500' : 'text-muted-foreground'">
+                            <span class="text-xs font-medium" :class="batch.has_discrepancy ? 'text-danger' : 'text-muted-foreground'">
                                 Susut: {{ formatWeight((batch.initial_weight - batch.current_weight)) }}
                             </span>
                         </div>
@@ -282,13 +283,11 @@ const weightRetentionPct = computed(() => {
                     v-for="tab in tabs"
                     :key="tab.id"
                     @click="activeTab = tab.id"
-                    :class="activeTab === tab.id
-                        ? 'text-white shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'"
+                    :class="activeTab === tab.id ? 'text-white shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted'"
                     class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
                     :style="activeTab === tab.id ? 'background: hsl(var(--primary));' : ''"
                 >
-                    <span style="font-size:14px;">{{ tab.icon }}</span>
+                    <AppIcon :name="tab.icon || 'circle'" :size="15" />
                     {{ tab.label }}
                 </button>
             </div>
@@ -303,7 +302,7 @@ const weightRetentionPct = computed(() => {
                         <div v-for="info in [
                             { label: 'Kode Batch', value: batch.batch_code, mono: true },
                             { label: 'Lot Number', value: batch.lot_number || '—', mono: true },
-                            { label: 'Stage', value: `${stageIcon(batch.process_stage)} ${stageLabel(batch.process_stage)}` },
+                            { label: 'Stage', value: `${stageLabel(batch.process_stage)}` },
                             { label: 'Status', value: statusLabel(batch.status) },
                             { label: 'Lokasi', value: batch.current_location?.name || '—' },
                             { label: 'Dibuat Oleh', value: batch.created_by_user?.name || '—' },
@@ -328,7 +327,7 @@ const weightRetentionPct = computed(() => {
                             { label: 'Kategori', value: batch.product_code?.category },
                             { label: 'Simbol Kimia', value: batch.product_code?.chemical_symbol || '—' },
                             { label: 'Radioaktif', value: batch.product_code?.radioactive_level === 'none' ? 'Tidak' : batch.product_code?.radioactive_level },
-                            { label: 'Status Ekspor', value: batch.product_code?.is_export_blocked ? '🚫 Diblokir' : '✅ Dapat Diekspor' },
+                            { label: 'Status Ekspor', value: batch.product_code?.is_export_blocked ? 'Diblokir' : 'Dapat Diekspor' },
                         ]" :key="info.label"
                              class="flex items-start justify-between gap-4 py-2 border-b border-border/50 last:border-0"
                         >
@@ -355,7 +354,7 @@ const weightRetentionPct = computed(() => {
                             :href="`/company/batches/${child.id}`"
                             class="flex items-center gap-2.5 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-muted/30 transition-all duration-150 group"
                         >
-                            <span style="font-size:16px;">{{ stageIcon(child.process_stage) }}</span>
+                            <AppIcon :name="stageIcon(child.process_stage) || 'circle'" :size="18" />
                             <div class="min-w-0">
                                 <p class="text-xs font-mono font-semibold text-foreground truncate">{{ child.batch_code }}</p>
                                 <p class="text-xs text-muted-foreground">{{ child.product_code?.code }} · {{ formatWeight(child.current_weight) }}</p>
@@ -416,7 +415,7 @@ const weightRetentionPct = computed(() => {
                                                 </span>
                                                 <span v-if="item.loss_pct !== null && item.loss_pct !== undefined"
                                                       class="text-xs font-semibold"
-                                                      :class="item.has_alert ? 'text-red-500' : 'text-muted-foreground'">
+                                                      :class="item.has_alert ? 'text-danger' : 'text-muted-foreground'">
                                                     -{{ item.loss_pct }}% susut
                                                 </span>
                                             </div>
@@ -454,14 +453,12 @@ const weightRetentionPct = computed(() => {
                             v-for="(cp, i) in batch.checkpoints"
                             :key="cp.id"
                             class="px-5 py-4 hover:bg-muted/20 transition-colors"
-                            :class="cp.has_discrepancy ? 'bg-red-50/40 dark:bg-red-950/10' : ''"
+                            :class="cp.has_discrepancy ? 'bg-danger-soft ' : ''"
                         >
                             <div class="flex items-start justify-between gap-4">
                                 <div class="flex items-start gap-3">
                                     <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
-                                         :class="cp.has_discrepancy
-                                             ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                             : 'bg-primary/10 text-primary'">
+                                         :class="cp.has_discrepancy ? 'bg-danger-soft text-danger ' : 'bg-primary/10 text-primary'">
                                         {{ i + 1 }}
                                     </div>
                                     <div>
@@ -477,33 +474,33 @@ const weightRetentionPct = computed(() => {
                                             </span>
                                             <span v-if="cp.weight_loss_pct !== null && cp.weight_loss_pct !== undefined"
                                                   class="text-xs font-semibold"
-                                                  :class="cp.has_discrepancy ? 'text-red-500 dark:text-red-400' : 'text-muted-foreground'">
+                                                  :class="cp.has_discrepancy ? 'text-danger ' : 'text-muted-foreground'">
                                                 -{{ cp.weight_loss_pct }}%
                                             </span>
                                             <span v-if="cp.is_verified"
                                                   class="text-xs font-semibold px-1.5 py-0.5 rounded badge-active">
-                                                ✓ Terverifikasi
+                                                Terverifikasi
                                             </span>
                                             <span v-if="cp.location"
                                                   class="text-xs text-muted-foreground">
-                                                📍 {{ cp.location }}
+                                                {{ cp.location }}
                                             </span>
                                             <!-- CCTV snapshot status badge -->
                                             <span v-if="snapshotStatusBadge(cp.snapshot_status)"
                                                   class="text-xs font-semibold px-1.5 py-0.5 rounded"
                                                   :class="snapshotStatusBadge(cp.snapshot_status)?.cls">
-                                                📷 {{ snapshotStatusBadge(cp.snapshot_status)?.label }}
+                                                {{ snapshotStatusBadge(cp.snapshot_status)?.label }}
                                             </span>
                                             <!-- RFID origin badge -->
                                             <span v-if="rfidOriginBadge(cp.rfid_origin)"
                                                   class="text-xs font-semibold px-1.5 py-0.5 rounded"
                                                   :class="rfidOriginBadge(cp.rfid_origin)?.cls">
-                                                📡 {{ rfidOriginBadge(cp.rfid_origin)?.label }}
+                                                {{ rfidOriginBadge(cp.rfid_origin)?.label }}
                                             </span>
                                             <!-- Capture failed indicator -->
                                             <span v-if="cp.capture_attempted && !cp.capture_succeeded"
-                                                  class="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-                                                ⚠ Capture Gagal
+                                                  class="text-xs font-semibold px-1.5 py-0.5 rounded bg-warning-soft text-warning">
+                                                Capture Gagal
                                             </span>
                                         </div>
                                     </div>
@@ -588,9 +585,9 @@ const weightRetentionPct = computed(() => {
                                     </span>
                                     <span v-if="la.is_validated"
                                           class="text-xs font-semibold px-2 py-0.5 rounded badge-active">
-                                        ✓ Divalidasi
+                                        Divalidasi
                                     </span>
-                                    <span v-else class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-semibold">
+                                    <span v-else class="text-xs px-2 py-0.5 rounded bg-warning-soft text-warning font-semibold">
                                         Belum Divalidasi
                                     </span>
                                     <span v-if="la.lab_method" class="text-xs text-muted-foreground">
@@ -600,7 +597,7 @@ const weightRetentionPct = computed(() => {
                                 <div class="text-right text-xs text-muted-foreground">
                                     <p>{{ la.analyzed_by ?? '—' }}</p>
                                     <p>{{ la.analyzed_at ?? '—' }}</p>
-                                    <p v-if="la.validated_at" class="text-emerald-600 dark:text-emerald-400 mt-0.5">✓ {{ la.validated_at }}</p>
+                                    <p v-if="la.validated_at" class="text-success mt-0.5">{{ la.validated_at }}</p>
                                 </div>
                             </div>
 
@@ -615,31 +612,31 @@ const weightRetentionPct = computed(() => {
                                 ]" :key="elem.key"
                                      class="rounded-xl bg-muted/40 p-3 space-y-1"
                                 >
-                                    <p class="text-[10px] text-muted-foreground font-medium">{{ elem.label }}</p>
+                                    <p class="text-xs text-muted-foreground font-medium">{{ elem.label }}</p>
                                     <p class="text-sm font-bold text-foreground font-mono">
                                         {{ la[elem.key + '_pct'] != null ? la[elem.key + '_pct'].toFixed(3) + '%' : '—' }}
                                     </p>
-                                    <p class="text-[10px] text-muted-foreground">
+                                    <p class="text-xs text-muted-foreground">
                                         {{ la[elem.key + '_kg'] != null ? formatWeight(la[elem.key + '_kg']) : '' }}
                                     </p>
                                 </div>
 
                                 <!-- Radioactive elements -->
-                                <div class="rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 p-3 space-y-1">
-                                    <p class="text-[10px] text-red-600 dark:text-red-400 font-semibold">ThO₂ ☢</p>
-                                    <p class="text-sm font-bold text-red-700 dark:text-red-400 font-mono">
+                                <div class="rounded-xl bg-danger-soft border border-danger/30 p-3 space-y-1">
+                                    <p class="text-xs text-danger font-semibold">ThO₂ </p>
+                                    <p class="text-sm font-bold text-danger font-mono">
                                         {{ la.tho2_pct != null ? la.tho2_pct.toFixed(4) + '%' : '—' }}
                                     </p>
                                 </div>
-                                <div class="rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 p-3 space-y-1">
-                                    <p class="text-[10px] text-red-600 dark:text-red-400 font-semibold">U₃O₈ ☢</p>
-                                    <p class="text-sm font-bold text-red-700 dark:text-red-400 font-mono">
+                                <div class="rounded-xl bg-danger-soft border border-danger/30 p-3 space-y-1">
+                                    <p class="text-xs text-danger font-semibold">U₃O₈ </p>
+                                    <p class="text-sm font-bold text-danger font-mono">
                                         {{ la.u3o8_pct != null ? la.u3o8_pct.toFixed(4) + '%' : '—' }}
                                     </p>
                                 </div>
                                 <!-- Total REO -->
                                 <div class="rounded-xl border-2 border-primary/20 bg-primary/5 p-3 space-y-1 col-span-2 sm:col-span-2">
-                                    <p class="text-[10px] text-primary font-semibold">Total REO</p>
+                                    <p class="text-xs text-primary font-semibold">Total REO</p>
                                     <p class="text-lg font-extrabold text-primary font-mono">
                                         {{ la.total_reo_pct != null ? la.total_reo_pct.toFixed(3) + '%' : '—' }}
                                     </p>
@@ -701,19 +698,19 @@ const weightRetentionPct = computed(() => {
                                                 {{ formatWeight(cp.weight_recorded) }}
                                             </span>
                                             <span v-if="cp.location" class="text-xs text-muted-foreground">
-                                                📍 {{ cp.location }}
+                                                {{ cp.location }}
                                             </span>
                                             <!-- RFID origin badge -->
                                             <span v-if="rfidOriginBadge(cp.rfid_origin)"
                                                   class="text-xs font-semibold px-1.5 py-0.5 rounded"
                                                   :class="rfidOriginBadge(cp.rfid_origin)?.cls">
-                                                📡 {{ rfidOriginBadge(cp.rfid_origin)?.label }}
+                                                {{ rfidOriginBadge(cp.rfid_origin)?.label }}
                                             </span>
                                             <!-- Snapshot status -->
                                             <span v-if="snapshotStatusBadge(cp.snapshot_status)"
                                                   class="text-xs font-semibold px-1.5 py-0.5 rounded"
                                                   :class="snapshotStatusBadge(cp.snapshot_status)?.cls">
-                                                📷 {{ snapshotStatusBadge(cp.snapshot_status)?.label }}
+                                                {{ snapshotStatusBadge(cp.snapshot_status)?.label }}
                                             </span>
                                         </div>
                                         <!-- Thumbnail row for parent checkpoint photos -->
@@ -736,8 +733,8 @@ const weightRetentionPct = computed(() => {
                                 </div>
                                 <div class="text-right flex-shrink-0">
                                     <p class="text-xs text-muted-foreground">{{ cp.recorded_at }}</p>
-                                    <p v-if="cp.recorded_at_diff" class="text-[10px] text-muted-foreground/70 mt-0.5">{{ cp.recorded_at_diff }}</p>
-                                    <p v-if="cp.rfid_scan_code" class="text-[10px] font-mono text-muted-foreground/60 mt-0.5">
+                                    <p v-if="cp.recorded_at_diff" class="text-xs text-muted-foreground/70 mt-0.5">{{ cp.recorded_at_diff }}</p>
+                                    <p v-if="cp.rfid_scan_code" class="text-xs font-mono text-muted-foreground/60 mt-0.5">
                                         UID: {{ cp.rfid_scan_code }}
                                     </p>
                                 </div>

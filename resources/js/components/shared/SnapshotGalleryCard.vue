@@ -119,19 +119,19 @@ function requestRestore() {
             <div v-else class="w-full h-full flex items-center justify-center bg-muted">
                 <span class="text-xs text-muted-foreground">{{ t.captureFailed }}</span>
             </div>
-            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+            <div class="absolute inset-0 bg-primary from-black/80 via-black/10 to-transparent" />
 
             <!-- Scan type + latest badge -->
             <div class="absolute top-1.5 left-1.5 flex items-center gap-1 flex-wrap">
-                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white">
+                <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-black/60 text-white">
                     {{ scanTypeLabel(snapshot.scan_type) }}
                 </span>
-                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded text-white"
-                      :class="snapshot.capture_mode === 'real' ? 'bg-blue-600/80' : 'bg-slate-500/80'">
+                <span class="text-xs font-bold px-1.5 py-0.5 rounded text-white"
+                      :class="snapshot.capture_mode === 'real' ? 'bg-info' : 'bg-muted-foreground'">
                     {{ snapshot.capture_mode === 'real' ? t.real : t.simulation }}
                 </span>
                 <span v-if="isLatest"
-                      class="text-[9px] font-bold px-1.5 py-0.5 rounded text-white"
+                      class="text-xs font-bold px-1.5 py-0.5 rounded text-white"
                       style="background: hsl(var(--primary));">
                     {{ t.latest }}
                 </span>
@@ -139,39 +139,37 @@ function requestRestore() {
 
             <!-- Verified badge -->
             <div class="absolute top-1.5 right-1.5">
-                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                      :class="snapshot.is_verified
-                          ? 'bg-emerald-500/90 text-white'
-                          : 'bg-black/50 text-gray-200'">
-                    {{ snapshot.is_verified ? '✓ ' + t.verified : t.unverified }}
+                <span class="text-xs font-bold px-1.5 py-0.5 rounded"
+                      :class="snapshot.is_verified ? 'bg-success text-background' : 'bg-black/50 text-muted-foreground'">
+                    {{ snapshot.is_verified ? '' + t.verified : t.unverified }}
                 </span>
             </div>
 
             <!-- Stage + time overlay — timestamp mentah dari backend, TIDAK
                  di-reparse via `new Date()` (ambigu dd/mm vs mm/dd). -->
             <div class="absolute bottom-0 left-0 right-0 p-2 space-y-0.5 text-left">
-                <p v-if="showBatchCode" class="text-[10px] text-primary-foreground/90 font-bold truncate">
+                <p v-if="showBatchCode" class="text-xs text-primary-foreground/90 font-bold truncate">
                     {{ snapshot.batch_code }} <span v-if="snapshot.product_code">({{ snapshot.product_code }})</span>
                 </p>
                 <p class="text-xs text-white font-semibold truncate">{{ snapshot.stage_label }}</p>
-                <p class="text-[11px] text-white font-mono font-medium">{{ snapshot.captured_at || '—' }}</p>
-                <p v-if="snapshot.captured_at_diff" class="text-[10px] text-gray-300">{{ snapshot.captured_at_diff }}</p>
+                <p class="text-xs text-white font-mono font-medium">{{ snapshot.captured_at || '—' }}</p>
+                <p v-if="snapshot.captured_at_diff" class="text-xs text-muted-foreground">{{ snapshot.captured_at_diff }}</p>
             </div>
         </button>
 
         <!-- Metadata row -->
         <div class="px-2 py-1.5 space-y-0.5 text-left">
             <div class="flex items-center justify-between gap-1">
-                <span class="text-[10px] text-muted-foreground truncate">{{ snapshot.camera_name ?? '—' }}</span>
+                <span class="text-xs text-muted-foreground truncate">{{ snapshot.camera_name ?? '—' }}</span>
                 <span v-if="snapshot.capture_status === 'failed'"
-                      class="text-[9px] font-bold px-1 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 flex-shrink-0">
-                    ✕ {{ snapshot.failure_reason ?? 'failed' }}
+                      class="text-xs font-bold px-1 py-0.5 rounded bg-danger-soft text-danger flex-shrink-0">
+                    {{ snapshot.failure_reason ?? 'failed' }}
                 </span>
             </div>
-            <p v-if="snapshot.rfid_uid" class="text-[9px] font-mono text-muted-foreground/60 truncate">
+            <p v-if="snapshot.rfid_uid" class="text-xs font-mono text-muted-foreground/60 truncate">
                 UID: {{ snapshot.rfid_uid }}
             </p>
-            <p v-if="snapshot.review_notes" class="text-[9px] text-muted-foreground/80 italic truncate" :title="snapshot.review_notes">
+            <p v-if="snapshot.review_notes" class="text-xs text-muted-foreground/80 italic truncate" :title="snapshot.review_notes">
                 {{ snapshot.review_notes }}
             </p>
         </div>
@@ -179,25 +177,23 @@ function requestRestore() {
         <!-- ─── Aksi CRUD (hanya tampil jika diaktifkan via prop) ──────────── -->
         <div v-if="canVerify || canDelete || showRestore" class="px-2 pb-2 flex items-center gap-1.5 flex-wrap">
             <button v-if="canVerify" type="button"
-                    class="text-[10px] px-1.5 py-1 rounded font-medium transition-colors"
-                    :class="snapshot.is_verified
-                        ? 'bg-muted text-muted-foreground hover:bg-muted/70'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-700'"
+                    class="text-xs px-1.5 py-1 rounded font-medium transition-colors"
+                    :class="snapshot.is_verified ? 'bg-muted text-muted-foreground hover:bg-muted/70' : 'bg-success text-background hover:bg-success'"
                     @click="toggleVerify">
                 {{ snapshot.is_verified ? t.unverify : t.verify }}
             </button>
             <button v-if="canVerify" type="button"
-                    class="text-[10px] px-1.5 py-1 rounded font-medium bg-muted text-muted-foreground hover:bg-muted/70"
+                    class="text-xs px-1.5 py-1 rounded font-medium bg-muted text-muted-foreground hover:bg-muted/70"
                     @click="showNotesEditor = !showNotesEditor">
                 {{ t.reviewNotes }}
             </button>
             <button v-if="canDelete" type="button"
-                    class="text-[10px] px-1.5 py-1 rounded font-medium bg-red-600 text-white hover:bg-red-700"
+                    class="text-xs px-1.5 py-1 rounded font-medium bg-danger text-background hover:bg-danger"
                     @click="openDeleteModal">
                 {{ t.delete }}
             </button>
             <button v-if="showRestore" type="button"
-                    class="text-[10px] px-1.5 py-1 rounded font-medium bg-primary text-primary-foreground hover:opacity-90"
+                    class="text-xs px-1.5 py-1 rounded font-medium bg-primary text-primary-foreground hover:opacity-90"
                     @click="requestRestore">
                 {{ t.restore }}
             </button>
@@ -206,10 +202,10 @@ function requestRestore() {
         <!-- Inline review notes editor -->
         <div v-if="showNotesEditor" class="px-2 pb-2 space-y-1">
             <textarea v-model="reviewNotesInput" rows="2" :placeholder="t.reviewPlaceholder"
-                      class="w-full text-[11px] rounded-lg border border-border bg-background px-2 py-1 resize-none" />
+                      class="w-full text-xs rounded-lg border border-border bg-background px-2 py-1 resize-none" />
             <div class="flex justify-end gap-1">
-                <button type="button" class="text-[10px] px-2 py-1 rounded bg-muted" @click="showNotesEditor = false">{{ t.cancel }}</button>
-                <button type="button" class="text-[10px] px-2 py-1 rounded bg-primary text-primary-foreground" @click="saveNotes">{{ t.save }}</button>
+                <button type="button" class="text-xs px-2 py-1 rounded bg-muted" @click="showNotesEditor = false">{{ t.cancel }}</button>
+                <button type="button" class="text-xs px-2 py-1 rounded bg-primary text-primary-foreground" @click="saveNotes">{{ t.save }}</button>
             </div>
         </div>
 
@@ -227,7 +223,7 @@ function requestRestore() {
                             {{ t.cancel }}
                         </button>
                         <button type="button"
-                                class="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white disabled:opacity-40"
+                                class="text-xs px-3 py-1.5 rounded-lg bg-danger text-background disabled:opacity-40"
                                 :disabled="deleteReason.trim().length < 5"
                                 @click="confirmDelete">
                             {{ t.confirmDelete }}

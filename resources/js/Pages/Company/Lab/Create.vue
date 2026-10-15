@@ -74,11 +74,11 @@ watch([
 
 // ─── Konfigurasi 5 unsur LTJ ───────────────────────────────────────────────────
 const ELEMENTS = [
-    { key: 'la_pct', symbol: 'La', num: 57, name_id: 'Lantanum',     name_en: 'Lanthanum',    color: '#7c3aed', bg: 'rgba(124,58,237,0.09)' },
-    { key: 'ce_pct', symbol: 'Ce', num: 58, name_id: 'Serium',       name_en: 'Cerium',        color: '#2563eb', bg: 'rgba(37,99,235,0.09)'  },
-    { key: 'pr_pct', symbol: 'Pr', num: 59, name_id: 'Praseodimium', name_en: 'Praseodymium',  color: '#059669', bg: 'rgba(5,150,105,0.09)'  },
-    { key: 'nd_pct', symbol: 'Nd', num: 60, name_id: 'Neodimium',    name_en: 'Neodymium',     color: '#d97706', bg: 'rgba(217,119,6,0.09)'  },
-    { key: 'y_pct',  symbol: 'Y',  num: 39, name_id: 'Itrium',       name_en: 'Yttrium',       color: '#dc2626', bg: 'rgba(220,38,38,0.09)'  },
+    { key: 'la_pct', symbol: 'La', num: 57, name_id: 'Lantanum',     name_en: 'Lanthanum',    color: 'hsl(var(--info))', bg: 'hsl(var(--info-soft))' },
+    { key: 'ce_pct', symbol: 'Ce', num: 58, name_id: 'Serium',       name_en: 'Cerium',        color: 'hsl(var(--info))', bg: 'hsl(var(--info-soft))'  },
+    { key: 'pr_pct', symbol: 'Pr', num: 59, name_id: 'Praseodimium', name_en: 'Praseodymium',  color: 'hsl(var(--success))', bg: 'hsl(var(--success-soft))'  },
+    { key: 'nd_pct', symbol: 'Nd', num: 60, name_id: 'Neodimium',    name_en: 'Neodymium',     color: 'hsl(var(--warning))', bg: 'hsl(var(--warning-soft))'  },
+    { key: 'y_pct',  symbol: 'Y',  num: 39, name_id: 'Itrium',       name_en: 'Yttrium',       color: 'hsl(var(--danger))', bg: 'hsl(var(--danger-soft))'  },
 ]
 
 // ─── Kalkulasi real-time ───────────────────────────────────────────────────────
@@ -107,10 +107,10 @@ const maxPct = computed(() =>
 
 const reoQuality = computed(() => {
     const r = totalReo.value
-    if (r >= 10) return { id: 'Sangat Baik', en: 'Excellent', color: '#059669', bg: 'rgba(5,150,105,0.12)'  }
-    if (r >= 5)  return { id: 'Baik',        en: 'Good',      color: '#2563eb', bg: 'rgba(37,99,235,0.12)'  }
-    if (r >= 2)  return { id: 'Cukup',       en: 'Moderate',  color: '#d97706', bg: 'rgba(217,119,6,0.12)'  }
-    if (r > 0)   return { id: 'Rendah',      en: 'Low',       color: '#dc2626', bg: 'rgba(220,38,38,0.12)'  }
+    if (r >= 10) return { id: 'Sangat Baik', en: 'Excellent', color: 'hsl(var(--success))', bg: 'hsl(var(--success-soft))'  }
+    if (r >= 5)  return { id: 'Baik',        en: 'Good',      color: 'hsl(var(--info))', bg: 'hsl(var(--info-soft))'  }
+    if (r >= 2)  return { id: 'Cukup',       en: 'Moderate',  color: 'hsl(var(--warning))', bg: 'hsl(var(--warning-soft))'  }
+    if (r > 0)   return { id: 'Rendah',      en: 'Low',       color: 'hsl(var(--danger))', bg: 'hsl(var(--danger-soft))'  }
     return null
 })
 
@@ -141,7 +141,7 @@ function clearDraft() {
 
         <!-- Breadcrumb -->
         <nav class="flex items-center gap-1.5 text-xs text-muted-foreground animate-fade-in">
-            <Link href="/company/process/project_plant" class="hover:text-foreground transition-colors">⚗️ Project Plant</Link>
+            <Link href="/company/process/project_plant" class="hover:text-foreground transition-colors">Project Plant</Link>
             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
             </svg>
@@ -155,18 +155,18 @@ function clearDraft() {
         <!-- Draft restore banner -->
         <Transition name="slide-down">
             <div v-if="hasDraft"
-                 class="flex items-center justify-between px-4 py-3 rounded-xl border border-amber-300 dark:border-amber-700/50 animate-fade-in"
-                 style="background:rgba(245,158,11,0.06)">
+                 class="flex items-center justify-between px-4 py-3 rounded-xl border border-warning/30 animate-fade-in"
+                 style="background:hsl(var(--warning-soft))">
                 <div class="flex items-center gap-2">
-                    <span class="text-base">📋</span>
-                    <p class="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                    <span class="text-base"></span>
+                    <p class="text-xs font-semibold text-warning">
                         {{ lang==='en'
                             ? 'Draft restored from your previous session.'
                             : 'Draft dipulihkan dari sesi sebelumnya.' }}
                     </p>
                 </div>
                 <button @click="clearDraft"
-                        class="text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-900 underline px-2 py-1 rounded">
+                        class="text-xs font-bold text-warning hover:text-warning underline px-2 py-1 rounded">
                     {{ lang==='en' ? 'Clear & Reset' : 'Hapus & Reset' }}
                 </button>
             </div>
@@ -174,10 +174,10 @@ function clearDraft() {
 
         <!-- Validated warning -->
         <div v-if="has_validated"
-             class="flex items-center gap-3 px-4 py-3 rounded-xl border border-red-300 dark:border-red-700/50 animate-fade-in"
-             style="background:rgba(220,38,38,0.05)">
-            <span class="text-base flex-shrink-0">⚠️</span>
-            <p class="text-xs font-semibold text-red-700 dark:text-red-400">
+             class="flex items-center gap-3 px-4 py-3 rounded-xl border border-danger/30 animate-fade-in"
+             style="background:hsl(var(--danger-soft))">
+            <span class="text-base flex-shrink-0"></span>
+            <p class="text-xs font-semibold text-danger">
                 {{ lang==='en'
                     ? 'This batch already has a validated analysis. A new submission will create an additional record.'
                     : 'Batch ini sudah memiliki analisis yang tervalidasi. Input baru akan membuat catatan tambahan.' }}
@@ -198,26 +198,25 @@ function clearDraft() {
                 <div class="rounded-2xl border border-border bg-card p-5 animate-fade-in">
                     <div class="flex items-center gap-4">
                         <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
-                             style="background:linear-gradient(135deg,rgba(62,92,116,0.12),rgba(62,92,116,0.06))">
-                            ⚗️
-                        </div>
+                             style="background:hsl(var(--primary)/0.12)">
+                                                    </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap mb-1">
                                 <h2 class="font-mono font-bold text-xl text-foreground tracking-wider">{{ batch.batch_code }}</h2>
                                 <span v-if="batch.product?.is_hazardous"
-                                      class="text-[10px] px-2 py-0.5 rounded-lg font-bold"
-                                      style="background:rgba(168,85,247,0.12);color:#9333ea">
-                                    ☢ {{ lang==='en' ? 'Radioactive' : 'Radioaktif' }}
+                                      class="text-xs px-2 py-0.5 rounded-lg font-bold"
+                                      style="background:hsl(var(--info-soft));color:hsl(var(--info))">
+                                    {{ lang==='en' ? 'Radioactive' : 'Radioaktif' }}
                                 </span>
-                                <span class="text-[10px] px-2 py-0.5 rounded-lg font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
-                                    ⚗️ Project Plant
+                                <span class="text-xs px-2 py-0.5 rounded-lg font-bold bg-success-soft text-success">
+                                    Project Plant
                                 </span>
                             </div>
                             <p class="text-sm text-muted-foreground">{{ batch.product?.code }} — {{ batch.product?.name }}</p>
-                            <p v-if="batch.location" class="text-xs text-muted-foreground mt-0.5">📍 {{ batch.location }}</p>
+                            <p v-if="batch.location" class="text-xs text-muted-foreground mt-0.5">{{ batch.location }}</p>
                         </div>
                         <div class="text-right flex-shrink-0">
-                            <p class="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">
+                            <p class="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">
                                 {{ lang==='en' ? 'Batch Weight' : 'Berat Batch' }}
                             </p>
                             <p class="text-2xl font-black text-foreground tabular-nums leading-none">
@@ -245,7 +244,7 @@ function clearDraft() {
                                     {{ lang==='en' ? 'Lab Location' : 'Lokasi Lab' }}
                                 </label>
                                 <select v-model="form.location_id"
-                                        class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all">
+                                        class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all">
                                     <option value="">{{ lang==='en' ? 'Select location...' : 'Pilih lokasi...' }}</option>
                                     <option v-for="loc in locations" :key="loc.id" :value="loc.id">
                                         [{{ loc.code }}] {{ loc.full_name || loc.name }}
@@ -257,7 +256,7 @@ function clearDraft() {
                                     {{ lang==='en' ? 'Analysis Method' : 'Metode Analisis' }}
                                 </label>
                                 <select v-model="form.lab_method"
-                                        class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all">
+                                        class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all">
                                     <option v-for="m in methods" :key="m" :value="m">{{ m }}</option>
                                 </select>
                             </div>
@@ -267,7 +266,7 @@ function clearDraft() {
                                 </label>
                                 <input v-model="form.equipment_used" type="text"
                                        :placeholder="lang==='en' ? 'e.g. XRF Analyzer X-500' : 'Contoh: XRF Analyzer X-500'"
-                                       class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all"/>
+                                       class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all"/>
                             </div>
                             <div class="space-y-1.5">
                                 <label class="block text-xs font-semibold text-foreground">
@@ -275,7 +274,7 @@ function clearDraft() {
                                 </label>
                                 <input v-model="form.sample_weight_g" type="number" step="0.001" min="0"
                                        placeholder="50.000"
-                                       class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all font-mono"/>
+                                       class="w-full h-10 px-3 rounded-xl text-xs border border-border bg-background text-foreground focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all font-mono"/>
                             </div>
                         </div>
                     </div>
@@ -310,8 +309,8 @@ function clearDraft() {
                                     <!-- Symbol badge -->
                                     <div class="w-11 h-11 rounded-xl flex flex-col items-center justify-center text-white flex-shrink-0 shadow-sm"
                                          :style="`background:linear-gradient(135deg,${el.color},${el.color}cc)`">
-                                        <span class="text-[11px] font-black leading-none">{{ el.symbol }}</span>
-                                        <span class="text-[7px] leading-none opacity-60 mt-0.5">{{ el.num }}</span>
+                                        <span class="text-xs font-black leading-none">{{ el.symbol }}</span>
+                                        <span class="text-xs leading-none opacity-60 mt-0.5">{{ el.num }}</span>
                                     </div>
 
                                     <!-- Name + calculated kg -->
@@ -319,7 +318,7 @@ function clearDraft() {
                                         <p class="text-sm font-bold text-foreground leading-tight">
                                             {{ lang==='en' ? el.name_en : el.name_id }}
                                         </p>
-                                        <p class="text-[10px] font-mono mt-0.5 transition-all duration-300"
+                                        <p class="text-xs font-mono mt-0.5 transition-all duration-300"
                                            :style="el.pct > 0 ? `color:${el.color}` : 'color:hsl(var(--muted-foreground))'">
                                             {{ el.kg > 0 ? `≈ ${el.kg.toFixed(4)} kg dari ${batchWeight.toLocaleString('id-ID')} kg` : '— masukkan persentase' }}
                                         </p>
@@ -335,10 +334,8 @@ function clearDraft() {
                                         <input v-model="form[el.key]"
                                                type="number" step="0.001" min="0" max="100"
                                                :placeholder="lang==='en' ? 'Enter %...' : 'Masukkan %...'"
-                                               class="w-full h-10 pl-4 pr-8 rounded-xl text-sm font-bold border bg-background text-foreground outline-none transition-all text-right tabular-nums"
-                                               :class="form.errors[el.key]
-                                                   ? 'border-red-400 focus:ring-2 focus:ring-red-300'
-                                                   : 'border-border focus:ring-2 focus:ring-primary/25 focus:border-primary'"
+                                               class="w-full h-10 pl-4 pr-8 rounded-xl text-sm font-bold border bg-background text-foreground transition-all text-right tabular-nums"
+                                               :class="form.errors[el.key] ? 'border-danger/30 focus:ring-2 focus:ring-danger/30' : 'border-border focus:ring-2 focus:ring-primary/25 focus:border-primary'"
                                                :style="el.pct > 0 ? `color:${el.color}` : ''"
                                         />
                                         <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">%</span>
@@ -347,7 +344,7 @@ function clearDraft() {
 
                                 <!-- Error message -->
                                 <p v-if="form.errors[el.key]"
-                                   class="text-xs text-red-500 mt-1.5 ml-14">{{ form.errors[el.key] }}</p>
+                                   class="text-xs text-danger mt-1.5 ml-14">{{ form.errors[el.key] }}</p>
                             </div>
                         </div>
 
@@ -374,35 +371,35 @@ function clearDraft() {
                     <!-- ── Parameter Radioaktif ────────────────── -->
                     <div v-if="batch.product?.is_hazardous"
                          class="rounded-2xl border p-5 space-y-4 animate-fade-in delay-100"
-                         style="border-color:rgba(168,85,247,0.3);background:rgba(168,85,247,0.04)">
+                         style="border-color:hsl(var(--info)/0.3);background:hsl(var(--info-soft))">
                         <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-2 pb-3 border-b"
-                            style="color:#9333ea;border-color:rgba(168,85,247,0.2)">
-                            <span class="text-base">☢</span>
+                            style="color:hsl(var(--info));border-color:hsl(var(--info-soft))">
+                            <span class="text-base"></span>
                             {{ lang==='en' ? 'Radioactive Parameters (optional)' : 'Parameter Radioaktif (opsional)' }}
                         </h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-1.5">
-                                <label class="block text-xs font-semibold" style="color:#9333ea">
+                                <label class="block text-xs font-semibold" style="color:hsl(var(--info))">
                                     ThO₂ — Thorium Oxide (%)
                                 </label>
                                 <div class="relative">
                                     <input v-model="form.tho2_pct" type="number" step="0.001" min="0" max="100"
                                            :placeholder="lang==='en' ? 'Enter ThO₂...' : 'Masukkan ThO₂...'"
-                                           class="w-full h-10 pl-4 pr-8 rounded-xl text-xs border bg-background text-foreground outline-none focus:ring-2 transition-all font-mono"
-                                           style="border-color:rgba(168,85,247,0.3)"/>
-                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold" style="color:#9333ea">%</span>
+                                           class="w-full h-10 pl-4 pr-8 rounded-xl text-xs border bg-background text-foreground focus:ring-2 transition-all font-mono"
+                                           style="border-color:hsl(var(--info)/0.3)"/>
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold" style="color:hsl(var(--info))">%</span>
                                 </div>
                             </div>
                             <div class="space-y-1.5">
-                                <label class="block text-xs font-semibold" style="color:#9333ea">
+                                <label class="block text-xs font-semibold" style="color:hsl(var(--info))">
                                     U₃O₈ — Uranium Oxide (%)
                                 </label>
                                 <div class="relative">
                                     <input v-model="form.u3o8_pct" type="number" step="0.001" min="0" max="100"
                                            :placeholder="lang==='en' ? 'Enter U₃O₈...' : 'Masukkan U₃O₈...'"
-                                           class="w-full h-10 pl-4 pr-8 rounded-xl text-xs border bg-background text-foreground outline-none focus:ring-2 transition-all font-mono"
-                                           style="border-color:rgba(168,85,247,0.3)"/>
-                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold" style="color:#9333ea">%</span>
+                                           class="w-full h-10 pl-4 pr-8 rounded-xl text-xs border bg-background text-foreground focus:ring-2 transition-all font-mono"
+                                           style="border-color:hsl(var(--info)/0.3)"/>
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold" style="color:hsl(var(--info))">%</span>
                                 </div>
                             </div>
                         </div>
@@ -417,7 +414,7 @@ function clearDraft() {
                                   :placeholder="lang==='en'
                                       ? 'Sample conditions, anomalies, or special observations...'
                                       : 'Kondisi sampel, anomali, atau catatan pengamatan khusus...'"
-                                  class="w-full px-4 py-3 rounded-xl text-xs border border-border bg-background text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all resize-none leading-relaxed"/>
+                                  class="w-full px-4 py-3 rounded-xl text-xs border border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all resize-none leading-relaxed"/>
                     </div>
 
                     <!-- ── Action Buttons ──────────────────────── -->
@@ -433,7 +430,7 @@ function clearDraft() {
                         <!-- Draft saved indicator -->
                         <Transition name="toast">
                             <span v-if="draftSaved"
-                                  class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                  class="text-xs text-success font-semibold flex items-center gap-1">
                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75"/>
                                 </svg>
@@ -478,7 +475,7 @@ function clearDraft() {
                                 </span>
                             </div>
                             <div v-if="reoQuality"
-                                 class="px-2.5 py-1 rounded-lg text-[10px] font-bold"
+                                 class="px-2.5 py-1 rounded-lg text-xs font-bold"
                                  :style="`background:${reoQuality.bg};color:${reoQuality.color};border:1px solid ${reoQuality.color}40`">
                                 {{ lang==='en' ? reoQuality.en : reoQuality.id }}
                             </div>
@@ -490,7 +487,7 @@ function clearDraft() {
                                  :style="totalReo > 0
                                      ? `background:${reoQuality?.bg}`
                                      : 'background:hsl(var(--muted)/0.4)'">
-                                <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+                                <p class="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">
                                     Total REO
                                 </p>
                                 <div class="flex items-baseline justify-center gap-1">
@@ -509,13 +506,13 @@ function clearDraft() {
                             <!-- Batch stats -->
                             <div class="grid grid-cols-2 gap-2">
                                 <div class="rounded-xl border border-border bg-muted/20 p-3 text-center">
-                                    <p class="text-[9px] text-muted-foreground uppercase tracking-wider">
+                                    <p class="text-xs text-muted-foreground uppercase tracking-wider">
                                         {{ lang==='en' ? 'Batch Weight' : 'Berat Batch' }}
                                     </p>
                                     <p class="text-sm font-bold text-foreground tabular-nums">{{ batchWeight.toLocaleString('id-ID') }} kg</p>
                                 </div>
                                 <div class="rounded-xl border border-border bg-muted/20 p-3 text-center">
-                                    <p class="text-[9px] text-muted-foreground uppercase tracking-wider">LTJ Total</p>
+                                    <p class="text-xs text-muted-foreground uppercase tracking-wider">LTJ Total</p>
                                     <p class="text-sm font-bold tabular-nums"
                                        :style="totalLtjKg > 0 ? `color:${reoQuality?.color}` : 'color:hsl(var(--muted-foreground))'">
                                         {{ totalLtjKg > 0 ? totalLtjKg.toFixed(3) + ' kg' : '—' }}
@@ -525,7 +522,7 @@ function clearDraft() {
 
                             <!-- Element breakdown -->
                             <div class="space-y-2">
-                                <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                <p class="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                                     {{ lang==='en' ? 'Element Breakdown' : 'Rincian Unsur' }}
                                 </p>
 
@@ -544,12 +541,12 @@ function clearDraft() {
                                          class="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all"
                                          :style="el.pct > 0 ? `background:${el.bg}` : ''">
                                         <!-- Color dot + symbol -->
-                                        <div class="w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-black text-white flex-shrink-0"
+                                        <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs font-black text-white flex-shrink-0"
                                              :style="`background:${el.pct > 0 ? el.color : 'hsl(var(--muted-foreground))'}`">
                                             {{ el.symbol }}
                                         </div>
                                         <!-- Name -->
-                                        <span class="flex-1 text-[10px] font-semibold text-muted-foreground truncate">
+                                        <span class="flex-1 text-xs font-semibold text-muted-foreground truncate">
                                             {{ lang==='en' ? el.name_en : el.name_id }}
                                         </span>
                                         <!-- Values -->
@@ -558,7 +555,7 @@ function clearDraft() {
                                                   :style="el.pct > 0 ? `color:${el.color}` : 'color:hsl(var(--muted-foreground))'">
                                                 {{ el.pct > 0 ? el.pct.toFixed(3) + '%' : '—' }}
                                             </span>
-                                            <p v-if="el.kg > 0" class="text-[9px] text-muted-foreground font-mono">
+                                            <p v-if="el.kg > 0" class="text-xs text-muted-foreground font-mono">
                                                 {{ el.kg.toFixed(4) }} kg
                                             </p>
                                         </div>
@@ -568,7 +565,7 @@ function clearDraft() {
 
                             <!-- Empty state -->
                             <div v-if="totalReo === 0" class="py-4 text-center">
-                                <div class="text-3xl mb-2 opacity-40">🔬</div>
+                                <div class="text-3xl mb-2 opacity-40"></div>
                                 <p class="text-xs text-muted-foreground">
                                     {{ lang==='en'
                                         ? 'Enter element percentages to see live calculations'
@@ -580,40 +577,40 @@ function clearDraft() {
 
                     <!-- ── Quality Guide ───────────────────────── -->
                     <div class="rounded-2xl border border-border bg-card p-4 space-y-3 animate-fade-in delay-150">
-                        <h3 class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        <h3 class="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                             {{ lang==='en' ? 'REO Quality Guide' : 'Panduan Kualitas REO' }}
                         </h3>
                         <div class="space-y-1.5">
                             <div v-for="q in [
-                                { id:'≥10% — Sangat Baik', en:'≥10% — Excellent', color:'#059669', bg:'rgba(5,150,105,0.1)'  },
-                                { id:'5–10% — Baik',       en:'5–10% — Good',     color:'#2563eb', bg:'rgba(37,99,235,0.1)'  },
-                                { id:'2–5% — Cukup',       en:'2–5% — Moderate',  color:'#d97706', bg:'rgba(217,119,6,0.1)'  },
-                                { id:'<2% — Rendah',       en:'<2% — Low',        color:'#dc2626', bg:'rgba(220,38,38,0.1)'  },
+                                { id:'≥10% — Sangat Baik', en:'≥10% — Excellent', color:'hsl(var(--success))', bg:'hsl(var(--success-soft))'  },
+                                { id:'5–10% — Baik',       en:'5–10% — Good',     color:'hsl(var(--info))', bg:'hsl(var(--info-soft))'  },
+                                { id:'2–5% — Cukup',       en:'2–5% — Moderate',  color:'hsl(var(--warning))', bg:'hsl(var(--warning-soft))'  },
+                                { id:'<2% — Rendah',       en:'<2% — Low',        color:'hsl(var(--danger))', bg:'hsl(var(--danger-soft))'  },
                             ]" :key="q.id"
-                                 class="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-semibold"
+                                 class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold"
                                  :style="`background:${q.bg};color:${q.color}`">
                                 <div class="w-2 h-2 rounded-full flex-shrink-0" :style="`background:${q.color}`"/>
                                 {{ lang==='en' ? q.en : q.id }}
                             </div>
                         </div>
-                        <p class="text-[9px] text-muted-foreground leading-relaxed pt-1 border-t border-border">
+                        <p class="text-xs text-muted-foreground leading-relaxed pt-1 border-t border-border">
                             {{ lang==='en'
-                                ? '💡 La + Ce + Pr + Nd + Y = Total REO. Radioactive (ThO₂, U₃O₈) recorded separately.'
-                                : '💡 La + Ce + Pr + Nd + Y = Total REO. Radioaktif (ThO₂, U₃O₈) dicatat terpisah.' }}
+                                ? 'La + Ce + Pr + Nd + Y = Total REO. Radioactive (ThO₂, U₃O₈) recorded separately.'
+                                : 'La + Ce + Pr + Nd + Y = Total REO. Radioaktif (ThO₂, U₃O₈) dicatat terpisah.' }}
                         </p>
                     </div>
 
                     <!-- ── Existing analyses ──────────────────── -->
                     <div v-if="existing_analyses > 0"
                          class="rounded-xl border px-4 py-3 animate-fade-in"
-                         style="border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.04)">
-                        <p class="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                         style="border-color:hsl(var(--warning)/0.3);background:hsl(var(--warning-soft))">
+                        <p class="text-xs font-semibold text-warning">
                             {{ lang==='en'
-                                ? `📋 ${existing_analyses} previous record(s) for this batch.`
-                                : `📋 ${existing_analyses} catatan analisis sebelumnya untuk batch ini.` }}
+                                ? `${existing_analyses} previous record(s) for this batch.`
+                                : `${existing_analyses} catatan analisis sebelumnya untuk batch ini.` }}
                         </p>
                         <Link href="/company/lab"
-                              class="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline mt-1 block">
+                              class="text-xs font-bold text-warning hover:underline mt-1 block">
                             {{ lang==='en' ? 'View all in Lab Index →' : 'Lihat semua di Lab Index →' }}
                         </Link>
                     </div>

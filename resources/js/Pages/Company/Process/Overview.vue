@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
 import { computed }              from 'vue'
 import { Head, Link }            from '@inertiajs/vue3'
 import AppLayout                 from '@/Layouts/AppLayout.vue'
@@ -14,12 +15,12 @@ const props = defineProps({
 })
 
 const colorMap = {
-    violet:  { bg: 'bg-violet-50 dark:bg-violet-950/20',  border: 'border-violet-200 dark:border-violet-800/50',  text: 'text-violet-600 dark:text-violet-400',  dot: 'bg-violet-500' },
-    blue:    { bg: 'bg-blue-50 dark:bg-blue-950/20',      border: 'border-blue-200 dark:border-blue-800/50',      text: 'text-blue-600 dark:text-blue-400',      dot: 'bg-blue-500' },
-    cyan:    { bg: 'bg-cyan-50 dark:bg-cyan-950/20',      border: 'border-cyan-200 dark:border-cyan-800/50',      text: 'text-cyan-600 dark:text-cyan-400',      dot: 'bg-cyan-500' },
-    amber:   { bg: 'bg-amber-50 dark:bg-amber-950/20',    border: 'border-amber-200 dark:border-amber-800/50',    text: 'text-amber-600 dark:text-amber-400',    dot: 'bg-amber-500' },
-    emerald: { bg: 'bg-emerald-50 dark:bg-emerald-950/20',border: 'border-emerald-200 dark:border-emerald-800/50',text: 'text-emerald-600 dark:text-emerald-400',dot: 'bg-emerald-500' },
-    teal:    { bg: 'bg-teal-50 dark:bg-teal-950/20',      border: 'border-teal-200 dark:border-teal-800/50',      text: 'text-teal-600 dark:text-teal-400',      dot: 'bg-teal-500' },
+    violet:  { bg: 'bg-info-soft ',  border: 'border-info/30 ',  text: 'text-info ',  dot: 'bg-info' },
+    blue:    { bg: 'bg-info-soft ',      border: 'border-info/30 ',      text: 'text-info ',      dot: 'bg-info' },
+    cyan:    { bg: 'bg-info-soft ',      border: 'border-info/30 ',      text: 'text-info ',      dot: 'bg-info' },
+    amber:   { bg: 'bg-warning-soft ',    border: 'border-warning/30 ',    text: 'text-warning ',    dot: 'bg-warning' },
+    emerald: { bg: 'bg-success-soft ',border: 'border-success/30 ',text: 'text-success ',dot: 'bg-success' },
+    teal:    { bg: 'bg-success-soft ',      border: 'border-success/30 ',      text: 'text-success ',      dot: 'bg-success' },
 }
 
 function getColor(color) {
@@ -57,16 +58,16 @@ function stageLabel(stage) {
             <!-- Global KPI -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div v-for="(item, i) in [
-                    { label: lang === 'en' ? 'Active Batches' : 'Batch Aktif',     value: global_stats?.total_active, icon: '📦', color: 'text-primary' },
-                    { label: lang === 'en' ? 'Total Weight' : 'Total Berat',       value: null, weight: global_stats?.total_weight, icon: '⚖️', color: 'text-foreground' },
-                    { label: lang === 'en' ? 'Active Stages' : 'Stage Aktif',      value: global_stats?.stage_count, icon: '🔄', color: 'text-emerald-600 dark:text-emerald-400' },
-                    { label: lang === 'en' ? 'Alert Batches' : 'Batch Alert',      value: global_stats?.total_alerts, icon: '⚠️', color: global_stats?.total_alerts > 0 ? 'text-red-500' : 'text-muted-foreground' },
+                    { label: lang === 'en' ? 'Active Batches' : 'Batch Aktif',     value: global_stats?.total_active, icon: 'package', color: 'text-primary' },
+                    { label: lang === 'en' ? 'Total Weight' : 'Total Berat',       value: null, weight: global_stats?.total_weight, icon: 'scale', color: 'text-foreground' },
+                    { label: lang === 'en' ? 'Active Stages' : 'Stage Aktif',      value: global_stats?.stage_count, icon: 'refresh-cw', color: 'text-success ' },
+                    { label: lang === 'en' ? 'Alert Batches' : 'Batch Alert',      value: global_stats?.total_alerts, icon: 'triangle-alert', color: global_stats?.total_alerts > 0 ? 'text-danger' : 'text-muted-foreground' },
                 ]" :key="item.label"
                      class="rounded-2xl border border-border bg-card p-5 animate-fade-in"
                      :style="`animation-delay: ${i*60}ms`">
                     <div class="flex items-start justify-between mb-2">
                         <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{{ item.label }}</p>
-                        <span class="text-xl">{{ item.icon }}</span>
+                        <AppIcon :name="item.icon || 'circle'" :size="22" />
                     </div>
                     <p class="text-3xl font-bold" :class="item.color">
                         <template v-if="item.weight !== undefined">
@@ -90,20 +91,20 @@ function stageLabel(stage) {
                             <div class="relative">
                                 <div class="w-14 h-14 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 group-hover:scale-110 group-hover:shadow-md border"
                                      :class="[getColor(stage.color).bg, getColor(stage.color).border]">
-                                    <span class="text-xl leading-none">{{ stage.icon }}</span>
+                                    <AppIcon :name="stage.icon || 'circle'" :size="22" />
                                     <span class="text-xs font-bold mt-0.5" :class="getColor(stage.color).text">{{ stage.count }}</span>
                                 </div>
                                 <!-- Alert badge -->
                                 <div v-if="stage.alert_count > 0"
-                                     class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 flex items-center justify-center">
-                                    <span class="text-[10px] font-bold text-white px-1">{{ stage.alert_count }}</span>
+                                     class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-danger flex items-center justify-center">
+                                    <span class="text-xs font-bold text-white px-1">{{ stage.alert_count }}</span>
                                 </div>
                                 <!-- Active pulse -->
                                 <div v-if="stage.count > 0"
                                      class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full animate-pulse"
                                      :class="getColor(stage.color).dot"/>
                             </div>
-                            <p class="text-[10px] font-medium text-center text-muted-foreground leading-tight max-w-[72px]">
+                            <p class="text-xs font-medium text-center text-muted-foreground leading-tight max-w-[72px]">
                                 {{ lang === 'en' ? stage.label_en : stage.label }}
                             </p>
                         </Link>
@@ -122,12 +123,12 @@ function stageLabel(stage) {
                             </div>
                             <div class="flex flex-col items-center gap-1.5 min-w-[72px]">
                                 <div class="w-14 h-14 rounded-2xl flex flex-col items-center justify-center border border-dashed border-border bg-muted/30">
-                                    <span class="text-xl leading-none">🚢</span>
+                                    <span class="text-xl leading-none"></span>
                                     <span class="text-xs font-bold mt-0.5 text-muted-foreground">
                                         {{ global_stats?.total_exported ?? 0 }}
                                     </span>
                                 </div>
-                                <p class="text-[10px] font-medium text-center text-muted-foreground">
+                                <p class="text-xs font-medium text-center text-muted-foreground">
                                     {{ lang === 'en' ? 'Exported' : 'Diekspor' }}
                                 </p>
                             </div>
@@ -156,10 +157,7 @@ function stageLabel(stage) {
                     >
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex items-center gap-2.5">
-                                <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
-                                     :class="getColor(stage.color).bg">
-                                    {{ stage.icon }}
-                                </div>
+                                <AppIcon :name="stage.icon || 'circle'" :size="22" />
                                 <div>
                                     <p class="text-sm font-bold text-foreground">
                                         {{ lang === 'en' ? stage.label_en : stage.label }}
@@ -173,20 +171,20 @@ function stageLabel(stage) {
                                 </div>
                             </div>
                             <div v-if="stage.alert_count > 0"
-                                 class="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-100 dark:bg-red-900/30">
-                                <span class="text-xs font-bold text-red-600 dark:text-red-400">⚠ {{ stage.alert_count }}</span>
+                                 class="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-danger-soft">
+                                <span class="text-xs font-bold text-danger">{{ stage.alert_count }}</span>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div class="rounded-xl bg-white/60 dark:bg-black/20 p-3">
-                                <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                                <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
                                     {{ lang === 'en' ? 'Batches' : 'Batch' }}
                                 </p>
                                 <p class="text-xl font-bold" :class="getColor(stage.color).text">{{ stage.count }}</p>
                             </div>
                             <div class="rounded-xl bg-white/60 dark:bg-black/20 p-3">
-                                <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                                <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
                                     {{ lang === 'en' ? 'Weight' : 'Berat' }}
                                 </p>
                                 <WeightDisplay :kg="stage.total_weight" size="sm" :class="getColor(stage.color).text"/>
@@ -225,8 +223,8 @@ function stageLabel(stage) {
 
                         <!-- Icon -->
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                             :class="log.has_discrepancy ? 'bg-red-100 dark:bg-red-900/30' : 'bg-primary/10'">
-                            <span class="text-xs">{{ log.has_discrepancy ? '⚠️' : '✅' }}</span>
+                             :class="log.has_discrepancy ? 'bg-danger-soft ' : 'bg-primary/10'">
+                            <AppIcon :name="log.has_discrepancy ? 'triangle-alert' : 'circle-check'" :size="14" :class="log.has_discrepancy ? 'text-warning' : 'text-success'" />
                         </div>
 
                         <!-- Content -->
@@ -242,8 +240,8 @@ function stageLabel(stage) {
                                 <span class="text-xs text-muted-foreground">
                                     {{ stageLabel(log.stage) }}
                                 </span>
-                                <span v-if="log.has_discrepancy" class="text-xs font-semibold text-red-600 dark:text-red-400">
-                                    ⚠ Susut {{ log.weight_loss_pct }}%
+                                <span v-if="log.has_discrepancy" class="text-xs font-semibold text-danger">
+                                    Susut {{ log.weight_loss_pct }}%
                                 </span>
                             </div>
                             <p class="text-xs text-muted-foreground mt-0.5">

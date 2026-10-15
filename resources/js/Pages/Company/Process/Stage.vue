@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
 /**
  * Stage.vue — Detail satu tahap proses produksi.
  *
@@ -79,12 +80,12 @@ const canForward      = computed(() => canReceive.value && hasNext.value && !isD
 
 // ─── Stage colors ─────────────────────────────────────────────────────────────
 const stageColorMap = {
-    lab_kimia:     { bg:'bg-violet-100 dark:bg-violet-900/20', text:'text-violet-700 dark:text-violet-300', dot:'bg-violet-500', border:'border-violet-200 dark:border-violet-800/40' },
-    receiving:     { bg:'bg-blue-100 dark:bg-blue-900/20',     text:'text-blue-700 dark:text-blue-300',     dot:'bg-blue-500',   border:'border-blue-200 dark:border-blue-800/40' },
-    wet_process:   { bg:'bg-cyan-100 dark:bg-cyan-900/20',     text:'text-cyan-700 dark:text-cyan-300',     dot:'bg-cyan-500',   border:'border-cyan-200 dark:border-cyan-800/40' },
-    dry_process:   { bg:'bg-amber-100 dark:bg-amber-900/20',   text:'text-amber-700 dark:text-amber-300',   dot:'bg-amber-500',  border:'border-amber-200 dark:border-amber-800/40' },
-    project_plant: { bg:'bg-emerald-100 dark:bg-emerald-900/20', text:'text-emerald-700 dark:text-emerald-300', dot:'bg-emerald-500', border:'border-emerald-200 dark:border-emerald-800/40' },
-    warehouse:     { bg:'bg-teal-100 dark:bg-teal-900/20',     text:'text-teal-700 dark:text-teal-300',     dot:'bg-teal-500',   border:'border-teal-200 dark:border-teal-800/40' },
+    lab_kimia:     { bg:'bg-info-soft ', text:'text-info ', dot:'bg-info', border:'border-info/30 ' },
+    receiving:     { bg:'bg-info-soft ',     text:'text-info ',     dot:'bg-info',   border:'border-info/30 ' },
+    wet_process:   { bg:'bg-info-soft ',     text:'text-info ',     dot:'bg-info',   border:'border-info/30 ' },
+    dry_process:   { bg:'bg-warning-soft ',   text:'text-warning ',   dot:'bg-warning',  border:'border-warning/30 ' },
+    project_plant: { bg:'bg-success-soft ', text:'text-success ', dot:'bg-success', border:'border-success/30 ' },
+    warehouse:     { bg:'bg-success-soft ',     text:'text-success ',     dot:'bg-success',   border:'border-success/30 ' },
 }
 function sc(s) { return stageColorMap[s] ?? stageColorMap.lab_kimia }
 const currentColor = computed(() => sc(props.stage))
@@ -318,7 +319,7 @@ function getProductLabel(code) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Palet warna per produk mineral
-const PRODUCT_COLORS = { MON: '#ef4444', ZIR: '#3b82f6', ILM: '#f59e0b', OTHER: '#8b5cf6' }
+const PRODUCT_COLORS = { MON: 'hsl(var(--danger))', ZIR: 'hsl(var(--info))', ILM: 'hsl(var(--warning))', OTHER: 'hsl(var(--info))' }
 
 /** Konversi sudut ke koordinat kartesian (dengan offset -90° agar mulai dari atas) */
 function polarToXY(cx, cy, r, deg) {
@@ -355,7 +356,7 @@ const productPieData = computed(() => {
             ...item,
             pct:   ((item.total_weight_kg / total) * 100).toFixed(1),
             path:  makePieArc(100, 100, 85, angle, angle + sweep),
-            color: PRODUCT_COLORS[item.code] ?? '#8b5cf6',
+            color: PRODUCT_COLORS[item.code] ?? 'hsl(var(--info))',
         }
         angle += sweep
         return seg
@@ -369,9 +370,9 @@ const exportPieData = computed(() => {
     if (!total) return []
 
     const slices = [
-        { key:'available',      label_id:'Siap Ekspor',    label_en:'Export Ready', weight: d.available      ?? 0, count: d.count_available ?? 0, color:'#10b981' },
-        { key:'not_applicable', label_id:'Diblokir Ekspor',label_en:'Blocked',      weight: d.not_applicable ?? 0, count: d.count_blocked   ?? 0, color:'#ef4444' },
-        { key:'reserved',       label_id:'Direservasi',    label_en:'Reserved',     weight: d.reserved       ?? 0, count: d.count_reserved  ?? 0, color:'#f59e0b' },
+        { key:'available',      label_id:'Siap Ekspor',    label_en:'Export Ready', weight: d.available      ?? 0, count: d.count_available ?? 0, color:'hsl(var(--success))' },
+        { key:'not_applicable', label_id:'Diblokir Ekspor',label_en:'Blocked',      weight: d.not_applicable ?? 0, count: d.count_blocked   ?? 0, color:'hsl(var(--danger))' },
+        { key:'reserved',       label_id:'Direservasi',    label_en:'Reserved',     weight: d.reserved       ?? 0, count: d.count_reserved  ?? 0, color:'hsl(var(--warning))' },
     ].filter(s => s.weight > 0)
 
     let angle = 0
@@ -401,12 +402,12 @@ const exportPieData = computed(() => {
                   :href="s.href"
                   class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap flex-shrink-0"
                   :style="s.is_current
-                      ? 'background:hsl(var(--card));color:hsl(var(--foreground));box-shadow:0 1px 3px rgba(0,0,0,0.1);'
+                      ? 'background:hsl(var(--card));color:hsl(var(--foreground));box-shadow:0 1px 3px hsl(var(--foreground)/0.1);'
                       : 'color:hsl(var(--muted-foreground));'">
-                <span class="text-sm">{{ s.icon }}</span>
+                <AppIcon :name="s.icon || 'circle'" :size="16" />
                 <span class="hidden sm:inline">{{ lang === 'en' ? s.label_en : s.label }}</span>
                 <span v-if="s.count > 0"
-                      class="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-white"
+                      class="inline-flex items-center justify-center w-4 h-4 rounded-full text-xs font-bold text-white"
                       style="background:hsl(var(--primary))">
                     {{ s.count > 99 ? '99+' : s.count }}
                 </span>
@@ -419,22 +420,22 @@ const exportPieData = computed(() => {
         <div class="flex items-start justify-between gap-4 animate-fade-in">
             <div>
                 <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-2xl">{{ stage_config?.icon }}</span>
+                    <AppIcon :name="stage_config?.icon || 'circle'" :size="28" />
                     <h1 class="font-heading text-xl font-bold text-foreground">
                         {{ lang === 'en' ? stage_config?.label_en : stage_config?.label }}
                     </h1>
                     <!-- RFID Authorization Mode Badge (C4) -->
                     <span v-if="rfid_auth_mode === 'scan_to_receive'"
-                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
-                        <span>📡</span> RFID Auto-Terima
+                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-success-soft text-success border border-success/30">
+                        <span></span> RFID Auto-Terima
                     </span>
                     <span v-else-if="rfid_auth_mode === 'scan_to_dispatch'"
-                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">
-                        <span>📡</span> RFID Auto-Kirim
+                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-info-soft text-info border border-info/30">
+                        <span></span> RFID Auto-Kirim
                     </span>
                     <span v-else
                           class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-muted text-muted-foreground border border-border">
-                        <span>📡</span> RFID Audit Only
+                        <span></span> RFID Audit Only
                     </span>
                 </div>
                 <p class="text-sm text-muted-foreground mt-0.5">
@@ -443,7 +444,7 @@ const exportPieData = computed(() => {
             </div>
             <div class="flex-shrink-0 hidden md:block">
                 <div class="rounded-xl border border-border bg-card px-4 py-2 text-right">
-                    <p class="text-[10px] text-muted-foreground uppercase tracking-wider">Waktu Sistem</p>
+                    <p class="text-xs text-muted-foreground uppercase tracking-wider">Waktu Sistem</p>
                     <p class="font-mono text-sm font-bold text-foreground">{{ current_time }}</p>
                 </div>
             </div>
@@ -455,51 +456,51 @@ const exportPieData = computed(() => {
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-in delay-50">
             <!-- Incoming -->
             <div class="rounded-2xl border p-4"
-                 :class="hasIncoming ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/10' : 'border-border bg-card'">
+                 :class="hasIncoming ? 'border-warning/30 bg-warning-soft ' : 'border-border bg-card'">
                 <div class="flex items-start justify-between mb-2">
-                    <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
+                    <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
                         {{ lang === 'en' ? 'Incoming' : 'Masuk dari' }}
                         {{ stage_config?.prev_stage ? getStageLabel(stage_config.prev_stage) : '—' }}
                     </p>
-                    <span class="text-lg">📥</span>
+                    <span class="text-lg"></span>
                 </div>
                 <p class="font-heading text-3xl font-bold tabular-nums"
-                   :class="hasIncoming ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'">
+                   :class="hasIncoming ? 'text-warning ' : 'text-muted-foreground'">
                     {{ stats?.incoming_count ?? incoming_batches?.length ?? 0 }}
                 </p>
-                <p v-if="hasIncoming" class="text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
-                    ⚠ {{ lang === 'en' ? 'Pending action' : 'Perlu diproses' }}
+                <p v-if="hasIncoming" class="text-xs font-semibold text-warning mt-1">
+                    {{ lang === 'en' ? 'Pending action' : 'Perlu diproses' }}
                 </p>
             </div>
             <!-- Current -->
             <div class="rounded-2xl border border-border bg-card p-4">
                 <div class="flex items-start justify-between mb-2">
-                    <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
+                    <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
                         {{ lang === 'en' ? 'In Stage' : 'Di Stage Ini' }}
                     </p>
-                    <span class="text-lg">{{ stage_config?.icon }}</span>
+                    <AppIcon :name="stage_config?.icon || 'circle'" :size="20" />
                 </div>
                 <p class="font-heading text-3xl font-bold tabular-nums text-primary">{{ stats?.current_count ?? 0 }}</p>
             </div>
             <!-- Alerts -->
             <div class="rounded-2xl border p-4"
-                 :class="(stats?.alerts ?? 0) > 0 ? 'border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/10' : 'border-border bg-card'">
+                 :class="(stats?.alerts ?? 0) > 0 ? 'border-danger/30 bg-danger-soft ' : 'border-border bg-card'">
                 <div class="flex items-start justify-between mb-2">
-                    <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">Alert</p>
-                    <span class="text-lg">⚠️</span>
+                    <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">Alert</p>
+                    <span class="text-lg"></span>
                 </div>
                 <p class="font-heading text-3xl font-bold tabular-nums"
-                   :class="(stats?.alerts ?? 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'">
+                   :class="(stats?.alerts ?? 0) > 0 ? 'text-danger ' : 'text-muted-foreground'">
                     {{ stats?.alerts ?? 0 }}
                 </p>
             </div>
             <!-- Weight -->
             <div class="rounded-2xl border border-border bg-card p-4">
                 <div class="flex items-start justify-between mb-2">
-                    <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
+                    <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
                         {{ lang === 'en' ? 'Total Weight' : 'Total Berat' }}
                     </p>
-                    <span class="text-lg">⚖️</span>
+                    <span class="text-lg"></span>
                 </div>
                 <WeightDisplay :kg="stats?.total_weight ?? 0" size="lg"/>
             </div>
@@ -521,14 +522,14 @@ const exportPieData = computed(() => {
                     <h3 class="font-heading text-sm font-bold text-foreground">
                         {{ lang === 'en' ? 'Mineral Stock Distribution' : 'Distribusi Stok Mineral' }}
                     </h3>
-                    <span class="text-[10px] font-mono font-semibold text-muted-foreground">
+                    <span class="text-xs font-mono font-semibold text-muted-foreground">
                         {{ whTotalWeight.toLocaleString('id-ID', { maximumFractionDigits: 2 }) }} kg
                     </span>
                 </div>
 
                 <div v-if="!productPieData.length"
                      class="flex flex-col items-center justify-center h-36 gap-2 text-muted-foreground">
-                    <span class="text-3xl opacity-40">🏭</span>
+                    <span class="text-3xl opacity-40"></span>
                     <p class="text-sm">{{ lang === 'en' ? 'Warehouse empty' : 'Gudang kosong' }}</p>
                 </div>
 
@@ -559,7 +560,7 @@ const exportPieData = computed(() => {
                                     <div class="w-3 h-3 rounded-sm flex-shrink-0"
                                          :style="`background:${seg.color}`"/>
                                     <span class="text-xs font-bold text-foreground">{{ seg.code }}</span>
-                                    <span class="text-[10px] text-muted-foreground hidden sm:inline">{{ seg.name }}</span>
+                                    <span class="text-xs text-muted-foreground hidden sm:inline">{{ seg.name }}</span>
                                 </div>
                                 <span class="text-xs font-mono font-bold" :style="`color:${seg.color}`">
                                     {{ seg.pct }}%
@@ -569,7 +570,7 @@ const exportPieData = computed(() => {
                                 <div class="h-full rounded-full" style="transition:width 0.7s ease"
                                      :style="`width:${seg.pct}%;background:${seg.color}`"/>
                             </div>
-                            <div class="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                            <div class="flex justify-between mt-1 text-xs text-muted-foreground">
                                 <span class="font-mono">{{ seg.total_weight_kg.toLocaleString('id-ID') }} kg</span>
                                 <span>{{ seg.count }} batch</span>
                             </div>
@@ -584,14 +585,14 @@ const exportPieData = computed(() => {
                     <h3 class="font-heading text-sm font-bold text-foreground">
                         {{ lang === 'en' ? 'Export Readiness' : 'Kesiapan Ekspor' }}
                     </h3>
-                    <span class="text-[10px] font-mono font-semibold text-muted-foreground">
+                    <span class="text-xs font-mono font-semibold text-muted-foreground">
                         {{ (warehouse_by_export?.total_weight ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 }) }} kg
                     </span>
                 </div>
 
                 <div v-if="!exportPieData.length"
                      class="flex flex-col items-center justify-center h-36 gap-2 text-muted-foreground">
-                    <span class="text-3xl opacity-40">🚢</span>
+                    <span class="text-3xl opacity-40"></span>
                     <p class="text-sm">{{ lang === 'en' ? 'No data' : 'Tidak ada data' }}</p>
                 </div>
 
@@ -623,7 +624,7 @@ const exportPieData = computed(() => {
                                         {{ seg.pct }}%
                                     </span>
                                 </div>
-                                <p class="text-[10px] text-muted-foreground ml-4">
+                                <p class="text-xs text-muted-foreground ml-4">
                                     {{ seg.weight.toLocaleString('id-ID') }} kg · {{ seg.count }} batch
                                 </p>
                             </div>
@@ -635,16 +636,16 @@ const exportPieData = computed(() => {
                         <table class="w-full">
                             <thead>
                                 <tr class="bg-muted/30 border-b border-border">
-                                    <th class="text-left px-3.5 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                    <th class="text-left px-3.5 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                         {{ lang === 'en' ? 'Product' : 'Produk' }}
                                     </th>
-                                    <th class="text-right px-3.5 py-2 text-[10px] font-semibold text-foreground uppercase">
+                                    <th class="text-right px-3.5 py-2 text-xs font-semibold text-foreground uppercase">
                                         {{ lang === 'en' ? 'Weight (kg)' : 'Berat (kg)' }}
                                     </th>
-                                    <th class="text-center px-3.5 py-2 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase">
-                                        {{ lang === 'en' ? 'Export ✓' : 'Ekspor ✓' }}
+                                    <th class="text-center px-3.5 py-2 text-xs font-semibold text-success uppercase">
+                                        {{ lang === 'en' ? 'Export ' : 'Ekspor ' }}
                                     </th>
-                                    <th class="text-center px-3.5 py-2 text-[10px] font-semibold text-red-500 uppercase">
+                                    <th class="text-center px-3.5 py-2 text-xs font-semibold text-danger uppercase">
                                         {{ lang === 'en' ? 'Blocked' : 'Diblokir' }}
                                     </th>
                                 </tr>
@@ -655,11 +656,11 @@ const exportPieData = computed(() => {
                                     <td class="px-3.5 py-2.5">
                                         <div class="flex items-center gap-2">
                                             <div class="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                                                 :style="`background:${PRODUCT_COLORS[item.code] ?? '#6b7280'}`"/>
+                                                 :style="`background:${PRODUCT_COLORS[item.code] ?? 'hsl(var(--neutral))'}`"/>
                                             <span class="text-xs font-bold text-foreground">{{ item.code }}</span>
                                             <span v-if="item.code === 'MON'"
-                                                  class="text-[9px] font-bold px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400">
-                                                ☢ RAD
+                                                  class="text-xs font-bold px-1 py-0.5 rounded bg-danger-soft text-danger">
+                                                RAD
                                             </span>
                                         </div>
                                     </td>
@@ -669,12 +670,12 @@ const exportPieData = computed(() => {
                                         </span>
                                     </td>
                                     <td class="px-3.5 py-2.5 text-center">
-                                        <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                        <span class="text-xs font-bold text-success">
                                             {{ item.export_available }}
                                         </span>
                                     </td>
                                     <td class="px-3.5 py-2.5 text-center">
-                                        <span class="text-xs font-bold text-red-500">{{ item.export_blocked }}</span>
+                                        <span class="text-xs font-bold text-danger">{{ item.export_blocked }}</span>
                                     </td>
                                 </tr>
                             </tbody>
@@ -692,10 +693,10 @@ const exportPieData = computed(() => {
             <!-- PANEL KIRI: INCOMING ──────────────────────────────── -->
             <div class="rounded-2xl border border-border bg-card overflow-hidden animate-fade-in delay-100">
                 <div class="px-5 py-4 border-b border-border"
-                     :class="hasIncoming ? 'bg-amber-50 dark:bg-amber-950/10' : ''">
+                     :class="hasIncoming ? 'bg-warning-soft ' : ''">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <div v-if="hasIncoming" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"/>
+                            <div v-if="hasIncoming" class="w-2 h-2 rounded-full bg-warning animate-pulse"/>
                             <h3 class="font-heading text-sm font-bold text-foreground">
                                 {{ lang === 'en' ? 'Incoming Batches' : 'Batch Masuk' }}
                                 <span class="text-muted-foreground font-normal text-xs">
@@ -705,13 +706,13 @@ const exportPieData = computed(() => {
                             </h3>
                         </div>
                         <span class="text-xs font-bold"
-                              :class="hasIncoming ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'">
+                              :class="hasIncoming ? 'text-warning ' : 'text-muted-foreground'">
                             {{ incoming_batches?.length ?? 0 }} batch
                         </span>
                     </div>
                 </div>
 
-                <EmptyState v-if="!incoming_batches?.length" icon="📥" size="sm"
+                <EmptyState v-if="!incoming_batches?.length" icon='package-open' size="sm"
                     :title="lang === 'en' ? 'No incoming batches' : 'Tidak ada batch masuk'"
                     :description="lang === 'en'
                         ? `No batches from ${stage_config?.prev_stage ? getStageLabel(stage_config.prev_stage) : 'previous stage'}.`
@@ -722,8 +723,8 @@ const exportPieData = computed(() => {
                     <div v-for="(batch, i) in incoming_batches" :key="batch.id"
                          class="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/20"
                          :style="`animation:fade-in 0.25s ease-out ${i*35}ms both`">
-                        <div class="w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5"
-                             :style="{'MON':'background:#ef4444','ZIR':'background:#3b82f6','ILM':'background:#f59e0b'}[batch.product?.code] ?? 'background:hsl(var(--primary))'">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5"
+                             :style="{'MON':'background:hsl(var(--danger))','ZIR':'background:hsl(var(--info))','ILM':'background:hsl(var(--warning))'}[batch.product?.code] ?? 'background:hsl(var(--primary))'">
                             {{ (batch.product?.code ?? '??').slice(0, 3) }}
                         </div>
                         <div class="flex-1 min-w-0">
@@ -734,26 +735,26 @@ const exportPieData = computed(() => {
                                 </Link>
                                 <StatusBadge :status="batch.status" size="xs"/>
                                 <span v-if="batch.product?.is_hazardous"
-                                      class="text-[9px] font-bold px-1 rounded" style="background:rgba(239,68,68,0.1);color:#dc2626">
-                                    ☢ RAD
+                                      class="text-xs font-bold px-1 rounded" style="background:hsl(var(--danger-soft));color:hsl(var(--danger))">
+                                    RAD
                                 </span>
                             </div>
                             <div class="flex items-center gap-2 mt-0.5">
                                 <WeightDisplay :kg="batch.current_weight" size="xs"/>
-                                <span class="text-[10px] text-muted-foreground">{{ batch.location?.name ?? '—' }}</span>
+                                <span class="text-xs text-muted-foreground">{{ batch.location?.name ?? '—' }}</span>
                             </div>
-                            <p class="text-[10px] text-muted-foreground mt-0.5">{{ batch.created_at_diff }}</p>
+                            <p class="text-xs text-muted-foreground mt-0.5">{{ batch.created_at_diff }}</p>
                         </div>
                         <div class="flex flex-col gap-1 flex-shrink-0">
                             <button v-if="canReceive" @click="openReceiveModal(batch)"
-                                    class="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white hover:shadow-md active:scale-[0.97]"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-bold text-white hover:shadow-md active:scale-[0.97]"
                                     style="background:hsl(var(--primary))">
                                 {{ lang === 'en' ? 'Receive →' : 'Terima →' }}
                             </button>
                             <button v-if="isWarehouse && canSendToLtj && batch.product?.code === 'MON'"
                                     @click="openSendLtjModal(batch)"
-                                    class="px-2 py-1.5 rounded-lg text-[10px] font-bold active:scale-[0.97]"
-                                    style="background:rgba(124,58,237,0.12);color:#7c3aed">
+                                    class="px-2 py-1.5 rounded-lg text-xs font-bold active:scale-[0.97]"
+                                    style="background:hsl(var(--info-soft));color:hsl(var(--info))">
                                 → Lab LTJ
                             </button>
                         </div>
@@ -774,7 +775,7 @@ const exportPieData = computed(() => {
                         <div class="relative">
                             <input v-model="search" @input="onSearch" type="text"
                                    :placeholder="lang === 'en' ? 'Search batch...' : 'Cari batch...'"
-                                   class="h-8 pl-8 pr-3 rounded-lg border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 w-36"/>
+                                   class="h-8 pl-8 pr-3 rounded-lg border border-border bg-background text-xs text-foreground focus:ring-1 w-36"/>
                             <svg class="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                             </svg>
@@ -783,7 +784,7 @@ const exportPieData = computed(() => {
                 </div>
 
                 <EmptyState v-if="!batches?.data?.length"
-                    :icon="stage_config?.icon ?? '📦'" size="sm"
+                    :icon="stage_config?.icon ?? 'package'" size="sm"
                     :title="lang === 'en' ? `No batches in ${stage_config?.label_en ?? stage}` : `Tidak ada batch di ${stage_config?.label ?? stage}`"
                     :description="lang === 'en' ? 'Receive batches from the Incoming panel.' : 'Terima batch dari panel Incoming di atas.'"
                 />
@@ -792,8 +793,8 @@ const exportPieData = computed(() => {
                     <div v-for="(batch, i) in batches.data" :key="batch.id"
                          class="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/20 group"
                          :style="`animation:fade-in 0.25s ease-out ${i*30}ms both`">
-                        <div class="w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5"
-                             :style="{'MON':'background:#ef4444','ZIR':'background:#3b82f6','ILM':'background:#f59e0b'}[batch.product?.code] ?? 'background:hsl(var(--primary))'">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5"
+                             :style="{'MON':'background:hsl(var(--danger))','ZIR':'background:hsl(var(--info))','ILM':'background:hsl(var(--warning))'}[batch.product?.code] ?? 'background:hsl(var(--primary))'">
                             {{ (batch.product?.code ?? '??').slice(0, 3) }}
                         </div>
                         <div class="flex-1 min-w-0">
@@ -803,52 +804,52 @@ const exportPieData = computed(() => {
                                     {{ batch.batch_code }}
                                 </Link>
                                 <StatusBadge :status="batch.status" size="xs"/>
-                                <span v-if="batch.has_discrepancy" class="text-[9px] font-bold text-red-500">⚠ Alert</span>
+                                <span v-if="batch.has_discrepancy" class="text-xs font-bold text-danger">Alert</span>
                             </div>
                             <div class="flex items-center gap-3 mt-0.5">
                                 <WeightDisplay :kg="batch.current_weight" size="xs"/>
-                                <span v-if="batch.mass_loss_pct" class="text-[10px] text-muted-foreground">
+                                <span v-if="batch.mass_loss_pct" class="text-xs text-muted-foreground">
                                     Susut {{ batch.mass_loss_pct }}%
                                 </span>
                             </div>
-                            <p class="text-[10px] text-muted-foreground mt-0.5">{{ batch.updated_at_diff }}</p>
+                            <p class="text-xs text-muted-foreground mt-0.5">{{ batch.updated_at_diff }}</p>
                         </div>
                         <div class="flex flex-col gap-1 flex-shrink-0 transition-opacity"
                              :class="isProjectPlant ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'">
                             <button v-if="canCheckpoint && !isDry" @click="openCheckpointModal(batch)"
-                                    class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold active:scale-[0.97] border border-border text-muted-foreground hover:bg-muted hover:text-foreground">
+                                    class="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-[0.97] border border-border text-muted-foreground hover:bg-muted hover:text-foreground">
                                 {{ lang === 'en' ? 'Checkpoint' : 'Checkpoint' }}
                             </button>
 
                             <!-- ─── Project Plant: Input Analisis Lab LTJ ─── -->
                             <Link v-if="isProjectPlant && ['company_admin','operator_lab_ltj'].includes(user_role) && !['exported','terminated','transformed'].includes(batch.status)"
                                 :href="`/company/batches/${batch.id}/lab/create`"
-                                class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-[0.97] text-center block"
-                                style="background:linear-gradient(135deg,#059669,#047857)">
-                                🔬 {{ lang === 'en' ? 'Input Lab' : 'Input Lab' }}
+                                class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white active:scale-[0.97] text-center block"
+                                style="background:hsl(var(--success))">
+                                {{ lang === 'en' ? 'Input Lab' : 'Input Lab' }}
                             </Link>
                             
                             <!-- Forward batch (receiving, wet) -->
                             <span v-if="canForward && (isReceiving || isWet) && batch.status === 'in_transit'"
-                                  class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30">
+                                  class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-warning bg-warning-soft">
                                 {{ lang === 'en' ? 'Sent — awaiting receipt' : 'Terkirim — menunggu diterima' }}
                             </span>
                             <button v-else-if="canForward && (isReceiving || isWet)" @click="openForwardModal(batch)"
-                                    class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-[0.97]"
+                                    class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white active:scale-[0.97]"
                                     style="background:hsl(207 40% 45%)">
                                 {{ lang === 'en'
                                     ? `Send → ${stage_config?.next_stage ? getStageLabel(stage_config.next_stage) : ''}`
                                     : `Kirim → ${stage_config?.next_stage ? getStageLabel(stage_config.next_stage) : ''}` }}
                             </button>
                             <button v-if="isDry && canDryTransform" @click="openTransformModal(batch)"
-                                    class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-[0.97]"
-                                    style="background:linear-gradient(135deg,#f59e0b,#d97706)">
-                                ⚡ {{ lang === 'en' ? 'Transform' : 'Transformasi' }}
+                                    class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white active:scale-[0.97]"
+                                    style="background:hsl(var(--warning))">
+                                {{ lang === 'en' ? 'Transform' : 'Transformasi' }}
                             </button>
                             <button v-if="isWarehouse && canSendToLtj && batch.product?.code === 'MON'"
                                     @click="openSendLtjModal(batch)"
-                                    class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold active:scale-[0.97]"
-                                    style="background:rgba(124,58,237,0.12);color:#7c3aed">
+                                    class="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-[0.97]"
+                                    style="background:hsl(var(--info-soft));color:hsl(var(--info))">
                                 → Lab LTJ
                             </button>
                         </div>
@@ -872,10 +873,10 @@ const exportPieData = computed(() => {
              DRY PROCESS INFO BOX
         ════════════════════════════════════════════════ -->
         <div v-if="isDry && canDryTransform"
-             class="rounded-2xl border border-amber-200 dark:border-amber-800/40 p-5 animate-fade-in delay-200"
-             style="background:rgba(245,158,11,0.05)">
+             class="rounded-2xl border border-warning/30 p-5 animate-fade-in delay-200"
+             style="background:hsl(var(--warning-soft))">
             <div class="flex items-start gap-3">
-                <span class="text-2xl flex-shrink-0">🔥</span>
+                <span class="text-2xl flex-shrink-0"></span>
                 <div>
                     <p class="font-heading text-sm font-bold text-foreground">Dry Process — Magnetic Separator</p>
                     <p class="text-xs text-muted-foreground mt-1 leading-relaxed">
@@ -884,9 +885,9 @@ const exportPieData = computed(() => {
                             : 'Klik "Transformasi" untuk memisahkan MIT menjadi 3 konsentrat: MON (→ Lab LTJ), ZIR (→ Ekspor), ILM (→ Ekspor).' }}
                     </p>
                     <div class="flex gap-4 mt-2">
-                        <span class="text-xs font-bold text-red-600 dark:text-red-400">🔴 MON — Lab LTJ</span>
-                        <span class="text-xs font-bold text-blue-600 dark:text-blue-400">🔵 ZIR — Ekspor</span>
-                        <span class="text-xs font-bold text-amber-600 dark:text-amber-400">🟡 ILM — Ekspor</span>
+                        <span class="text-xs font-bold text-danger">MON — Lab LTJ</span>
+                        <span class="text-xs font-bold text-info">ZIR — Ekspor</span>
+                        <span class="text-xs font-bold text-warning">ILM — Ekspor</span>
                     </div>
                 </div>
             </div>
@@ -907,12 +908,12 @@ const exportPieData = computed(() => {
             </div>
             <div class="flex gap-6">
                 <div>
-                    <p class="text-[10px] text-muted-foreground">{{ lang === 'en' ? 'Warning' : 'Peringatan' }}</p>
-                    <p class="text-sm font-bold text-amber-600 dark:text-amber-400">≥ {{ threshold.warning_pct }}%</p>
+                    <p class="text-xs text-muted-foreground">{{ lang === 'en' ? 'Warning' : 'Peringatan' }}</p>
+                    <p class="text-sm font-bold text-warning">≥ {{ threshold.warning_pct }}%</p>
                 </div>
                 <div>
-                    <p class="text-[10px] text-muted-foreground">{{ lang === 'en' ? 'Critical' : 'Kritis' }}</p>
-                    <p class="text-sm font-bold text-red-600 dark:text-red-400">≥ {{ threshold.critical_pct }}%</p>
+                    <p class="text-xs text-muted-foreground">{{ lang === 'en' ? 'Critical' : 'Kritis' }}</p>
+                    <p class="text-sm font-bold text-danger">≥ {{ threshold.critical_pct }}%</p>
                 </div>
             </div>
         </div>
@@ -931,29 +932,27 @@ const exportPieData = computed(() => {
                 <div v-for="(cp, i) in activity_log" :key="cp.id"
                      class="flex items-start gap-3 px-5 py-3 hover:bg-muted/20"
                      :style="`animation:fade-in 0.22s ease-out ${i*20}ms both`">
-                    <div class="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5"
-                         :class="cp.has_discrepancy
-                             ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                             : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'">
-                        {{ cp.has_discrepancy ? '⚠' : '✓' }}
+                    <div class="w-6 h-6 rounded-lg flex items-center justify-center text-xs flex-shrink-0 mt-0.5"
+                         :class="cp.has_discrepancy ? 'bg-danger-soft text-danger ' : 'bg-success-soft text-success '">
+                        {{ cp.has_discrepancy ? 'triangle-alert' : '' }}
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
                             <Link :href="`/company/batches/${cp.batch_id}`"
-                                  class="font-mono text-[11px] font-bold text-foreground hover:text-primary">
+                                  class="font-mono text-xs font-bold text-foreground hover:text-primary">
                                 {{ cp.batch_code }}
                             </Link>
-                            <span class="text-[10px] text-muted-foreground">{{ cp.stage?.replace(/_/g,' ') }}</span>
-                            <span v-if="cp.weight_loss_pct" class="text-[10px] font-semibold"
-                                  :class="parseFloat(cp.weight_loss_pct) >= 5 ? 'text-red-500' : 'text-muted-foreground'">
+                            <span class="text-xs text-muted-foreground">{{ cp.stage?.replace(/_/g,' ') }}</span>
+                            <span v-if="cp.weight_loss_pct" class="text-xs font-semibold"
+                                  :class="parseFloat(cp.weight_loss_pct) >= 5 ? 'text-danger' : 'text-muted-foreground'">
                                 Susut {{ cp.weight_loss_pct }}%
                             </span>
                         </div>
-                        <p class="text-[10px] text-muted-foreground mt-0.5">{{ cp.location }} · {{ cp.recorded_by }}</p>
+                        <p class="text-xs text-muted-foreground mt-0.5">{{ cp.location }} · {{ cp.recorded_by }}</p>
                     </div>
                     <div class="text-right flex-shrink-0">
-                        <p class="text-[10px] font-semibold text-foreground">{{ cp.recorded_at_diff }}</p>
-                        <p class="text-[10px] text-muted-foreground">{{ cp.recorded_at }}</p>
+                        <p class="text-xs font-semibold text-foreground">{{ cp.recorded_at_diff }}</p>
+                        <p class="text-xs text-muted-foreground">{{ cp.recorded_at }}</p>
                     </div>
                 </div>
             </div>
@@ -966,12 +965,12 @@ const exportPieData = computed(() => {
     <Transition name="modal">
         <div v-if="showReceiveModal"
              class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-             style="background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);"
+             style="background:hsl(var(--foreground)/0.4);backdrop-filter:blur(6px);"
              @click.self="showReceiveModal = false">
             <div class="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl p-6 space-y-4 dialog-in">
                 <div class="flex items-start justify-between">
                     <div>
-                        <h3 class="font-heading text-base font-bold text-foreground">📥 {{ lang === 'en' ? 'Receive Batch' : 'Terima Batch' }}</h3>
+                        <h3 class="font-heading text-base font-bold text-foreground">{{ lang === 'en' ? 'Receive Batch' : 'Terima Batch' }}</h3>
                         <p class="text-xs text-muted-foreground mt-0.5">{{ lang === 'en' ? 'Moving into' : 'Pindahkan ke' }} {{ lang === 'en' ? stage_config?.label_en : stage_config?.label }}</p>
                     </div>
                     <button @click="showReceiveModal = false" class="text-muted-foreground hover:text-foreground">
@@ -980,8 +979,8 @@ const exportPieData = computed(() => {
                 </div>
                 <div v-if="selectedForReceive" class="rounded-xl border border-border bg-muted/30 p-3">
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold text-white"
-                             :style="{'MON':'background:#ef4444','ZIR':'background:#3b82f6','ILM':'background:#f59e0b'}[selectedForReceive.product?.code] ?? 'background:hsl(var(--primary))'">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white"
+                             :style="{'MON':'background:hsl(var(--danger))','ZIR':'background:hsl(var(--info))','ILM':'background:hsl(var(--warning))'}[selectedForReceive.product?.code] ?? 'background:hsl(var(--primary))'">
                             {{ (selectedForReceive.product?.code ?? '??').slice(0,3) }}
                         </div>
                         <div>
@@ -1001,13 +1000,13 @@ const exportPieData = computed(() => {
                     <label class="text-xs font-semibold text-foreground">{{ lang === 'en' ? 'Notes (optional)' : 'Catatan (opsional)' }}</label>
                     <textarea v-model="receiveForm.notes" rows="2" class="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground resize-none"/>
                 </div>
-                <p v-if="receiveForm.errors.batch_id" class="text-xs text-red-500">{{ receiveForm.errors.batch_id }}</p>
+                <p v-if="receiveForm.errors.batch_id" class="text-xs text-danger">{{ receiveForm.errors.batch_id }}</p>
                 <div class="flex gap-3 pt-1">
                     <button @click="showReceiveModal = false" class="flex-1 h-10 rounded-xl text-sm font-semibold border border-border text-muted-foreground hover:bg-muted">{{ lang === 'en' ? 'Cancel' : 'Batal' }}</button>
                     <button @click="submitReceive" :disabled="receiveForm.processing"
                             class="flex-[2] h-10 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                             style="background:linear-gradient(135deg,hsl(var(--primary)),hsl(207 30% 28%))">
-                        {{ receiveForm.processing ? (lang === 'en' ? 'Processing...' : 'Memproses...') : (lang === 'en' ? '✓ Receive Batch' : '✓ Terima Batch') }}
+                        {{ receiveForm.processing ? (lang === 'en' ? 'Processing...' : 'Memproses...') : (lang === 'en' ? 'Receive Batch' : 'Terima Batch') }}
                     </button>
                 </div>
             </div>
@@ -1020,12 +1019,12 @@ const exportPieData = computed(() => {
     <Transition name="modal">
         <div v-if="showCheckpointModal"
              class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-             style="background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);"
+             style="background:hsl(var(--foreground)/0.4);backdrop-filter:blur(6px);"
              @click.self="showCheckpointModal = false">
             <div class="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl p-6 space-y-4 dialog-in">
                 <div class="flex items-start justify-between">
                     <div>
-                        <h3 class="font-heading text-base font-bold text-foreground">📋 {{ lang === 'en' ? 'Record Checkpoint' : 'Catat Checkpoint' }}</h3>
+                        <h3 class="font-heading text-base font-bold text-foreground">{{ lang === 'en' ? 'Record Checkpoint' : 'Catat Checkpoint' }}</h3>
                         <p class="text-xs text-muted-foreground mt-0.5">{{ lang === 'en' ? 'Update weight without changing stage' : 'Update berat tanpa mengubah stage' }}</p>
                     </div>
                     <button @click="showCheckpointModal = false" class="text-muted-foreground hover:text-foreground">
@@ -1038,20 +1037,20 @@ const exportPieData = computed(() => {
                         <p class="text-xs text-muted-foreground">{{ selectedForCheckpoint.product?.code }}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-[10px] text-muted-foreground">{{ lang === 'en' ? 'Current weight' : 'Berat saat ini' }}</p>
+                        <p class="text-xs text-muted-foreground">{{ lang === 'en' ? 'Current weight' : 'Berat saat ini' }}</p>
                         <p class="text-sm font-bold text-foreground">{{ selectedForCheckpoint.current_weight?.toLocaleString('id-ID') }} kg</p>
                     </div>
                 </div>
                 <div class="space-y-1.5">
-                    <label class="text-xs font-semibold text-foreground">{{ lang === 'en' ? 'Weight Recorded (kg)' : 'Berat Tercatat (kg)' }} <span class="text-red-500">*</span></label>
+                    <label class="text-xs font-semibold text-foreground">{{ lang === 'en' ? 'Weight Recorded (kg)' : 'Berat Tercatat (kg)' }} <span class="text-danger">*</span></label>
                     <input v-model="checkpointForm.weight_recorded" type="number" step="0.01" min="0"
                            class="w-full h-10 px-3 rounded-xl border text-sm font-mono text-foreground"
-                           :class="cpIsWarning ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/10' : 'border-border bg-background'"/>
+                           :class="cpIsWarning ? 'border-warning/30 bg-warning-soft ' : 'border-border bg-background'"/>
                     <div v-if="checkpointForm.weight_recorded" class="flex items-center gap-3 text-xs">
                         <span class="text-muted-foreground">Susut:</span>
-                        <span class="font-mono font-bold" :class="cpIsWarning ? 'text-amber-600' : 'text-emerald-600'">{{ cpLossKg.toFixed(2) }} kg ({{ cpLossPct }}%)</span>
-                        <span v-if="cpIsCritical" class="font-bold text-red-500">⚠ KRITIS</span>
-                        <span v-else-if="cpIsWarning" class="font-bold text-amber-500">⚠ Peringatan</span>
+                        <span class="font-mono font-bold" :class="cpIsWarning ? 'text-warning' : 'text-success'">{{ cpLossKg.toFixed(2) }} kg ({{ cpLossPct }}%)</span>
+                        <span v-if="cpIsCritical" class="font-bold text-danger">KRITIS</span>
+                        <span v-else-if="cpIsWarning" class="font-bold text-warning">Peringatan</span>
                     </div>
                 </div>
                 <div v-if="locations?.length" class="space-y-1.5">
@@ -1073,7 +1072,7 @@ const exportPieData = computed(() => {
                     <button @click="showCheckpointModal = false" class="flex-1 h-10 rounded-xl text-sm font-semibold border border-border text-muted-foreground hover:bg-muted">{{ lang === 'en' ? 'Cancel' : 'Batal' }}</button>
                     <button @click="submitCheckpoint" :disabled="checkpointForm.processing || !checkpointForm.weight_recorded"
                             class="flex-[2] h-10 rounded-xl text-sm font-bold text-white disabled:opacity-60"
-                            :class="cpIsCritical ? 'bg-red-600' : cpIsWarning ? 'bg-amber-600' : ''"
+                            :class="cpIsCritical ? 'bg-danger' : cpIsWarning ? 'bg-warning' : ''"
                             :style="!cpIsWarning ? 'background:linear-gradient(135deg,hsl(var(--primary)),hsl(207 30% 28%))' : ''">
                         {{ checkpointForm.processing ? (lang === 'en' ? 'Recording...' : 'Menyimpan...') : (lang === 'en' ? 'Record Checkpoint' : 'Catat Checkpoint') }}
                     </button>
@@ -1088,12 +1087,12 @@ const exportPieData = computed(() => {
     <Transition name="modal">
         <div v-if="showForwardModal"
              class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-             style="background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);"
+             style="background:hsl(var(--foreground)/0.4);backdrop-filter:blur(6px);"
              @click.self="showForwardModal = false">
             <div class="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl p-6 space-y-4 dialog-in">
                 <div class="flex items-start justify-between">
                     <div>
-                        <h3 class="font-heading text-base font-bold text-foreground">📤 {{ lang === 'en' ? `Send to ${nextStageLabel}` : `Kirim ke ${nextStageLabel}` }}</h3>
+                        <h3 class="font-heading text-base font-bold text-foreground">{{ lang === 'en' ? `Send to ${nextStageLabel}` : `Kirim ke ${nextStageLabel}` }}</h3>
                         <p class="text-xs text-muted-foreground mt-0.5">{{ lang === 'en' ? 'Record final weight and advance batch.' : 'Catat berat akhir dan pindahkan batch.' }}</p>
                     </div>
                     <button @click="showForwardModal = false" class="text-muted-foreground hover:text-foreground">
@@ -1106,19 +1105,19 @@ const exportPieData = computed(() => {
                         <p class="text-xs text-muted-foreground">{{ selectedForForward.product?.code ?? '—' }}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-[10px] text-muted-foreground">Berat saat ini</p>
+                        <p class="text-xs text-muted-foreground">Berat saat ini</p>
                         <p class="text-sm font-bold text-foreground">{{ selectedForForward.current_weight?.toLocaleString('id-ID') }} kg</p>
                     </div>
                 </div>
                 <div class="space-y-1.5">
-                    <label class="text-xs font-semibold text-foreground">{{ lang === 'en' ? 'Weight After Process (kg)' : 'Berat Setelah Proses (kg)' }} <span class="text-red-500">*</span></label>
+                    <label class="text-xs font-semibold text-foreground">{{ lang === 'en' ? 'Weight After Process (kg)' : 'Berat Setelah Proses (kg)' }} <span class="text-danger">*</span></label>
                     <input v-model="forwardForm.weight_recorded" type="number" step="0.01" min="0.01"
                            class="w-full h-10 px-3 rounded-xl border text-sm font-mono text-foreground"
-                           :class="fwIsWarning ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/10' : 'border-border bg-background'"/>
+                           :class="fwIsWarning ? 'border-warning/30 bg-warning-soft ' : 'border-border bg-background'"/>
                     <div v-if="forwardForm.weight_recorded" class="flex items-center gap-3 text-xs">
                         <span class="text-muted-foreground">Susut:</span>
-                        <span class="font-mono font-bold" :class="fwIsWarning ? 'text-amber-600' : 'text-emerald-600'">{{ fwLossKg.toFixed(2) }} kg ({{ fwLossPct }}%)</span>
-                        <span v-if="fwIsCritical" class="font-bold text-red-500">⚠ KRITIS</span>
+                        <span class="font-mono font-bold" :class="fwIsWarning ? 'text-warning' : 'text-success'">{{ fwLossKg.toFixed(2) }} kg ({{ fwLossPct }}%)</span>
+                        <span v-if="fwIsCritical" class="font-bold text-danger">KRITIS</span>
                     </div>
                 </div>
                 <div v-if="next_stage_locations?.length" class="space-y-1.5">
@@ -1150,12 +1149,12 @@ const exportPieData = computed(() => {
     <Transition name="modal">
         <div v-if="showTransformModal"
              class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-             style="background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);"
+             style="background:hsl(var(--foreground)/0.4);backdrop-filter:blur(6px);"
              @click.self="showTransformModal = false">
             <div class="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl p-6 space-y-5 dialog-in">
                 <div class="flex items-start justify-between">
                     <div>
-                        <h3 class="font-heading text-base font-bold text-foreground">🔥 Dry Process — Magnetic Separator</h3>
+                        <h3 class="font-heading text-base font-bold text-foreground">Dry Process — Magnetic Separator</h3>
                         <p class="text-xs text-muted-foreground mt-0.5">{{ lang === 'en' ? '1 MIT → 3 concentrates (MON + ZIR + ILM)' : '1 batch MIT → 3 konsentrat (MON + ZIR + ILM)' }}</p>
                     </div>
                     <button @click="showTransformModal = false" class="text-muted-foreground hover:text-foreground">
@@ -1163,11 +1162,11 @@ const exportPieData = computed(() => {
                     </button>
                 </div>
                 <div v-if="selectedForTransform"
-                     class="rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/10 p-3">
-                    <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Input Batch (MIT)</p>
+                     class="rounded-xl border border-warning/30 bg-warning-soft p-3">
+                    <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Input Batch (MIT)</p>
                     <div class="flex items-center justify-between">
                         <p class="text-sm font-bold font-mono text-foreground">{{ selectedForTransform.batch_code }}</p>
-                        <p class="text-sm font-bold text-amber-700 dark:text-amber-300">{{ selectedForTransform.current_weight?.toLocaleString('id-ID') }} kg</p>
+                        <p class="text-sm font-bold text-warning">{{ selectedForTransform.current_weight?.toLocaleString('id-ID') }} kg</p>
                     </div>
                 </div>
                     <div class="space-y-3">
@@ -1179,30 +1178,26 @@ const exportPieData = computed(() => {
                             v-for="(output, idx) in transformForm.outputs" 
                             :key="idx"
                             class="rounded-xl border p-3 space-y-2"
-                            :class="{
-                                'border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/10': output_products?.[idx]?.code === 'MON',
-                                'border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-950/10': output_products?.[idx]?.code === 'ZIR',
-                                'border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/10': output_products?.[idx]?.code === 'ILM'
-                            }"
+                            :class="{ 'border-danger/30 bg-danger-soft ': output_products?.[idx]?.code === 'MON', 'border-info/30 bg-info-soft ': output_products?.[idx]?.code === 'ZIR', 'border-warning/30 bg-warning-soft ': output_products?.[idx]?.code === 'ILM' }"
                         >
                            <div class="flex items-center gap-2">
-                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white"
-                                 :style="{'MON':'background:#ef4444','ZIR':'background:#3b82f6','ILM':'background:#f59e0b'}[output_products?.[idx]?.code ?? ''] ?? 'background:#6b7280'">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white"
+                                 :style="{'MON':'background:hsl(var(--danger))','ZIR':'background:hsl(var(--info))','ILM':'background:hsl(var(--warning))'}[output_products?.[idx]?.code ?? ''] ?? 'background:hsl(var(--neutral))'">
                                 {{ (output_products?.[idx]?.code ?? `#${idx+1}`).slice(0,3) }}
                             </div>
                             <div>
                                 <p class="text-xs font-bold text-foreground">{{ getProductLabel(output_products?.[idx]?.code) }}</p>
-                                <p class="text-[10px] text-muted-foreground">
+                                <p class="text-xs text-muted-foreground">
                                     {{ output_products?.[idx]?.is_export_blocked
-                                        ? (lang === 'en' ? '🔒 Blocked — send to LTJ Lab' : '🔒 Diblokir — kirim ke Lab LTJ')
-                                        : (lang === 'en' ? '✓ Export ready' : '✓ Siap ekspor') }}
+                                        ? (lang === 'en' ? 'Blocked — send to LTJ Lab' : 'Diblokir — kirim ke Lab LTJ')
+                                        : (lang === 'en' ? 'Export ready' : 'Siap ekspor') }}
                                 </p>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div class="space-y-1">
-                                <label class="text-[10px] font-semibold text-muted-foreground">
-                                    {{ lang === 'en' ? 'Weight (kg)' : 'Berat (kg)' }} <span class="text-red-500">*</span>
+                                <label class="text-xs font-semibold text-muted-foreground">
+                                    {{ lang === 'en' ? 'Weight (kg)' : 'Berat (kg)' }} <span class="text-danger">*</span>
                                 </label>
                                 <input v-model="output.weight_kg" type="number" step="0.01" min="0.01"
                                        @input="updatePercentage(idx)"
@@ -1210,7 +1205,7 @@ const exportPieData = computed(() => {
                                        class="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-xs font-mono text-foreground"/>
                             </div>
                             <div class="space-y-1">
-                                <label class="text-[10px] font-semibold text-muted-foreground">% (auto)</label>
+                                <label class="text-xs font-semibold text-muted-foreground">% (auto)</label>
                                 <input v-model="output.percentage" type="number" readonly
                                        class="w-full h-8 px-2.5 rounded-lg border border-border bg-muted text-xs font-mono text-muted-foreground cursor-not-allowed"/>
                             </div>
@@ -1220,7 +1215,7 @@ const exportPieData = computed(() => {
 
                 <!-- Mass Balance Summary -->
                 <div class="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
-                    <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         {{ lang === 'en' ? 'Mass Balance' : 'Mass Balance' }}
                     </p>
                     <div class="grid grid-cols-3 gap-3 text-xs">
@@ -1235,13 +1230,13 @@ const exportPieData = computed(() => {
                         <div>
                             <p class="text-muted-foreground">{{ lang === 'en' ? 'Loss' : 'Susut' }}</p>
                             <p class="font-bold font-mono"
-                               :class="parseFloat(transformLossPct) > 5 ? 'text-amber-600' : 'text-emerald-600'">
+                               :class="parseFloat(transformLossPct) > 5 ? 'text-warning' : 'text-success'">
                                 {{ transformLossKg.toFixed(2) }} kg ({{ transformLossPct }}%)
                             </p>
                         </div>
                     </div>
-                    <p v-if="totalOutputWeight > inputBatchWeight" class="text-xs font-bold text-red-500">
-                        ⚠ {{ lang === 'en' ? 'Output exceeds input weight!' : 'Total output melebihi berat input!' }}
+                    <p v-if="totalOutputWeight > inputBatchWeight" class="text-xs font-bold text-danger">
+                        {{ lang === 'en' ? 'Output exceeds input weight!' : 'Total output melebihi berat input!' }}
                     </p>
                 </div>
 
@@ -1259,10 +1254,10 @@ const exportPieData = computed(() => {
                     <button @click="submitTransform"
                             :disabled="transformForm.processing || !transformIsValid"
                             class="flex-[2] h-10 rounded-xl text-sm font-bold text-white disabled:opacity-60"
-                            style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+                            style="background:hsl(var(--warning))">
                         {{ transformForm.processing
                             ? (lang === 'en' ? 'Executing...' : 'Memproses...')
-                            : (lang === 'en' ? '⚡ Execute' : '⚡ Eksekusi Transformasi') }}
+                            : (lang === 'en' ? 'Execute' : 'Eksekusi Transformasi') }}
                     </button>
                 </div>
             </div>
@@ -1275,13 +1270,13 @@ const exportPieData = computed(() => {
     <Transition name="modal">
         <div v-if="showSendLtjModal"
              class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-             style="background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);"
+             style="background:hsl(var(--foreground)/0.4);backdrop-filter:blur(6px);"
              @click.self="showSendLtjModal = false">
             <div class="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl p-6 space-y-4 dialog-in">
                 <div class="flex items-start justify-between">
                     <div>
                         <h3 class="font-heading text-base font-bold text-foreground">
-                            ⚗️ {{ lang === 'en' ? 'Send MON to LTJ Lab' : 'Kirim MON ke Lab LTJ' }}
+                            {{ lang === 'en' ? 'Send MON to LTJ Lab' : 'Kirim MON ke Lab LTJ' }}
                         </h3>
                         <p class="text-xs text-muted-foreground mt-0.5">
                             {{ lang === 'en'
@@ -1297,16 +1292,16 @@ const exportPieData = computed(() => {
                 </div>
 
                 <div v-if="selectedForLtj"
-                     class="rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/10 p-3">
+                     class="rounded-xl border border-danger/30 bg-danger-soft p-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <div class="w-7 h-7 rounded-lg bg-red-500 flex items-center justify-center text-[10px] font-bold text-white">MON</div>
+                            <div class="w-7 h-7 rounded-lg bg-danger flex items-center justify-center text-xs font-bold text-background">MON</div>
                             <div>
                                 <p class="text-xs font-bold font-mono text-foreground">{{ selectedForLtj.batch_code }}</p>
                                 <p class="text-xs text-muted-foreground">{{ lang === 'en' ? 'Monazite — Radioactive' : 'Monasit — Radioaktif' }}</p>
                             </div>
                         </div>
-                        <p class="text-sm font-bold text-red-700 dark:text-red-300">
+                        <p class="text-sm font-bold text-danger">
                             {{ selectedForLtj.current_weight?.toLocaleString('id-ID') }} kg
                         </p>
                     </div>
@@ -1326,7 +1321,7 @@ const exportPieData = computed(() => {
                     <button @click="submitSendLtj"
                             :disabled="sendLtjForm.processing"
                             class="flex-[2] h-10 rounded-xl text-sm font-bold text-white disabled:opacity-60"
-                            style="background:linear-gradient(135deg,#7c3aed,#5b21b6)">
+                            style="background:hsl(var(--info))">
                         {{ sendLtjForm.processing
                             ? (lang === 'en' ? 'Sending...' : 'Mengirim...')
                             : (lang === 'en' ? '→ Send to LTJ Lab' : '→ Kirim ke Lab LTJ') }}

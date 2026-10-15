@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
 import { ref, reactive } from 'vue'
 import { Head, router }  from '@inertiajs/vue3'
 import AppLayout         from '@/Layouts/AppLayout.vue'
@@ -16,10 +17,10 @@ const props = defineProps({
 // ─── Active tab ────────────────────────────────────────────────────────────
 const activeTab = ref('general')
 const tabs = [
-    { id: 'general',    label: { id: 'Umum',          en: 'General' },    icon: '⚙️' },
-    { id: 'thresholds', label: { id: 'Mass Balance',  en: 'Mass Balance'},icon: '⚖️' },
-    { id: 'warehouse',  label: { id: 'Warehouse',     en: 'Warehouse' },  icon: '🏭' },
-    { id: 'reporting',  label: { id: 'Laporan',       en: 'Reports' },    icon: '📊' },
+    { id: 'general',    label: { id: 'Umum',          en: 'General' },    icon: 'settings' },
+    { id: 'thresholds', label: { id: 'Mass Balance',  en: 'Mass Balance'},icon: 'scale' },
+    { id: 'warehouse',  label: { id: 'Warehouse',     en: 'Warehouse' },  icon: 'warehouse' },
+    { id: 'reporting',  label: { id: 'Laporan',       en: 'Reports' },    icon: 'gauge' },
 ]
 
 // ─── Local editable state untuk thresholds ────────────────────────────────
@@ -57,9 +58,9 @@ function saveWarehouse() {
 
 // ─── Alert level color ─────────────────────────────────────────────────────
 function alertColor(pct, warning, critical) {
-    if (pct >= critical) return 'text-red-500'
-    if (pct >= warning)  return 'text-amber-500'
-    return 'text-emerald-500'
+    if (pct >= critical) return 'text-danger'
+    if (pct >= warning)  return 'text-warning'
+    return 'text-success'
 }
 </script>
 
@@ -90,7 +91,7 @@ function alertColor(pct, warning, critical) {
                     class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
                     :style="activeTab === tab.id ? 'background: hsl(var(--primary));' : ''"
                 >
-                    <span style="font-size:14px;">{{ tab.icon }}</span>
+                    <AppIcon :name="tab.icon || 'circle'" :size="15" />
                     {{ tab.label[lang] }}
                 </button>
             </div>
@@ -111,11 +112,11 @@ function alertColor(pct, warning, critical) {
                         </div>
                         <div class="flex items-center gap-3 text-xs text-muted-foreground">
                             <div class="flex items-center gap-1">
-                                <div class="w-2.5 h-2.5 rounded-full bg-amber-500"/>
+                                <div class="w-2.5 h-2.5 rounded-full bg-warning"/>
                                 {{ lang === 'en' ? 'Warning' : 'Peringatan' }}
                             </div>
                             <div class="flex items-center gap-1">
-                                <div class="w-2.5 h-2.5 rounded-full bg-red-500"/>
+                                <div class="w-2.5 h-2.5 rounded-full bg-danger"/>
                                 {{ lang === 'en' ? 'Critical' : 'Kritis' }}
                             </div>
                         </div>
@@ -131,42 +132,42 @@ function alertColor(pct, warning, critical) {
                                 <p class="text-sm font-semibold text-foreground">{{ threshold.stage_label }}</p>
                                 <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <span class="font-medium" :class="alertColor(threshold.warning_threshold_pct, threshold.warning_threshold_pct - 1, threshold.critical_threshold_pct)">
-                                        ⚠ {{ threshold.warning_threshold_pct }}%
+                                        {{ threshold.warning_threshold_pct }}%
                                     </span>
                                     <span>|</span>
-                                    <span class="font-medium text-red-500">
-                                        🔴 {{ threshold.critical_threshold_pct }}%
+                                    <span class="font-medium text-danger">
+                                        {{ threshold.critical_threshold_pct }}%
                                     </span>
                                 </div>
                             </div>
 
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="space-y-1.5">
-                                    <label class="block text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                    <label class="block text-xs font-semibold text-warning">
                                         {{ lang === 'en' ? 'Warning (%)' : 'Warning (%)' }}
                                     </label>
                                     <div class="relative">
                                         <input
                                             v-model.number="threshold.warning_threshold_pct"
                                             type="number" step="0.1" min="0" max="100"
-                                            class="w-full h-9 pl-3 pr-8 rounded-lg text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-                                            :class="'border-amber-200 dark:border-amber-900/50'"
+                                            class="w-full h-9 pl-3 pr-8 rounded-lg text-sm border bg-background text-foreground focus:ring-2 focus:ring-warning/30 focus:border-warning/30 transition-all"
+                                            :class="'border-warning/30 '"
                                         />
-                                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-amber-500">%</span>
+                                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-warning">%</span>
                                     </div>
                                 </div>
                                 <div class="space-y-1.5">
-                                    <label class="block text-xs font-semibold text-red-600 dark:text-red-400">
+                                    <label class="block text-xs font-semibold text-danger">
                                         {{ lang === 'en' ? 'Critical (%)' : 'Kritis (%)' }}
                                     </label>
                                     <div class="relative">
                                         <input
                                             v-model.number="threshold.critical_threshold_pct"
                                             type="number" step="0.1" min="0" max="100"
-                                            class="w-full h-9 pl-3 pr-8 rounded-lg text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
-                                            :class="'border-red-200 dark:border-red-900/50'"
+                                            class="w-full h-9 pl-3 pr-8 rounded-lg text-sm border bg-background text-foreground focus:ring-2 focus:ring-danger/30 focus:border-danger/30 transition-all"
+                                            :class="'border-danger/30 '"
                                         />
-                                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-red-500">%</span>
+                                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-danger">%</span>
                                     </div>
                                 </div>
                             </div>
@@ -219,7 +220,7 @@ function alertColor(pct, warning, critical) {
                         <div v-for="loc in editableLocations" :key="loc.id"
                              class="p-4 rounded-xl border border-border bg-muted/20 space-y-4 hover:border-primary/20 transition-colors">
                             <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-lg flex-shrink-0">🏭</div>
+                                <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-lg flex-shrink-0"></div>
                                 <div>
                                     <p class="text-sm font-bold text-foreground">{{ loc.name }}</p>
                                     <p class="text-xs text-muted-foreground">{{ loc.code }} · {{ loc.city ?? '—' }}</p>
@@ -235,21 +236,21 @@ function alertColor(pct, warning, critical) {
                                         v-model.number="loc.max_capacity_kg"
                                         type="number" step="1000" min="0"
                                         :placeholder="lang === 'en' ? 'e.g. 500000' : 'mis. 500000'"
-                                        class="w-full h-9 px-3 rounded-lg text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                        class="w-full h-9 px-3 rounded-lg text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                                     />
                                 </div>
                                 <div class="space-y-1.5">
-                                    <label class="block text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                    <label class="block text-xs font-semibold text-warning">
                                         {{ lang === 'en' ? 'Warning at (%)' : 'Peringatan di (%)' }}
                                     </label>
                                     <div class="relative">
                                         <input
                                             v-model.number="loc.capacity_warning_pct"
                                             type="number" step="5" min="0" max="100"
-                                            class="w-full h-9 pl-3 pr-8 rounded-lg text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-                                            :class="'border-amber-200 dark:border-amber-900/50'"
+                                            class="w-full h-9 pl-3 pr-8 rounded-lg text-sm border bg-background text-foreground focus:ring-2 focus:ring-warning/30 focus:border-warning/30 transition-all"
+                                            :class="'border-warning/30 '"
                                         />
-                                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-amber-500">%</span>
+                                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-warning">%</span>
                                     </div>
                                 </div>
                             </div>
@@ -276,7 +277,7 @@ function alertColor(pct, warning, critical) {
             <!-- Tab: General & Reporting placeholder -->
             <div v-if="activeTab === 'general' || activeTab === 'reporting'" class="animate-fade-in">
                 <div class="rounded-2xl border border-border bg-card p-8 text-center space-y-3">
-                    <div class="text-4xl">{{ activeTab === 'general' ? '⚙️' : '📊' }}</div>
+                    <AppIcon :name="activeTab === 'general' ? 'settings' : 'gauge'" :size="40" class="mx-auto text-muted-foreground" />
                     <p class="text-sm font-semibold text-foreground">
                         {{ activeTab === 'general'
                             ? (lang === 'en' ? 'General Settings' : 'Pengaturan Umum')

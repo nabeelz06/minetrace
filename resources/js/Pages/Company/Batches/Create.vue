@@ -3,9 +3,9 @@
  * Create.vue — Form pembuatan batch baru MIT (Mineral Ikutan Timah).
  *
  * FITUR:
- * ✅ Pembuatan batch tetap di stage lab_kimia/receiving (TIDAK auto-forward)
- * ✅ Bilingual (ID/EN)
- * ✅ Tag RFID TIDAK didaftarkan di sini (satu jalur: halaman RFID / tombol "Daftarkan Tag" di detail batch)
+ * Pembuatan batch tetap di stage lab_kimia/receiving (TIDAK auto-forward)
+ * Bilingual (ID/EN)
+ * Tag RFID TIDAK didaftarkan di sini (satu jalur: halaman RFID / tombol "Daftarkan Tag" di detail batch)
  *
  * ITEM 3 — EXPLICIT SEND/RECEIVE:
  * Batch yang baru dibuat TETAP di stage 'lab_kimia' dengan status 'active'.
@@ -106,22 +106,22 @@ function submit() {
                 </p>
                 <!-- Workflow hint -->
                 <div class="flex items-center gap-1.5 mt-2 flex-wrap">
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-info-soft text-info">
                         1. Lab Kimia (Buat)
                     </span>
                     <svg class="w-3 h-3 text-muted-foreground flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
                     </svg>
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-info-soft text-info">
                         2. Receiving (Terima eksplisit)
                     </span>
                     <svg class="w-3 h-3 text-muted-foreground flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
                     </svg>
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300">
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-info-soft text-info">
                         3. Wet Process (Kirim eksplisit)
                     </span>
-                    <span class="text-[10px] text-muted-foreground">...</span>
+                    <span class="text-xs text-muted-foreground">...</span>
                 </div>
             </div>
         </div>
@@ -141,7 +141,7 @@ function submit() {
                 </div>
                 <!-- Current timestamp -->
                 <div class="text-right hidden sm:block">
-                    <p class="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    <p class="text-xs text-muted-foreground uppercase tracking-wider">
                         {{ lang === 'en' ? 'Entry Time' : 'Waktu Input' }}
                     </p>
                     <p class="font-mono text-xs font-bold text-foreground">{{ timestamp_now }}</p>
@@ -154,14 +154,12 @@ function submit() {
                 <div class="space-y-2">
                     <label class="block text-sm font-semibold text-foreground">
                         {{ lang === 'en' ? 'Product Code' : 'Kode Produk' }}
-                        <span class="text-red-500 ml-0.5">*</span>
+                        <span class="text-danger ml-0.5">*</span>
                     </label>
                     <select
                         v-model="form.product_code_id"
-                        class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground outline-none cursor-pointer"
-                        :class="form.errors.product_code_id
-                            ? 'border-red-400 focus:ring-2 focus:ring-red-400/20'
-                            : 'border-input focus:border-primary focus:ring-2 focus:ring-primary/20'"
+                        class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground cursor-pointer"
+                        :class="form.errors.product_code_id ? 'border-danger/30 focus:ring-2 focus:ring-danger/30' : 'border-input focus:border-primary focus:ring-2 focus:ring-primary/20'"
                     >
                         <option value="" disabled>
                             {{ lang === 'en' ? 'Select product code...' : 'Pilih kode produk...' }}
@@ -182,12 +180,10 @@ function submit() {
                     >
                         <div v-if="selectedProduct"
                              class="flex items-center gap-3 p-3 rounded-xl border"
-                             :class="selectedProduct.is_hazardous
-                                 ? 'border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/10'
-                                 : 'border-border bg-muted/40'">
+                             :class="selectedProduct.is_hazardous ? 'border-danger/30 bg-danger-soft ' : 'border-border bg-muted/40'">
                             <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-xl"
-                                 :class="selectedProduct.is_hazardous ? 'bg-red-100 dark:bg-red-900/30' : 'bg-primary/10'">
-                                {{ selectedProduct.is_hazardous ? '☢' : '⛏' }}
+                                 :class="selectedProduct.is_hazardous ? 'bg-danger-soft ' : 'bg-primary/10'">
+                                {{ selectedProduct.is_hazardous ? 'radiation' : 'pickaxe' }}
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-bold text-foreground">
@@ -195,14 +191,14 @@ function submit() {
                                 </p>
                                 <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                                     <span v-if="selectedProduct.is_hazardous"
-                                          class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                                        ☢ {{ lang === 'en' ? 'Radioactive — Handle with care' : 'Radioaktif — Tangani dengan hati-hati' }}
+                                          class="text-xs font-bold px-1.5 py-0.5 rounded bg-danger-soft text-danger">
+                                        {{ lang === 'en' ? 'Radioactive — Handle with care' : 'Radioaktif — Tangani dengan hati-hati' }}
                                     </span>
                                     <span v-if="selectedProduct.is_export_blocked"
-                                          class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                                        🔒 {{ lang === 'en' ? 'Export blocked' : 'Diblokir ekspor' }}
+                                          class="text-xs font-bold px-1.5 py-0.5 rounded bg-warning-soft text-warning">
+                                        {{ lang === 'en' ? 'Export blocked' : 'Diblokir ekspor' }}
                                     </span>
-                                    <span class="text-[10px] text-muted-foreground capitalize">
+                                    <span class="text-xs text-muted-foreground capitalize">
                                         {{ selectedProduct.category?.replace(/_/g,' ') }}
                                     </span>
                                 </div>
@@ -210,7 +206,7 @@ function submit() {
                         </div>
                     </Transition>
 
-                    <p v-if="form.errors.product_code_id" class="text-xs text-red-500 flex items-center gap-1">
+                    <p v-if="form.errors.product_code_id" class="text-xs text-danger flex items-center gap-1">
                         <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                         </svg>
@@ -222,14 +218,12 @@ function submit() {
                 <div class="space-y-2">
                     <label class="block text-sm font-semibold text-foreground">
                         {{ lang === 'en' ? 'Lab Location' : 'Lokasi Lab' }}
-                        <span class="text-red-500 ml-0.5">*</span>
+                        <span class="text-danger ml-0.5">*</span>
                     </label>
                     <select
                         v-model="form.location_id"
-                        class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground outline-none cursor-pointer"
-                        :class="form.errors.location_id
-                            ? 'border-red-400 focus:ring-2 focus:ring-red-400/20'
-                            : 'border-input focus:border-primary focus:ring-2 focus:ring-primary/20'"
+                        class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground cursor-pointer"
+                        :class="form.errors.location_id ? 'border-danger/30 focus:ring-2 focus:ring-danger/30' : 'border-input focus:border-primary focus:ring-2 focus:ring-primary/20'"
                     >
                         <option value="" disabled>
                             {{ lang === 'en' ? 'Select location...' : 'Pilih lokasi...' }}
@@ -238,7 +232,7 @@ function submit() {
                             [{{ loc.code }}] {{ loc.full_name ?? loc.name }}
                         </option>
                     </select>
-                    <p v-if="form.errors.location_id" class="text-xs text-red-500 flex items-center gap-1">
+                    <p v-if="form.errors.location_id" class="text-xs text-danger flex items-center gap-1">
                         <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                         </svg>
@@ -250,7 +244,7 @@ function submit() {
                 <div class="space-y-2">
                     <label class="block text-sm font-semibold text-foreground">
                         {{ lang === 'en' ? 'Initial Weight (kg)' : 'Berat Awal (kg)' }}
-                        <span class="text-red-500 ml-0.5">*</span>
+                        <span class="text-danger ml-0.5">*</span>
                     </label>
                     <div class="relative">
                         <input
@@ -259,10 +253,8 @@ function submit() {
                             step="0.001"
                             min="0.001"
                             :placeholder="lang === 'en' ? 'e.g. 1000.500' : 'Contoh: 1000.500'"
-                            class="w-full h-11 pl-4 pr-24 rounded-xl text-sm border bg-background text-foreground font-mono outline-none"
-                            :class="form.errors.initial_weight
-                                ? 'border-red-400 focus:ring-2 focus:ring-red-400/20'
-                                : 'border-input focus:border-primary focus:ring-2 focus:ring-primary/20'"
+                            class="w-full h-11 pl-4 pr-24 rounded-xl text-sm border bg-background text-foreground font-mono"
+                            :class="form.errors.initial_weight ? 'border-danger/30 focus:ring-2 focus:ring-danger/30' : 'border-input focus:border-primary focus:ring-2 focus:ring-primary/20'"
                         />
                         <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                             <span v-if="weightDisplay" class="text-xs font-semibold text-primary tabular-nums">
@@ -271,7 +263,7 @@ function submit() {
                             <span class="text-xs font-bold px-2 py-0.5 rounded-lg bg-muted text-muted-foreground">kg</span>
                         </div>
                     </div>
-                    <p v-if="form.errors.initial_weight" class="text-xs text-red-500 flex items-center gap-1">
+                    <p v-if="form.errors.initial_weight" class="text-xs text-danger flex items-center gap-1">
                         <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                         </svg>
@@ -300,7 +292,7 @@ function submit() {
                         :placeholder="lang === 'en'
                             ? 'Additional notes: material condition, mine source, quality observations...'
                             : 'Catatan tambahan: kondisi material, sumber tambang, observasi kualitas...'"
-                        class="w-full px-4 py-3 rounded-xl text-sm border border-input bg-background text-foreground resize-none outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        class="w-full px-4 py-3 rounded-xl text-sm border border-input bg-background text-foreground resize-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                     />
                     <p class="text-xs text-muted-foreground text-right">{{ (form.notes || '').length }}/1000</p>
                 </div>
@@ -312,29 +304,29 @@ function submit() {
                     </p>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <p class="text-[10px] text-muted-foreground uppercase tracking-wider">
+                            <p class="text-xs text-muted-foreground uppercase tracking-wider">
                                 {{ lang === 'en' ? 'Batch Code Format' : 'Format Kode Batch' }}
                             </p>
                             <p class="text-xs font-mono font-bold text-foreground mt-1">
                                 B-YYYYMMDD-XXX
                             </p>
-                            <p class="text-[10px] text-muted-foreground mt-0.5">
+                            <p class="text-xs text-muted-foreground mt-0.5">
                                 {{ lang === 'en' ? 'Unique per day, sequential' : 'Unik per hari, sekuensial' }}
                             </p>
                         </div>
                         <div>
-                            <p class="text-[10px] text-muted-foreground uppercase tracking-wider">
+                            <p class="text-xs text-muted-foreground uppercase tracking-wider">
                                 {{ lang === 'en' ? 'Initial Stage & Status' : 'Stage & Status Awal' }}
                             </p>
                             <div class="flex items-center gap-1.5 mt-1">
-                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
-                                    🧪 Lab Kimia
+                                <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-info-soft text-info">
+                                    Lab Kimia
                                 </span>
-                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                                <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-success-soft text-success">
                                     ● {{ lang === 'en' ? 'Active' : 'Aktif' }}
                                 </span>
                             </div>
-                            <p class="text-[10px] text-muted-foreground mt-1">
+                            <p class="text-xs text-muted-foreground mt-1">
                                 {{ lang === 'en' ? 'Stays here until explicitly received' : 'Tetap di sini hingga diterima eksplisit' }}
                             </p>
                         </div>
@@ -352,9 +344,7 @@ function submit() {
                         type="submit"
                         :disabled="form.processing || !form.product_code_id || !form.location_id || !form.initial_weight"
                         class="flex-[2] h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        :class="!form.processing && form.product_code_id && form.location_id && form.initial_weight
-                            ? 'hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5 active:scale-[0.98]'
-                            : ''"
+                        :class="!form.processing && form.product_code_id && form.location_id && form.initial_weight ? 'hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5 active:scale-[0.98]' : ''"
                         style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(207 30% 28%));"
                     >
                         <svg v-if="form.processing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

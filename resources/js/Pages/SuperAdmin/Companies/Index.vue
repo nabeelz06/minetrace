@@ -42,9 +42,9 @@ function toggleActive(id) {
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div v-for="(item, i) in [
                     { label: 'Total Company', value: stats?.total, color: 'text-foreground' },
-                    { label: 'Aktif',         value: stats?.active, color: 'text-emerald-600 dark:text-emerald-400' },
-                    { label: 'Regulator',     value: stats?.regulator, color: 'text-red-600 dark:text-red-400' },
-                    { label: 'Onboarding',    value: stats?.onboarding, color: 'text-amber-600 dark:text-amber-400' },
+                    { label: 'Aktif',         value: stats?.active, color: 'text-success ' },
+                    { label: 'Regulator',     value: stats?.regulator, color: 'text-danger ' },
+                    { label: 'Onboarding',    value: stats?.onboarding, color: 'text-warning ' },
                 ]" :key="item.label"
                      class="rounded-2xl border border-border bg-card p-5 animate-fade-in"
                      :style="`animation-delay: ${i*60}ms`">
@@ -58,7 +58,7 @@ function toggleActive(id) {
 
                 <EmptyState v-if="!companies?.length"
                     class="col-span-full"
-                    icon="🏢"
+                    icon='building-2'
                     title="Belum ada company terdaftar"
                     description="Mulai onboarding company pertama."
                     action-label="Onboard Company"
@@ -69,28 +69,28 @@ function toggleActive(id) {
                     v-for="(co, i) in companies"
                     :key="co.id"
                     class="rounded-2xl border bg-card overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 animate-fade-in"
-                    :class="co.is_deleted ? 'opacity-50 border-border' : co.is_active ? 'border-border' : 'border-amber-200 dark:border-amber-900/50'"
+                    :class="co.is_deleted ? 'opacity-50 border-border' : co.is_active ? 'border-border' : 'border-warning/30 '"
                     :style="`animation-delay: ${i*70}ms`"
                 >
                     <!-- Color bar -->
-                    <div class="h-1.5 w-full" :style="`background: ${co.primary_color ?? '#3E5C74'};`"/>
+                    <div class="h-1.5 w-full" :style="`background: ${co.primary_color ?? 'hsl(var(--primary))'};`"/>
 
                     <div class="p-5 space-y-4">
                         <!-- Company header -->
                         <div class="flex items-start gap-3">
                             <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm"
-                                 :style="`background: ${co.primary_color ?? '#3E5C74'};`">
+                                 :style="`background: ${co.primary_color ?? 'hsl(var(--primary))'};`">
                                 {{ co.code?.slice(0,2) }}
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <p class="text-sm font-bold text-foreground">{{ co.name }}</p>
                                     <span v-if="co.is_regulator"
-                                          class="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                          class="text-xs px-1.5 py-0.5 rounded font-semibold bg-danger-soft text-danger">
                                         Regulator
                                     </span>
                                     <span v-if="!co.is_fully_onboarded && !co.is_regulator"
-                                          class="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                          class="text-xs px-1.5 py-0.5 rounded font-semibold bg-warning-soft text-warning">
                                         Onboarding
                                     </span>
                                 </div>
@@ -98,7 +98,7 @@ function toggleActive(id) {
                             </div>
                             <div class="flex items-center gap-1.5 flex-shrink-0">
                                 <div class="w-2 h-2 rounded-full"
-                                     :class="co.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'"/>
+                                     :class="co.is_active ? 'bg-success animate-pulse' : 'bg-muted-foreground'"/>
                             </div>
                         </div>
 
@@ -106,15 +106,15 @@ function toggleActive(id) {
                         <div class="grid grid-cols-3 gap-2">
                             <div class="text-center p-2 rounded-lg bg-muted/40">
                                 <p class="text-base font-bold text-foreground">{{ co.users_count ?? 0 }}</p>
-                                <p class="text-[10px] text-muted-foreground uppercase tracking-wide">Users</p>
+                                <p class="text-xs text-muted-foreground uppercase tracking-wide">Users</p>
                             </div>
                             <div class="text-center p-2 rounded-lg bg-muted/40">
                                 <p class="text-base font-bold text-foreground">{{ co.batches_count ?? 0 }}</p>
-                                <p class="text-[10px] text-muted-foreground uppercase tracking-wide">Batch</p>
+                                <p class="text-xs text-muted-foreground uppercase tracking-wide">Batch</p>
                             </div>
                             <div class="text-center p-2 rounded-lg bg-muted/40">
-                                <p class="text-[10px] font-bold text-foreground">{{ co.onboarded_at ?? '—' }}</p>
-                                <p class="text-[10px] text-muted-foreground uppercase tracking-wide">Join</p>
+                                <p class="text-xs font-bold text-foreground">{{ co.onboarded_at ?? '—' }}</p>
+                                <p class="text-xs text-muted-foreground uppercase tracking-wide">Join</p>
                             </div>
                         </div>
 
@@ -132,9 +132,7 @@ function toggleActive(id) {
                                 @click="toggleActive(co.id)"
                                 :disabled="co.is_regulator"
                                 class="h-8 px-3 rounded-lg text-xs font-semibold transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                                :class="co.is_active
-                                    ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400'
-                                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400'"
+                                :class="co.is_active ? 'bg-warning-soft text-warning hover:bg-warning-soft ' : 'bg-success-soft text-success hover:bg-success-soft '"
                             >
                                 {{ co.is_active ? 'Nonaktifkan' : 'Aktifkan' }}
                             </button>

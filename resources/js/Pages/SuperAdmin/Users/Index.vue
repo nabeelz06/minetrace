@@ -49,14 +49,14 @@ function restore(userId) {
 
 function roleBadge(role) {
     const m = {
-        super_admin:        { class: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300', label: 'Super Admin' },
-        bim_admin:          { class: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',             label: 'BIM Admin' },
-        bim_viewer:         { class: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300',         label: 'BIM Viewer' },
-        government_auditor: { class: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300', label: 'Gov Auditor' },
-        company_admin:      { class: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',         label: 'Company Admin' },
-        operator_lab:       { class: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300', label: 'Operator Lab' },
-        operator_process:   { class: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',         label: 'Operator Process' },
-        company_auditor:    { class: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',         label: 'Auditor' },
+        super_admin:        { class: 'bg-info-soft text-info  ', label: 'Super Admin' },
+        bim_admin:          { class: 'bg-danger-soft text-danger  ',             label: 'BIM Admin' },
+        bim_viewer:         { class: 'bg-danger-soft text-danger  ',         label: 'BIM Viewer' },
+        government_auditor: { class: 'bg-warning-soft text-warning  ', label: 'Gov Auditor' },
+        company_admin:      { class: 'bg-info-soft text-info  ',         label: 'Company Admin' },
+        operator_lab:       { class: 'bg-info-soft text-info  ', label: 'Operator Lab' },
+        operator_process:   { class: 'bg-info-soft text-info  ',         label: 'Operator Process' },
+        company_auditor:    { class: 'bg-success-soft text-success  ',         label: 'Auditor' },
     }
     return m[role] ?? { class: 'bg-muted text-muted-foreground', label: role }
 }
@@ -91,9 +91,9 @@ function roleBadge(role) {
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div v-for="(item, i) in [
                     { label:'Total User',    value: stats?.total,    color:'text-foreground',    bg:'bg-muted/50' },
-                    { label:'Aktif',         value: stats?.active,   color:'text-emerald-600',   bg:'bg-emerald-50 dark:bg-emerald-950/20' },
-                    { label:'Nonaktif',      value: stats?.inactive, color:'text-amber-600',     bg:'bg-amber-50 dark:bg-amber-950/20' },
-                    { label:'Dihapus',       value: stats?.deleted,  color:'text-red-500',       bg:'bg-red-50 dark:bg-red-950/20' },
+                    { label:'Aktif',         value: stats?.active,   color:'text-success',   bg:'bg-success-soft ' },
+                    { label:'Nonaktif',      value: stats?.inactive, color:'text-warning',     bg:'bg-warning-soft ' },
+                    { label:'Dihapus',       value: stats?.deleted,  color:'text-danger',       bg:'bg-danger-soft ' },
                 ]" :key="item.label"
                      class="rounded-2xl border border-border p-4 animate-fade-in"
                      :class="item.bg"
@@ -110,23 +110,23 @@ function roleBadge(role) {
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                     </div>
                     <input v-model="search" @input="onSearch" type="text" placeholder="Cari nama, email, NIP..."
-                           class="w-full pl-9 pr-4 h-9 rounded-xl text-sm bg-card border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                           class="w-full pl-9 pr-4 h-9 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                 </div>
 
                 <select v-model="companyId" @change="applyFilters"
-                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer">
+                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 cursor-pointer">
                     <option value="">Semua Company</option>
                     <option v-for="c in companies" :key="c.id" :value="c.id">[{{ c.code }}] {{ c.name }}</option>
                 </select>
 
                 <select v-model="role" @change="applyFilters"
-                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer">
+                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 cursor-pointer">
                     <option value="">Semua Role</option>
                     <option v-for="r in roles" :key="r" :value="r">{{ r.replace(/_/g,' ') }}</option>
                 </select>
 
                 <select v-model="status" @change="applyFilters"
-                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer">
+                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 cursor-pointer">
                     <option value="">Semua Status</option>
                     <option value="active">Aktif</option>
                     <option value="inactive">Nonaktif</option>
@@ -137,7 +137,7 @@ function roleBadge(role) {
             <!-- Table -->
             <div class="rounded-2xl border border-border bg-card overflow-hidden animate-fade-in delay-200">
                 <div v-if="!users?.data?.length" class="py-16 text-center space-y-3">
-                    <div class="text-4xl">👤</div>
+                    <div class="text-4xl"></div>
                     <p class="text-sm font-medium text-foreground">Tidak ada user ditemukan</p>
                     <p class="text-xs text-muted-foreground">Coba ubah filter atau buat user baru.</p>
                 </div>
@@ -194,9 +194,9 @@ function roleBadge(role) {
                                 <td class="px-4 py-4">
                                     <div class="flex items-center gap-2">
                                         <div class="w-2 h-2 rounded-full flex-shrink-0"
-                                             :class="user.is_deleted ? 'bg-gray-400' : user.is_active ? 'bg-emerald-500' : 'bg-amber-500'"/>
+                                             :class="user.is_deleted ? 'bg-muted-foreground' : user.is_active ? 'bg-success' : 'bg-warning'"/>
                                         <span class="text-xs font-medium"
-                                              :class="user.is_deleted ? 'text-muted-foreground' : user.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'">
+                                              :class="user.is_deleted ? 'text-muted-foreground' : user.is_active ? 'text-success ' : 'text-warning '">
                                             {{ user.is_deleted ? 'Dihapus' : user.is_active ? 'Aktif' : 'Nonaktif' }}
                                         </span>
                                     </div>
@@ -212,7 +212,7 @@ function roleBadge(role) {
                                     <div class="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <template v-if="user.is_deleted">
                                             <button @click="restore(user.id)"
-                                                    class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 transition-all active:scale-95">
+                                                    class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-success bg-success-soft hover:bg-success-soft transition-all active:scale-95">
                                                 Pulihkan
                                             </button>
                                         </template>
@@ -223,13 +223,11 @@ function roleBadge(role) {
                                             </Link>
                                             <button @click="toggleActive(user.id)"
                                                     class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-95"
-                                                    :class="user.is_active
-                                                        ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20'
-                                                        : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20'">
+                                                    :class="user.is_active ? 'text-warning bg-warning-soft hover:bg-warning-soft ' : 'text-success bg-success-soft hover:bg-success-soft '">
                                                 {{ user.is_active ? 'Nonaktifkan' : 'Aktifkan' }}
                                             </button>
                                             <button @click="destroy(user)"
-                                                    class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 transition-all active:scale-95">
+                                                    class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-danger bg-danger-soft hover:bg-danger-soft transition-all active:scale-95">
                                                 Hapus
                                             </button>
                                         </template>

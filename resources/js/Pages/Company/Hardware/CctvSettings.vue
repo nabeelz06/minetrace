@@ -183,13 +183,11 @@ function maskRtsp(url) {
                         </p>
                     </div>
                     <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                        <span class="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                              :class="cam.is_simulation
-                                  ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
-                                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'">
+                        <span class="text-xs font-bold px-2 py-0.5 rounded-full"
+                              :class="cam.is_simulation ? 'bg-info-soft text-info ' : 'bg-success-soft text-success '">
                             {{ cam.is_simulation ? t.simulation : t.real }}
                         </span>
-                        <span v-if="!cam.is_active" class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        <span v-if="!cam.is_active" class="text-xs font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                             {{ t.inactive }}
                         </span>
                     </div>
@@ -207,7 +205,7 @@ function maskRtsp(url) {
                         <p v-if="cam.hls_url_effective" class="font-mono text-foreground truncate">
                             {{ cam.hls_url_effective }}
                         </p>
-                        <p v-else class="text-amber-600 dark:text-amber-400 text-[11px]">
+                        <p v-else class="text-warning text-xs">
                             {{ t.notProvisioned }}
                         </p>
                     </div>
@@ -219,7 +217,7 @@ function maskRtsp(url) {
                         {{ t.edit }}
                     </button>
                     <button @click="removeCamera(cam)"
-                            class="flex-1 py-1.5 rounded-lg text-xs font-semibold border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
+                            class="flex-1 py-1.5 rounded-lg text-xs font-semibold border border-danger/30 text-danger hover:bg-danger-soft transition-colors">
                         {{ t.delete }}
                     </button>
                 </div>
@@ -251,19 +249,19 @@ function maskRtsp(url) {
                         <div>
                             <label class="block text-xs font-semibold text-foreground mb-1.5">{{ t.name }}</label>
                             <input v-model="form.name" type="text" required maxlength="100"
-                                   class="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground outline-none focus:border-primary"/>
-                            <p v-if="form.errors.name" class="text-xs text-red-500 mt-1">{{ form.errors.name }}</p>
+                                   class="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground focus:border-primary"/>
+                            <p v-if="form.errors.name" class="text-xs text-danger mt-1">{{ form.errors.name }}</p>
                         </div>
 
                         <!-- Stage -->
                         <div>
                             <label class="block text-xs font-semibold text-foreground mb-1.5">{{ t.stage }}</label>
                             <select v-model="form.location_key"
-                                    class="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground outline-none focus:border-primary">
+                                    class="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground focus:border-primary">
                                 <option value="">{{ t.stageNone }}</option>
                                 <option v-for="s in valid_stages" :key="s.value" :value="s.value">{{ s.label }}</option>
                             </select>
-                            <p v-if="form.errors.location_key" class="text-xs text-red-500 mt-1">{{ form.errors.location_key }}</p>
+                            <p v-if="form.errors.location_key" class="text-xs text-danger mt-1">{{ form.errors.location_key }}</p>
                         </div>
 
                         <!-- Camera type -->
@@ -272,17 +270,13 @@ function maskRtsp(url) {
                             <div class="grid grid-cols-2 gap-2">
                                 <button type="button" @click="form.is_simulation = false"
                                         class="py-2 rounded-lg text-xs font-semibold border transition-all"
-                                        :class="!form.is_simulation
-                                            ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400'
-                                            : 'border-border text-muted-foreground hover:bg-muted'">
-                                    📷 {{ t.typeReal }}
+                                        :class="!form.is_simulation ? 'border-success/30 bg-success-soft text-success ' : 'border-border text-muted-foreground hover:bg-muted'">
+                                    {{ t.typeReal }}
                                 </button>
                                 <button type="button" @click="form.is_simulation = true"
                                         class="py-2 rounded-lg text-xs font-semibold border transition-all"
-                                        :class="form.is_simulation
-                                            ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/20 text-violet-700 dark:text-violet-400'
-                                            : 'border-border text-muted-foreground hover:bg-muted'">
-                                    🎮 {{ t.typeSim }}
+                                        :class="form.is_simulation ? 'border-info/30 bg-info-soft text-info ' : 'border-border text-muted-foreground hover:bg-muted'">
+                                    {{ t.typeSim }}
                                 </button>
                             </div>
                         </div>
@@ -291,11 +285,11 @@ function maskRtsp(url) {
                         <div v-if="!form.is_simulation">
                             <label class="block text-xs font-semibold text-foreground mb-1.5">{{ t.rtspReal }}</label>
                             <input v-model="form.rtsp_url_real" type="text" placeholder="rtsp://user:password@192.168.1.10/stream2"
-                                   class="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono text-foreground outline-none focus:border-primary"/>
-                            <p class="text-[11px] text-muted-foreground mt-1">{{ t.rtspRealHelp }}</p>
-                            <p v-if="form.errors.rtsp_url_real" class="text-xs text-red-500 mt-1">{{ form.errors.rtsp_url_real }}</p>
-                            <p class="text-[11px] text-sky-600 dark:text-sky-400 mt-2 leading-relaxed">
-                                💡 {{ t.sharedCameraHint }}
+                                   class="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono text-foreground focus:border-primary"/>
+                            <p class="text-xs text-muted-foreground mt-1">{{ t.rtspRealHelp }}</p>
+                            <p v-if="form.errors.rtsp_url_real" class="text-xs text-danger mt-1">{{ form.errors.rtsp_url_real }}</p>
+                            <p class="text-xs text-info mt-2 leading-relaxed">
+                                {{ t.sharedCameraHint }}
                             </p>
                         </div>
 
@@ -303,9 +297,9 @@ function maskRtsp(url) {
                         <div v-else>
                             <label class="block text-xs font-semibold text-foreground mb-1.5">{{ t.rtspSim }}</label>
                             <input v-model="form.rtsp_url_simulation" type="text" placeholder="rtsp://127.0.0.1:8554/cam_gate1"
-                                   class="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono text-foreground outline-none focus:border-primary"/>
-                            <p class="text-[11px] text-muted-foreground mt-1">{{ t.rtspSimHelp }}</p>
-                            <p v-if="form.errors.rtsp_url_simulation" class="text-xs text-red-500 mt-1">{{ form.errors.rtsp_url_simulation }}</p>
+                                   class="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono text-foreground focus:border-primary"/>
+                            <p class="text-xs text-muted-foreground mt-1">{{ t.rtspSimHelp }}</p>
+                            <p v-if="form.errors.rtsp_url_simulation" class="text-xs text-danger mt-1">{{ form.errors.rtsp_url_simulation }}</p>
                         </div>
 
                         <!-- Active -->

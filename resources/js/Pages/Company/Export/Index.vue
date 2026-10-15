@@ -70,8 +70,8 @@ function formatValue(usd) {
                 <div v-for="(item, i) in [
                     { label: lang==='en'?'Total Exports':'Total Ekspor',  value: stats?.total,         color: 'text-foreground' },
                     { label: lang==='en'?'International':'Internasional', value: stats?.international,  color: 'text-primary' },
-                    { label: lang==='en'?'Domestic':'Domestik',           value: stats?.domestic,       color: 'text-cyan-600 dark:text-cyan-400' },
-                    { label: lang==='en'?'Total Weight':'Total Tonase',   value: null,                  color: 'text-amber-600 dark:text-amber-400', weight: stats?.total_weight },
+                    { label: lang==='en'?'Domestic':'Domestik',           value: stats?.domestic,       color: 'text-info ' },
+                    { label: lang==='en'?'Total Weight':'Total Tonase',   value: null,                  color: 'text-warning ', weight: stats?.total_weight },
                 ]" :key="item.label"
                      class="rounded-2xl border border-border bg-card p-5 animate-fade-in"
                      :style="`animation-delay: ${i*60}ms`">
@@ -88,14 +88,14 @@ function formatValue(usd) {
             <!-- Filters -->
             <div class="flex flex-wrap items-center gap-3 animate-fade-in delay-150">
                 <select v-model="type" @change="applyFilters"
-                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer">
+                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 cursor-pointer">
                     <option value="">{{ lang === 'en' ? 'All Types' : 'Semua Tipe' }}</option>
-                    <option value="international">🌍 {{ lang === 'en' ? 'International' : 'Internasional' }}</option>
-                    <option value="domestic">🏭 {{ lang === 'en' ? 'Domestic' : 'Domestik' }}</option>
+                    <option value="international">{{ lang === 'en' ? 'International' : 'Internasional' }}</option>
+                    <option value="domestic">{{ lang === 'en' ? 'Domestic' : 'Domestik' }}</option>
                 </select>
 
                 <select v-model="status" @change="applyFilters"
-                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer">
+                        class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20 cursor-pointer">
                     <option value="">{{ lang === 'en' ? 'All Status' : 'Semua Status' }}</option>
                     <option value="draft">Draft</option>
                     <option value="confirmed">{{ lang === 'en' ? 'Confirmed' : 'Dikonfirmasi' }}</option>
@@ -108,7 +108,7 @@ function formatValue(usd) {
             <div class="rounded-2xl border border-border bg-card overflow-hidden animate-fade-in delay-200">
 
                 <EmptyState v-if="!exports?.data?.length"
-                    icon="🚢"
+                    icon='ship'
                     :title="lang === 'en' ? 'No exports yet' : 'Belum ada ekspor'"
                     :description="lang === 'en' ? 'Create your first export once batches are ready in warehouse.' : 'Buat ekspor pertama setelah batch tersedia di warehouse.'"
                     :action-label="lang === 'en' ? 'Create Export' : 'Buat Ekspor'"
@@ -143,7 +143,7 @@ function formatValue(usd) {
 
                                 <td class="px-4 py-4">
                                     <div class="flex items-center gap-1.5">
-                                        <span>{{ exp.export_type === 'international' ? '🌍' : '🏭' }}</span>
+                                        <span>{{ exp.export_type === 'international' ? 'globe' : 'warehouse' }}</span>
                                         <span class="text-xs font-medium text-foreground">
                                             {{ exp.export_type === 'international'
                                                 ? (lang === 'en' ? 'International' : 'Internasional')

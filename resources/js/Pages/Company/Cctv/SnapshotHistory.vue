@@ -93,7 +93,7 @@ function handleDelete({ id, reason }) {
                 </div>
                 <Link v-if="can_delete" href="/company/cctv/snapshots/trash"
                       class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-border text-foreground hover:bg-muted transition-colors flex-shrink-0">
-                    🗑️ {{ t.trash }}
+                    {{ t.trash }}
                 </Link>
             </div>
 

@@ -63,7 +63,7 @@ async function fetchRecentSnapshots() {
 
             // Tunjukkan toast jika ada snapshot baru sejak polling terakhir
             if (prevCount > 0 && json.data.length > prevCount) {
-                showSnapshotToast('📸 Snapshot CCTV baru dari RFID scan')
+                showSnapshotToast('Snapshot CCTV baru dari RFID scan')
             }
         }
     } catch (_) {
@@ -93,23 +93,23 @@ function scanTypeLabel(type) {
 
 function scanTypeColor(type) {
     if (type === 'scan_out' || type === 'departure_snapshot')
-        return 'text-amber-400 border-amber-500/30 bg-amber-500/10'
+        return 'text-warning border-warning/30 bg-warning-soft'
     if (type === 'manual_trigger')
-        return 'text-purple-400 border-purple-500/30 bg-purple-500/10'
-    return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
+        return 'text-info border-info/30 bg-info-soft'
+    return 'text-success border-success/30 bg-success-soft'
 }
 
 function snapshotStatusLabel(status) {
-    if (status === 'captured') return '✓ Captured'
+    if (status === 'captured') return 'Captured'
     if (status === 'pending')  return '⏳ Pending'
-    if (status === 'failed')   return '✕ Failed'
+    if (status === 'failed')   return 'Failed'
     return null
 }
 
 function snapshotStatusColor(status) {
-    if (status === 'captured') return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
-    if (status === 'pending')  return 'text-amber-400 border-amber-500/30 bg-amber-500/10'
-    if (status === 'failed')   return 'text-red-400 border-red-500/30 bg-red-500/10'
+    if (status === 'captured') return 'text-success border-success/30 bg-success-soft'
+    if (status === 'pending')  return 'text-warning border-warning/30 bg-warning-soft'
+    if (status === 'failed')   return 'text-danger border-danger/30 bg-danger-soft'
     return ''
 }
 
@@ -210,10 +210,10 @@ async function toggleFullscreen() {
 
 // ─── Status label helpers ─────────────────────────────────────────────────────
 const statusDot = computed(() => ({
-    idle:    'bg-gray-500',
-    loading: 'bg-amber-400 animate-pulse',
-    playing: 'bg-emerald-400 animate-pulse',
-    error:   'bg-red-500',
+    idle:    'bg-muted-foreground',
+    loading: 'bg-warning animate-pulse',
+    playing: 'bg-success animate-pulse',
+    error:   'bg-danger',
 }[streamStatus.value]))
 
 const statusLabel = computed(() => ({
@@ -237,7 +237,7 @@ const statusLabel = computed(() => ({
                 <div class="relative max-w-5xl max-h-[90vh] w-full mx-4">
                     <button @click="closeLightbox"
                         class="absolute -top-10 right-0 text-white/70 hover:text-white text-sm font-medium">
-                        ✕ Tutup
+                        Tutup
                     </button>
                     <img :src="lightboxPhoto" class="w-full h-auto rounded-xl object-contain max-h-[85vh]" alt="CCTV Snapshot" />
                 </div>
@@ -247,48 +247,48 @@ const statusLabel = computed(() => ({
         <!-- ─── RFID Snapshot Toast ────────────────────────────────────────── -->
         <Transition name="toast">
             <div v-if="snapshotToast"
-                class="fixed bottom-6 right-6 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl border border-sky-500/30 bg-gray-900 shadow-2xl">
-                <span class="text-sky-400 text-lg">📹</span>
+                class="fixed bottom-6 right-6 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl border border-info/30 bg-muted-foreground shadow-2xl">
+                <span class="text-info text-lg"></span>
                 <p class="text-sm font-semibold text-white">{{ snapshotToast.message }}</p>
             </div>
         </Transition>
 
         <!-- ─── Dark Command Center Shell ──────────────────────────────────── -->
-        <div class="min-h-screen bg-gray-950 text-gray-100 rounded-2xl overflow-hidden border border-gray-800">
+        <div class="min-h-screen bg-muted-foreground text-muted-foreground rounded-2xl overflow-hidden border border-border">
 
             <!-- ─── Top Bar ──────────────────────────────────────────────── -->
-            <div class="flex items-center justify-between px-5 py-3 bg-gray-900 border-b border-gray-800">
+            <div class="flex items-center justify-between px-5 py-3 bg-muted-foreground border-b border-border">
                 <div class="flex items-center gap-3">
-                    <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-sky-600/20 border border-sky-500/30">
-                        <svg class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-info-soft border border-info/30">
+                        <svg class="w-4 h-4 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
                         </svg>
                     </div>
                     <div>
                         <p class="text-sm font-bold text-white tracking-wide">CCTV Monitor</p>
-                        <p class="text-xs text-gray-500">TP-Link Tapo C500 · MediaMTX HLS · RFID Synergy</p>
+                        <p class="text-xs text-muted-foreground">TP-Link Tapo C500 · MediaMTX HLS · RFID Synergy</p>
                     </div>
                 </div>
 
                 <div class="flex items-center gap-3">
                     <!-- Simulation mode badge -->
                     <div v-if="simulation"
-                        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-violet-500/30 bg-violet-500/10">
-                        <span class="text-xs">🎮</span>
-                        <span class="text-xs font-bold text-violet-400 tracking-wide">SIMULATION</span>
+                        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-info/30 bg-info-soft">
+                        <span class="text-xs"></span>
+                        <span class="text-xs font-bold text-info tracking-wide">SIMULATION</span>
                     </div>
 
                     <!-- Live clock -->
-                    <div class="hidden sm:flex items-center gap-1.5 text-xs font-mono text-gray-400">
-                        <div class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                    <div class="hidden sm:flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
+                        <div class="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
                         {{ currentTime }}
                     </div>
 
                     <!-- Grid toggle -->
                     <button v-if="cameras.length > 1"
                         @click="showGrid = !showGrid"
-                        :class="showGrid ? 'text-sky-400 border-sky-500/50' : 'text-gray-500 border-gray-700'"
+                        :class="showGrid ? 'text-info border-info/30' : 'text-muted-foreground border-border'"
                         class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round"
@@ -300,7 +300,7 @@ const statusLabel = computed(() => ({
                     <!-- Pengaturan kamera — company_admin only -->
                     <Link v-if="can_manage_cameras"
                         href="/company/hardware/cctv/settings"
-                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 text-xs font-medium transition-colors">
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:text-white hover:border-border text-xs font-medium transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
@@ -313,15 +313,15 @@ const statusLabel = computed(() => ({
 
             <!-- ─── No CCTV configured ───────────────────────────────────── -->
             <div v-if="!has_cctv" class="flex flex-col items-center justify-center py-24 gap-4">
-                <div class="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center">
-                    <svg class="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <div class="w-16 h-16 rounded-2xl bg-muted-foreground border border-border flex items-center justify-center">
+                    <svg class="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                         <path stroke-linecap="round" stroke-linejoin="round"
                             d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M12 18.75H4.5a2.25 2.25 0 01-2.25-2.25V9m12.841 9.091L16.5 19.5m-1.409-1.409c.407-.407.659-.97.659-1.591v-9a2.25 2.25 0 00-2.25-2.25h-9c-.621 0-1.184.252-1.591.659m12.181 12.181L2.909 5.909M1.5 4.5l1.409 1.409" />
                     </svg>
                 </div>
-                <p class="text-sm text-gray-500 text-center">
+                <p class="text-sm text-muted-foreground text-center">
                     CCTV belum dikonfigurasi.<br>
-                    Set <code class="text-sky-400 font-mono text-xs">CCTV_HLS_BASE_URL</code> di file <code class="text-sky-400 font-mono text-xs">.env</code>.
+                    Set <code class="text-info font-mono text-xs">CCTV_HLS_BASE_URL</code> di file <code class="text-info font-mono text-xs">.env</code>.
                 </p>
             </div>
 
@@ -330,8 +330,8 @@ const statusLabel = computed(() => ({
 
                 <!-- ─── Camera Sidebar ─────────────────────────────────── -->
                 <div v-if="cameras.length > 1"
-                    class="w-full lg:w-44 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-gray-800 bg-gray-900/50">
-                    <p class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-widest">
+                    class="w-full lg:w-44 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-border bg-muted-foreground">
+                    <p class="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                         Kamera
                     </p>
                     <div class="flex lg:flex-col gap-1 px-2 pb-3 overflow-x-auto lg:overflow-x-visible">
@@ -339,17 +339,15 @@ const statusLabel = computed(() => ({
                             v-for="cam in cameras"
                             :key="cam.id ?? cam.name"
                             @click="selectCamera(cam)"
-                            :class="activeCam?.id === cam.id
-                                ? 'bg-sky-600/20 border-sky-500/50 text-white'
-                                : 'border-transparent text-gray-400 hover:bg-gray-800 hover:text-gray-200'"
+                            :class="activeCam?.id === cam.id ? 'bg-info-soft border-info/30 text-white' : 'border-transparent text-muted-foreground hover:bg-muted-foreground hover:text-muted-foreground'"
                             class="flex-shrink-0 lg:w-full text-left px-3 py-2.5 rounded-lg border text-xs font-medium transition-all duration-150"
                         >
                             <div class="flex items-center gap-2">
                                 <div class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                    :class="activeCam?.id === cam.id ? 'bg-emerald-400 animate-pulse' : 'bg-gray-600'" />
+                                    :class="activeCam?.id === cam.id ? 'bg-success animate-pulse' : 'bg-muted-foreground'" />
                                 <span class="truncate">{{ cam.name }}</span>
                             </div>
-                            <p v-if="cam.location_key" class="mt-0.5 pl-3.5 text-gray-600 text-xs truncate hidden lg:block">
+                            <p v-if="cam.location_key" class="mt-0.5 pl-3.5 text-muted-foreground text-xs truncate hidden lg:block">
                                 {{ cam.location_key.replace(/_/g, ' ') }}
                             </p>
                         </button>
@@ -370,17 +368,12 @@ const statusLabel = computed(() => ({
                                         {{ activeCam?.name ?? 'CCTV Utama' }}
                                     </span>
                                     <span class="text-xs px-2 py-0.5 rounded-full font-mono font-bold tracking-wider"
-                                        :class="{
-                                            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30': streamStatus === 'playing',
-                                            'bg-amber-500/20 text-amber-400 border border-amber-500/30':   streamStatus === 'loading',
-                                            'bg-red-500/20 text-red-400 border border-red-500/30':         streamStatus === 'error',
-                                            'bg-gray-700 text-gray-500 border border-gray-700':            streamStatus === 'idle',
-                                        }">
+                                        :class="{ 'bg-success-soft text-success border border-success/30': streamStatus === 'playing', 'bg-warning-soft text-warning border border-warning/30': streamStatus === 'loading', 'bg-danger-soft text-danger border border-danger/30': streamStatus === 'error', 'bg-muted-foreground text-muted-foreground border border-border': streamStatus === 'idle', }">
                                         {{ statusLabel }}
                                     </span>
                                 </div>
                                 <button @click="toggleFullscreen"
-                                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 text-xs transition-colors">
+                                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:text-white hover:border-border text-xs transition-colors">
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round"
                                             d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
@@ -390,7 +383,7 @@ const statusLabel = computed(() => ({
                             </div>
 
                             <!-- Video element -->
-                            <div class="relative rounded-xl overflow-hidden bg-black border border-gray-800 aspect-video">
+                            <div class="relative rounded-xl overflow-hidden bg-black border border-border aspect-video">
                                 <video
                                     ref="videoEl"
                                     class="w-full h-full object-contain"
@@ -402,60 +395,60 @@ const statusLabel = computed(() => ({
 
                                 <!-- Loading overlay -->
                                 <div v-if="streamStatus === 'loading'"
-                                    class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/80 gap-3">
-                                    <div class="w-10 h-10 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
-                                    <p class="text-xs text-gray-400">Menghubungkan ke stream...</p>
+                                    class="absolute inset-0 flex flex-col items-center justify-center bg-muted-foreground gap-3">
+                                    <div class="w-10 h-10 rounded-full border-2 border-info/30 border-t-transparent animate-spin" />
+                                    <p class="text-xs text-muted-foreground">Menghubungkan ke stream...</p>
                                 </div>
 
                                 <!-- Error overlay -->
                                 <div v-if="streamStatus === 'error'"
-                                    class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/90 gap-4">
-                                    <div class="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center">
-                                        <svg class="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    class="absolute inset-0 flex flex-col items-center justify-center bg-muted-foreground gap-4">
+                                    <div class="w-12 h-12 rounded-full bg-danger-soft border border-danger/30 flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round"
                                                 d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                                         </svg>
                                     </div>
                                     <div class="text-center">
-                                        <p class="text-sm font-semibold text-red-400">Stream Tidak Tersedia</p>
-                                        <p class="text-xs text-gray-500 mt-1">{{ streamError || 'Periksa koneksi mediamtx.' }}</p>
+                                        <p class="text-sm font-semibold text-danger">Stream Tidak Tersedia</p>
+                                        <p class="text-xs text-muted-foreground mt-1">{{ streamError || 'Periksa koneksi mediamtx.' }}</p>
                                     </div>
                                     <button @click="retryStream"
-                                        class="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors">
+                                        class="px-4 py-1.5 rounded-lg bg-info hover:bg-info text-background text-xs font-semibold transition-colors">
                                         Coba Lagi
                                     </button>
                                 </div>
 
                                 <!-- Idle overlay -->
                                 <div v-if="streamStatus === 'idle'"
-                                    class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950 gap-4">
-                                    <div class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center">
-                                        <svg class="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                    class="absolute inset-0 flex flex-col items-center justify-center bg-muted-foreground gap-4">
+                                    <div class="w-12 h-12 rounded-full bg-muted-foreground flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                             <path stroke-linecap="round" stroke-linejoin="round"
                                                 d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
                                         </svg>
                                     </div>
-                                    <p class="text-xs text-gray-500">Pilih kamera untuk memulai stream</p>
+                                    <p class="text-xs text-muted-foreground">Pilih kamera untuk memulai stream</p>
                                 </div>
 
                                 <!-- LIVE watermark -->
                                 <div v-if="streamStatus === 'playing'"
                                     class="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-sm">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                    <div class="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
                                     <span class="text-xs font-bold text-white tracking-widest">LIVE</span>
                                 </div>
 
                                 <!-- Simulation mode watermark -->
                                 <div v-if="simulation && streamStatus === 'playing'"
-                                    class="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded bg-violet-600/60 backdrop-blur-sm">
-                                    <span class="text-xs">🎮</span>
+                                    class="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded bg-info backdrop-blur-sm">
+                                    <span class="text-xs"></span>
                                     <span class="text-xs font-bold text-white">SIM</span>
                                 </div>
                             </div>
 
                             <!-- Stream info bar -->
-                            <div v-if="activeCam?.hls_url" class="flex items-center gap-2 text-xs text-gray-600 font-mono">
-                                <svg class="w-3 h-3 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <div v-if="activeCam?.hls_url" class="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                                <svg class="w-3 h-3 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
                                 </svg>
@@ -465,7 +458,7 @@ const statusLabel = computed(() => ({
 
                         <!-- Grid view (all cameras, small) -->
                         <div v-if="showGrid && cameras.length > 1" class="mt-6">
-                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+                            <p class="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
                                 Semua Kamera
                             </p>
                             <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -473,22 +466,20 @@ const statusLabel = computed(() => ({
                                     v-for="cam in cameras"
                                     :key="cam.id ?? cam.name"
                                     @click="selectCamera(cam)"
-                                    :class="activeCam?.id === cam.id
-                                        ? 'border-sky-500/60 bg-sky-600/10'
-                                        : 'border-gray-800 bg-gray-900 hover:border-gray-700'"
+                                    :class="activeCam?.id === cam.id ? 'border-info/30 bg-info-soft' : 'border-border bg-muted-foreground hover:border-border'"
                                     class="relative rounded-lg border overflow-hidden aspect-video transition-all duration-150 group"
                                 >
                                     <div class="absolute inset-0 flex flex-col items-center justify-center gap-1">
-                                        <svg class="w-5 h-5 text-gray-700 group-hover:text-gray-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <svg class="w-5 h-5 text-muted-foreground group-hover:text-muted-foreground transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                             <path stroke-linecap="round" stroke-linejoin="round"
                                                 d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
                                         </svg>
-                                        <span class="text-xs text-gray-600 font-medium truncate px-2">{{ cam.name }}</span>
+                                        <span class="text-xs text-muted-foreground font-medium truncate px-2">{{ cam.name }}</span>
                                     </div>
                                     <div v-if="activeCam?.id === cam.id"
                                         class="absolute top-1 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60">
-                                        <div class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                                        <span class="text-xs text-emerald-400 font-bold">LIVE</span>
+                                        <div class="w-1 h-1 rounded-full bg-success animate-pulse" />
+                                        <span class="text-xs text-success font-bold">LIVE</span>
                                     </div>
                                 </button>
                             </div>
@@ -496,14 +487,14 @@ const statusLabel = computed(() => ({
                     </div>
 
                     <!-- ─── Recent RFID Snapshots Panel ────────────────── -->
-                    <div class="w-full lg:w-56 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-gray-800 bg-gray-900/40 flex flex-col">
-                        <div class="px-3 py-2.5 border-b border-gray-800 flex items-center justify-between">
-                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+                    <div class="w-full lg:w-56 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border bg-muted-foreground flex flex-col">
+                        <div class="px-3 py-2.5 border-b border-border flex items-center justify-between">
+                            <p class="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                                 Snapshot RFID
                             </p>
                             <div class="flex items-center gap-1">
-                                <div class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
-                                <span class="text-xs text-gray-600">Live</span>
+                                <div class="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
+                                <span class="text-xs text-muted-foreground">Live</span>
                             </div>
                         </div>
 
@@ -512,10 +503,10 @@ const statusLabel = computed(() => ({
                             <!-- Empty state -->
                             <div v-if="recentSnapshots.length === 0"
                                 class="flex flex-col items-center justify-center py-8 gap-2 text-center">
-                                <div class="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center">
-                                    <span class="text-lg">📷</span>
+                                <div class="w-10 h-10 rounded-xl bg-muted-foreground flex items-center justify-center">
+                                    <span class="text-lg"></span>
                                 </div>
-                                <p class="text-xs text-gray-600 leading-relaxed">
+                                <p class="text-xs text-muted-foreground leading-relaxed">
                                     Belum ada snapshot.<br>
                                     Akan muncul setelah RFID scan.
                                 </p>
@@ -525,11 +516,11 @@ const statusLabel = computed(() => ({
                             <div
                                 v-for="snap in recentSnapshots"
                                 :key="snap.id + '-' + snap.captured_at"
-                                class="rounded-lg overflow-hidden border border-gray-800 hover:border-gray-700 transition-colors cursor-pointer group"
+                                class="rounded-lg overflow-hidden border border-border hover:border-border transition-colors cursor-pointer group"
                                 @click="openLightbox(snap.photo_url)"
                             >
                                 <!-- Thumbnail -->
-                                <div class="aspect-video bg-gray-900 relative overflow-hidden">
+                                <div class="aspect-video bg-muted-foreground relative overflow-hidden">
                                     <img
                                         v-if="snap.photo_url"
                                         :src="snap.photo_url"
@@ -538,12 +529,12 @@ const statusLabel = computed(() => ({
                                         loading="lazy"
                                     />
                                     <div v-else class="absolute inset-0 flex items-center justify-center">
-                                        <span class="text-2xl">📸</span>
+                                        <span class="text-2xl"></span>
                                     </div>
 
                                     <!-- Scan type badge -->
                                     <div class="absolute top-1 left-1">
-                                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border"
+                                        <span class="text-xs font-bold px-1.5 py-0.5 rounded border"
                                             :class="scanTypeColor(snap.scan_type)">
                                             {{ scanTypeLabel(snap.scan_type) }}
                                         </span>
@@ -551,36 +542,36 @@ const statusLabel = computed(() => ({
 
                                     <!-- Zoom hint -->
                                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-                                        <span class="text-xs text-white font-semibold">🔍 Lihat</span>
+                                        <span class="text-xs text-white font-semibold">Lihat</span>
                                     </div>
                                 </div>
 
                                 <!-- Info -->
                                 <div class="p-2 space-y-1">
                                     <p class="text-xs font-bold text-white truncate">{{ snap.batch_code }}</p>
-                                    <p class="text-[10px] text-gray-500 truncate">{{ snap.camera_name }}</p>
+                                    <p class="text-xs text-muted-foreground truncate">{{ snap.camera_name }}</p>
                                     <div class="flex items-center justify-between">
                                         <span v-if="snap.stage"
-                                            class="text-[9px] text-sky-400 font-medium">
+                                            class="text-xs text-info font-medium">
                                             {{ snap.stage.replace(/_/g, ' ') }}
                                         </span>
-                                        <span class="text-[9px] text-gray-600 font-mono">
+                                        <span class="text-xs text-muted-foreground font-mono">
                                             {{ snap.captured_at?.split(' ')[1]?.substring(0, 5) ?? '—' }}
                                         </span>
                                     </div>
                                     <!-- snapshot_status badge -->
                                     <span v-if="snapshotStatusLabel(snap.snapshot_status)"
-                                        class="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border"
+                                        class="inline-block text-xs font-bold px-1.5 py-0.5 rounded border"
                                         :class="snapshotStatusColor(snap.snapshot_status)">
                                         {{ snapshotStatusLabel(snap.snapshot_status) }}
                                     </span>
                                     <p v-if="snap.rfid_uid"
-                                        class="text-[9px] font-mono text-gray-600 truncate">
+                                        class="text-xs font-mono text-muted-foreground truncate">
                                         UID: {{ snap.rfid_uid }}
                                     </p>
                                     <!-- SHA-256 integrity (first 8 chars) -->
                                     <p v-if="snap.sha256"
-                                        class="text-[9px] font-mono text-gray-700 truncate"
+                                        class="text-xs font-mono text-muted-foreground truncate"
                                         :title="'SHA-256: ' + snap.sha256">
                                         SHA: {{ snap.sha256.substring(0, 8) }}…
                                     </p>
@@ -589,17 +580,17 @@ const statusLabel = computed(() => ({
                         </div>
 
                         <!-- Panel footer -->
-                        <div class="px-3 py-2 border-t border-gray-800 text-center">
-                            <p class="text-[9px] text-gray-700">Auto-refresh setiap 10 detik</p>
+                        <div class="px-3 py-2 border-t border-border text-center">
+                            <p class="text-xs text-muted-foreground">Auto-refresh setiap 10 detik</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- ─── Footer ───────────────────────────────────────────────── -->
-            <div class="px-5 py-2.5 bg-gray-900/70 border-t border-gray-800 flex items-center justify-between text-xs text-gray-600">
+            <div class="px-5 py-2.5 bg-muted-foreground border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                 <span class="flex items-center gap-2">
-                    <span v-if="simulation" class="text-violet-500">🎮 Simulation Mode Active</span>
+                    <span v-if="simulation" class="text-info">Simulation Mode Active</span>
                     <span v-else>TP-Link Tapo C500 · MediaMTX HLS · Snapshot via ffmpeg</span>
                 </span>
                 <span class="font-mono">{{ cameras.length }} kamera · {{ recentSnapshots.length }} snapshot</span>

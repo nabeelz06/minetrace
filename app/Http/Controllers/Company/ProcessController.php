@@ -100,7 +100,8 @@ class ProcessController extends Controller
                 'stage'          => $stage,
                 'label'          => $config['label'],
                 'label_en'       => $config['label_en'],
-                'icon'           => $config['icon'],
+                'icon'           => $config['icon'],   // nama ikon lucide (bukan emoji)
+                'icon_name'      => $config['icon'],
                 'color'          => $config['color'],
                 'desc'           => $config['desc'],
                 'desc_en'        => $config['desc_en'],
@@ -285,6 +286,7 @@ class ProcessController extends Controller
             'label'      => $c['label'],
             'label_en'   => $c['label_en'],
             'icon'       => $c['icon'],
+            'icon_name'  => $c['icon'],
             'href'       => "/company/process/{$s}",
             'is_current' => $s === $stage,
             'count'      => Batch::where('company_id', $companyId)

@@ -58,16 +58,16 @@ function submit() {
 
 const roleBadgeColor = computed(() => {
     const m = {
-        super_admin:  'from-purple-500 to-purple-600',
-        bim_admin:    'from-red-500 to-red-600',
-        company_admin:'from-blue-500 to-blue-600',
-        operator_lab: 'from-violet-500 to-violet-600',
-        operator_process: 'from-cyan-500 to-cyan-600',
-        company_auditor:  'from-teal-500 to-teal-600',
-        bim_viewer:       'from-rose-500 to-rose-600',
-        government_auditor: 'from-orange-500 to-orange-600',
+        super_admin:  ' ',
+        bim_admin:    ' ',
+        company_admin:' ',
+        operator_lab: ' ',
+        operator_process: ' ',
+        company_auditor:  ' ',
+        bim_viewer:       ' ',
+        government_auditor: ' ',
     }
-    return m[form.role] ?? 'from-gray-400 to-gray-500'
+    return m[form.role] ?? ' '
 })
 </script>
 
@@ -91,16 +91,14 @@ const roleBadgeColor = computed(() => {
                 <!-- Role Selection (first) -->
                 <div class="rounded-2xl border border-border bg-card p-6 space-y-4">
                     <h3 class="text-sm font-semibold text-foreground border-b border-border pb-3">
-                        1. Pilih Role <span class="text-red-500">*</span>
+                        1. Pilih Role <span class="text-danger">*</span>
                     </h3>
                     <div class="grid grid-cols-2 gap-2">
                         <button
                             v-for="r in roles" :key="r"
                             type="button"
                             @click="form.role = r"
-                            :class="form.role === r
-                                ? 'border-primary bg-primary/8 text-foreground shadow-sm'
-                                : 'border-border text-muted-foreground hover:border-primary/30 hover:bg-muted/30'"
+                            :class="form.role === r ? 'border-primary bg-primary/8 text-foreground shadow-sm' : 'border-border text-muted-foreground hover:border-primary/30 hover:bg-muted/30'"
                             class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all duration-150 text-left active:scale-[0.98]"
                         >
                             <div class="w-2 h-2 rounded-full flex-shrink-0 transition-all"
@@ -108,23 +106,23 @@ const roleBadgeColor = computed(() => {
                             {{ r.replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase()) }}
                         </button>
                     </div>
-                    <p v-if="form.errors.role" class="text-xs text-red-500">{{ form.errors.role }}</p>
+                    <p v-if="form.errors.role" class="text-xs text-danger">{{ form.errors.role }}</p>
                 </div>
 
                 <!-- Company Selection -->
                 <div v-if="needsCompany" class="rounded-2xl border border-border bg-card p-6 space-y-3 animate-fade-in">
                     <h3 class="text-sm font-semibold text-foreground border-b border-border pb-3">
-                        2. Pilih Company <span class="text-red-500">*</span>
+                        2. Pilih Company <span class="text-danger">*</span>
                     </h3>
                     <select v-model="form.company_id"
-                            class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
-                            :class="form.errors.company_id ? 'border-red-500' : 'border-input'">
+                            class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+                            :class="form.errors.company_id ? 'border-danger/30' : 'border-input'">
                         <option value="">Pilih company...</option>
                         <option v-for="c in filteredCompanies" :key="c.id" :value="c.id">
                             [{{ c.code }}] {{ c.name }}
                         </option>
                     </select>
-                    <p v-if="form.errors.company_id" class="text-xs text-red-500">{{ form.errors.company_id }}</p>
+                    <p v-if="form.errors.company_id" class="text-xs text-danger">{{ form.errors.company_id }}</p>
                 </div>
 
                 <!-- User Info -->
@@ -137,35 +135,35 @@ const roleBadgeColor = computed(() => {
                         <!-- Nama -->
                         <div class="col-span-2 space-y-2">
                             <label class="block text-sm font-semibold text-foreground">
-                                Nama Lengkap <span class="text-red-500">*</span>
+                                Nama Lengkap <span class="text-danger">*</span>
                             </label>
                             <input v-model="form.name" type="text" placeholder="Nama lengkap user"
-                                   class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                                   :class="form.errors.name ? 'border-red-500' : 'border-input'"/>
-                            <p v-if="form.errors.name" class="text-xs text-red-500">{{ form.errors.name }}</p>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                   :class="form.errors.name ? 'border-danger/30' : 'border-input'"/>
+                            <p v-if="form.errors.name" class="text-xs text-danger">{{ form.errors.name }}</p>
                         </div>
 
                         <!-- Email -->
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">
-                                Email <span class="text-red-500">*</span>
+                                Email <span class="text-danger">*</span>
                             </label>
                             <input v-model="form.email" type="email" placeholder="email@company.co.id"
-                                   class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                                   :class="form.errors.email ? 'border-red-500' : 'border-input'"/>
-                            <p v-if="form.errors.email" class="text-xs text-red-500">{{ form.errors.email }}</p>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                   :class="form.errors.email ? 'border-danger/30' : 'border-input'"/>
+                            <p v-if="form.errors.email" class="text-xs text-danger">{{ form.errors.email }}</p>
                         </div>
 
                         <!-- Password -->
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">
-                                Password <span class="text-red-500">*</span>
+                                Password <span class="text-danger">*</span>
                             </label>
                             <div class="relative">
                                 <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
                                        placeholder="Min 8 karakter + angka + simbol"
-                                       class="w-full h-11 pl-4 pr-11 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                                       :class="form.errors.password ? 'border-red-500' : 'border-input'"/>
+                                       class="w-full h-11 pl-4 pr-11 rounded-xl text-sm border bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                       :class="form.errors.password ? 'border-danger/30' : 'border-input'"/>
                                 <button type="button" @click="showPassword = !showPassword"
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -174,28 +172,28 @@ const roleBadgeColor = computed(() => {
                                     </svg>
                                 </button>
                             </div>
-                            <p v-if="form.errors.password" class="text-xs text-red-500">{{ form.errors.password }}</p>
+                            <p v-if="form.errors.password" class="text-xs text-danger">{{ form.errors.password }}</p>
                         </div>
 
                         <!-- Employee ID -->
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">NIP / Employee ID</label>
                             <input v-model="form.employee_id" type="text" placeholder="TMH-ADM-001"
-                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                         </div>
 
                         <!-- Department -->
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">Departemen</label>
                             <input v-model="form.department" type="text" placeholder="Produksi, Lab Kimia, IT..."
-                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                         </div>
 
                         <!-- Phone -->
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">Nomor HP</label>
                             <input v-model="form.phone" type="text" placeholder="+62812xxxxx"
-                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                         </div>
 
                         <!-- Language -->

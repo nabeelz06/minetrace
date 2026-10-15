@@ -54,7 +54,7 @@ class HardwareController extends Controller
 
         $stages = [];
         foreach (ProcessFlow::rfidFlow() as $key => $cfg) {
-            $stages[] = ['key' => $key, 'label' => $cfg['label'], 'label_en' => $cfg['label_en'], 'icon' => ProcessFlow::get($key)['icon_name']];
+            $stages[] = ['key' => $key, 'label' => $cfg['label'], 'label_en' => $cfg['label_en'], 'icon' => ProcessFlow::get($key)['icon']];
         }
 
         return Inertia::render('Company/Rfid/Index', [

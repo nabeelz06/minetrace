@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
 /**
  * Lab/Index.vue — Daftar analisis + stok LTJ + real-time polling.
  *
@@ -99,11 +100,11 @@ const totalLtjKg = computed(() => {
 })
 
 const elementColumns = [
-    { key: 'la_pct', kgKey: 'la_kg', label: 'La', full: 'Lantanum',     color: '#7c3aed' },
-    { key: 'ce_pct', kgKey: 'ce_kg', label: 'Ce', full: 'Serium',       color: '#2563eb' },
-    { key: 'pr_pct', kgKey: 'pr_kg', label: 'Pr', full: 'Praseodimium', color: '#059669' },
-    { key: 'nd_pct', kgKey: 'nd_kg', label: 'Nd', full: 'Neodimium',    color: '#d97706' },
-    { key: 'y_pct',  kgKey: 'y_kg',  label: 'Y',  full: 'Itrium',       color: '#dc2626' },
+    { key: 'la_pct', kgKey: 'la_kg', label: 'La', full: 'Lantanum',     color: 'hsl(var(--info))' },
+    { key: 'ce_pct', kgKey: 'ce_kg', label: 'Ce', full: 'Serium',       color: 'hsl(var(--info))' },
+    { key: 'pr_pct', kgKey: 'pr_kg', label: 'Pr', full: 'Praseodimium', color: 'hsl(var(--success))' },
+    { key: 'nd_pct', kgKey: 'nd_kg', label: 'Nd', full: 'Neodimium',    color: 'hsl(var(--warning))' },
+    { key: 'y_pct',  kgKey: 'y_kg',  label: 'Y',  full: 'Itrium',       color: 'hsl(var(--danger))' },
 ]
 </script>
 
@@ -131,13 +132,13 @@ const elementColumns = [
             <div class="flex-shrink-0 hidden md:flex flex-col items-end gap-2">
                 <!-- Live indicator + manual refresh -->
                 <div class="flex items-center gap-2">
-                    <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                        <div class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"/>
+                    <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div class="w-1.5 h-1.5 rounded-full bg-success animate-pulse flex-shrink-0"/>
                         <span>{{ lang==='en' ? 'Live' : 'Live' }} · {{ lastRefreshedText }}</span>
                     </div>
                     <button @click="refreshData()"
                             :disabled="isRefreshing"
-                            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold border border-border text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.97] disabled:opacity-50 transition-all">
+                            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border border-border text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.97] disabled:opacity-50 transition-all">
                         <svg class="w-3 h-3" :class="isRefreshing ? 'animate-spin' : ''"
                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
@@ -147,7 +148,7 @@ const elementColumns = [
                 </div>
                 <!-- System time -->
                 <div class="rounded-xl border border-border bg-card px-4 py-2 text-right">
-                    <p class="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    <p class="text-xs text-muted-foreground uppercase tracking-wider">
                         {{ lang==='en' ? 'System Time' : 'Waktu Sistem' }}
                     </p>
                     <p class="font-mono text-sm font-bold text-foreground">{{ current_time }}</p>
@@ -165,20 +166,20 @@ const elementColumns = [
                     value: stats?.total, suffix: '',
                     color: 'text-foreground',
                     bg: '',
-                    icon: '🔬',
+                    icon: 'microscope',
                 },
                 {
                     label_id: 'Tervalidasi', label_en: 'Validated',
                     value: stats?.validated, suffix: '',
-                    color: 'text-emerald-600 dark:text-emerald-400',
-                    bg: 'bg-emerald-50/60 dark:bg-emerald-950/20',
-                    icon: '✅',
+                    color: 'text-success ',
+                    bg: 'bg-success-soft ',
+                    icon: 'circle-check',
                 },
                 {
                     label_id: 'Pending Validasi', label_en: 'Pending Validation',
                     value: stats?.pending, suffix: '',
-                    color: 'text-amber-600 dark:text-amber-400',
-                    bg: 'bg-amber-50/60 dark:bg-amber-950/20',
+                    color: 'text-warning ',
+                    bg: 'bg-warning-soft ',
                     icon: '⏳',
                 },
                 {
@@ -186,7 +187,7 @@ const elementColumns = [
                     value: stats?.avg_reo_pct, suffix: '%',
                     color: 'text-primary',
                     bg: 'bg-primary/5',
-                    icon: '📊',
+                    icon: 'gauge',
                 },
             ]" :key="item.label_id"
                  class="rounded-2xl border border-border p-5 animate-fade-in"
@@ -196,7 +197,7 @@ const elementColumns = [
                     <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-tight">
                         {{ lang === 'en' ? item.label_en : item.label_id }}
                     </p>
-                    <span class="text-xl">{{ item.icon }}</span>
+                    <AppIcon :name="item.icon || 'circle'" :size="22" />
                 </div>
                 <p class="font-heading text-3xl font-bold tabular-nums" :class="item.color">
                     {{ (item.value ?? 0) }}{{ item.suffix }}
@@ -209,7 +210,7 @@ const elementColumns = [
         ══════════════════════════════════════════════════════════════ -->
         <div class="rounded-2xl border border-primary/20 bg-primary/4 p-5 animate-fade-in delay-100">
             <div class="flex items-center gap-2 mb-4">
-                <span class="text-xl">⚗️</span>
+                <span class="text-xl"></span>
                 <div>
                     <h3 class="font-heading text-sm font-bold text-foreground">
                         {{ lang === 'en' ? 'LTJ Element Stock Summary' : 'Ringkasan Stok Unsur LTJ' }}
@@ -238,7 +239,7 @@ const elementColumns = [
                         </div>
                         <div class="min-w-0">
                             <p class="text-xs font-bold text-foreground leading-tight">{{ el.element }}</p>
-                            <p class="text-[9px] text-muted-foreground leading-tight truncate">
+                            <p class="text-xs text-muted-foreground leading-tight truncate">
                                 {{ lang === 'en' ? el.name_en : el.name_id }}
                             </p>
                         </div>
@@ -246,7 +247,7 @@ const elementColumns = [
 
                     <!-- Total kg — highlight utama -->
                     <div class="rounded-lg p-2 text-center" :style="`background: ${el.bg}`">
-                        <p class="text-[10px] font-semibold text-muted-foreground">Total Stok</p>
+                        <p class="text-xs font-semibold text-muted-foreground">Total Stok</p>
                         <p class="text-base font-black tabular-nums" :style="`color: ${el.color}`">
                             {{ el.total_kg.toFixed(3) }}
                             <span class="text-xs font-semibold">kg</span>
@@ -255,14 +256,14 @@ const elementColumns = [
 
                     <!-- Avg % -->
                     <div class="flex items-center justify-between">
-                        <span class="text-[10px] text-muted-foreground">Avg %</span>
+                        <span class="text-xs text-muted-foreground">Avg %</span>
                         <span class="text-xs font-bold tabular-nums" :style="`color: ${el.color}`">
                             {{ el.avg_pct.toFixed(2) }}%
                         </span>
                     </div>
 
                     <!-- Use case -->
-                    <p class="text-[9px] text-muted-foreground leading-tight border-t border-border pt-1.5">
+                    <p class="text-xs text-muted-foreground leading-tight border-t border-border pt-1.5">
                         {{ lang === 'en' ? el.use_en : el.use }}
                     </p>
                 </div>
@@ -276,11 +277,11 @@ const elementColumns = [
             <button @click="activeTab = 'analyses'"
                     class="px-4 py-2 rounded-xl text-xs font-semibold"
                     :style="activeTab === 'analyses'
-                        ? 'background: hsl(var(--card)); color: hsl(var(--foreground)); box-shadow: 0 1px 3px rgba(0,0,0,0.1);'
+                        ? 'background: hsl(var(--card)); color: hsl(var(--foreground)); box-shadow: 0 1px 3px hsl(var(--foreground)/0.1);'
                         : 'color: hsl(var(--muted-foreground));'">
-                🔬 {{ lang === 'en' ? 'Analysis List' : 'Daftar Analisis' }}
+                {{ lang === 'en' ? 'Analysis List' : 'Daftar Analisis' }}
                 <span v-if="stats?.total"
-                      class="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
+                      class="ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full text-white"
                       style="background:hsl(var(--primary))">
                     {{ stats.total }}
                 </span>
@@ -288,9 +289,9 @@ const elementColumns = [
             <button @click="activeTab = 'stock'"
                     class="px-4 py-2 rounded-xl text-xs font-semibold"
                     :style="activeTab === 'stock'
-                        ? 'background: hsl(var(--card)); color: hsl(var(--foreground)); box-shadow: 0 1px 3px rgba(0,0,0,0.1);'
+                        ? 'background: hsl(var(--card)); color: hsl(var(--foreground)); box-shadow: 0 1px 3px hsl(var(--foreground)/0.1);'
                         : 'color: hsl(var(--muted-foreground));'">
-                🏭 {{ lang === 'en' ? 'LTJ Element Stock' : 'Stok Unsur LTJ' }}
+                {{ lang === 'en' ? 'LTJ Element Stock' : 'Stok Unsur LTJ' }}
             </button>
         </div>
 
@@ -308,7 +309,7 @@ const elementColumns = [
                     </svg>
                     <input v-model="search" @input="onSearch" type="text"
                            :placeholder="lang === 'en' ? 'Search batch code...' : 'Cari kode batch...'"
-                           class="w-full pl-9 pr-4 h-9 rounded-xl text-sm bg-card border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/20"/>
+                           class="w-full pl-9 pr-4 h-9 rounded-xl text-sm bg-card border border-border text-foreground focus:ring-2 focus:ring-primary/20"/>
                 </div>
                 <select v-model="validated" @change="applyFilters"
                         class="h-9 px-3 rounded-xl text-sm bg-card border border-border text-foreground">
@@ -321,7 +322,7 @@ const elementColumns = [
             <!-- Table -->
             <div class="rounded-2xl border border-border bg-card overflow-hidden">
                 <EmptyState v-if="!analyses?.data?.length"
-                    icon="🔬"
+                    icon='microscope'
                     :title="lang === 'en' ? 'No lab analyses yet' : 'Belum ada analisis lab'"
                     :description="lang === 'en'
                         ? 'Open a batch in project_plant stage and click \'Add Lab Analysis\'.'
@@ -339,7 +340,7 @@ const elementColumns = [
                                 <th v-for="el in elementColumns" :key="el.key"
                                     class="text-center px-3 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                                     {{ el.label }}<br>
-                                    <span class="text-[9px] font-normal opacity-60">% / kg</span>
+                                    <span class="text-xs font-normal opacity-60">% / kg</span>
                                 </th>
                                 <th class="text-center px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                                     REO Total
@@ -367,7 +368,7 @@ const elementColumns = [
                                           class="font-mono text-xs font-bold text-foreground hover:text-primary">
                                         {{ analysis.batch_code ?? '—' }}
                                     </Link>
-                                    <p class="text-[10px] text-muted-foreground">
+                                    <p class="text-xs text-muted-foreground">
                                         {{ analysis.product_code }}
                                         <span v-if="analysis.batch_weight_kg">
                                             · {{ parseFloat(analysis.batch_weight_kg).toFixed(1) }} kg
@@ -375,9 +376,9 @@ const elementColumns = [
                                     </p>
                                     <!-- Stage indicator -->
                                     <span v-if="analysis.is_sent_to_warehouse"
-                                          class="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                                          style="background:rgba(20,184,166,0.12);color:#0d9488">
-                                        ✓ Di Warehouse
+                                          class="text-xs font-bold px-1.5 py-0.5 rounded"
+                                          style="background:hsl(var(--success-soft));color:hsl(var(--success))">
+                                        Di Warehouse
                                     </span>
                                 </td>
 
@@ -388,7 +389,7 @@ const elementColumns = [
                                         <p class="text-xs font-semibold text-foreground tabular-nums">
                                             {{ fmtPct(analysis[el.key]) }}
                                         </p>
-                                        <p class="text-[10px] text-muted-foreground tabular-nums">
+                                        <p class="text-xs text-muted-foreground tabular-nums">
                                             {{ fmtKg(analysis[el.kgKey]) }}
                                         </p>
                                     </div>
@@ -400,7 +401,7 @@ const elementColumns = [
                                     <p class="text-sm font-black text-primary tabular-nums">
                                         {{ fmtPct(analysis.total_reo_pct) }}
                                     </p>
-                                    <p class="text-[10px] text-muted-foreground tabular-nums">
+                                    <p class="text-xs text-muted-foreground tabular-nums">
                                         {{ fmtKg(analysis.total_reo_kg) }}
                                     </p>
                                 </td>
@@ -412,23 +413,21 @@ const elementColumns = [
 
                                 <!-- Status -->
                                 <td class="px-4 py-4 text-center">
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold"
-                                          :class="analysis.is_validated
-                                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold"
+                                          :class="analysis.is_validated ? 'bg-success-soft text-success ' : 'bg-warning-soft text-warning '">
                                         {{ analysis.is_validated
-                                            ? (lang === 'en' ? '✓ Validated' : '✓ Tervalidasi')
+                                            ? (lang === 'en' ? 'Validated' : 'Tervalidasi')
                                             : (lang === 'en' ? '⏳ Pending' : '⏳ Pending') }}
                                     </span>
-                                    <p v-if="analysis.validated_at" class="text-[9px] text-muted-foreground mt-0.5">
+                                    <p v-if="analysis.validated_at" class="text-xs text-muted-foreground mt-0.5">
                                         {{ analysis.validated_at_diff }}
                                     </p>
                                 </td>
 
                                 <!-- Date + analyst -->
                                 <td class="px-4 py-4">
-                                    <p class="text-[11px] font-semibold text-foreground">{{ analysis.analyzed_at }}</p>
-                                    <p class="text-[10px] text-muted-foreground">{{ analysis.analyzed_by }}</p>
+                                    <p class="text-xs font-semibold text-foreground">{{ analysis.analyzed_at }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ analysis.analyzed_by }}</p>
                                 </td>
 
                                 <!-- Actions -->
@@ -438,16 +437,16 @@ const elementColumns = [
                                         <button
                                             v-if="!analysis.is_validated && canValidate"
                                             @click="validateAnalysis(analysis.id)"
-                                            class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 active:scale-95"
+                                            class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-success bg-success-soft hover:bg-success-soft active:scale-95"
                                         >
-                                            {{ lang === 'en' ? '✓ Validate' : '✓ Validasi' }}
+                                            {{ lang === 'en' ? 'Validate' : 'Validasi' }}
                                         </button>
 
                                         <!-- Kirim ke Warehouse (setelah validasi) -->
                                         <button
                                             v-if="analysis.is_validated && !analysis.is_sent_to_warehouse && canSendWarehouse"
                                             @click="sendToWarehouse(analysis.batch_id)"
-                                            class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white active:scale-95"
+                                            class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white active:scale-95"
                                             style="background: hsl(var(--primary));"
                                         >
                                             {{ lang === 'en' ? '→ Warehouse' : '→ Warehouse' }}
@@ -455,7 +454,7 @@ const elementColumns = [
 
                                         <!-- Lihat Batch -->
                                         <Link :href="`/company/batches/${analysis.batch_id}`"
-                                              class="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95">
+                                              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95">
                                             {{ lang === 'en' ? 'View Batch' : 'Lihat Batch' }}
                                         </Link>
                                     </div>
@@ -497,7 +496,7 @@ const elementColumns = [
             <div class="rounded-2xl border border-primary/20 p-4"
                  style="background: hsl(var(--primary)/0.04)">
                 <div class="flex items-start gap-3">
-                    <span class="text-xl flex-shrink-0">ℹ️</span>
+                    <span class="text-xl flex-shrink-0"></span>
                     <div>
                         <p class="text-sm font-bold text-foreground">
                             {{ lang === 'en' ? 'About LTJ Element Storage' : 'Tentang Penyimpanan Unsur LTJ' }}
@@ -521,7 +520,7 @@ const elementColumns = [
                         <div class="w-12 h-12 rounded-xl flex flex-col items-center justify-center text-white flex-shrink-0"
                              :style="`background: ${el.color}`">
                             <span class="text-xs font-black leading-none">{{ el.element }}</span>
-                            <span class="text-[8px] leading-none opacity-70">{{ el.atomic_number }}</span>
+                            <span class="text-xs leading-none opacity-70">{{ el.atomic_number }}</span>
                         </div>
                         <div>
                             <p class="font-heading text-sm font-bold text-foreground">
@@ -545,18 +544,18 @@ const elementColumns = [
                     <!-- Stats baris -->
                     <div class="grid grid-cols-2 gap-3">
                         <div class="rounded-xl border border-border bg-muted/20 p-3 text-center">
-                            <p class="text-[10px] text-muted-foreground">Avg %</p>
+                            <p class="text-xs text-muted-foreground">Avg %</p>
                             <p class="text-sm font-bold tabular-nums text-foreground">{{ el.avg_pct.toFixed(2) }}%</p>
                         </div>
                         <div class="rounded-xl border border-border bg-muted/20 p-3 text-center">
-                            <p class="text-[10px] text-muted-foreground">{{ lang === 'en' ? 'From' : 'Dari' }}</p>
+                            <p class="text-xs text-muted-foreground">{{ lang === 'en' ? 'From' : 'Dari' }}</p>
                             <p class="text-sm font-bold text-foreground">{{ ltj_aggregate?.batch_count ?? 0 }} MON</p>
                         </div>
                     </div>
 
                     <!-- Application info -->
                     <div class="border-t border-border pt-3">
-                        <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                        <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                             {{ lang === 'en' ? 'Applications' : 'Aplikasi Industri' }}
                         </p>
                         <p class="text-xs text-muted-foreground leading-relaxed">
@@ -570,8 +569,7 @@ const elementColumns = [
                     <div class="flex items-center gap-3">
                         <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
                              style="background: hsl(var(--primary)/0.15)">
-                            ⚗️
-                        </div>
+                                                    </div>
                         <div>
                             <p class="font-heading text-sm font-bold text-foreground">
                                 {{ lang === 'en' ? 'Total LTJ' : 'Total LTJ' }}
@@ -594,18 +592,18 @@ const elementColumns = [
 
                     <div class="grid grid-cols-2 gap-3">
                         <div class="rounded-xl border border-primary/20 bg-card p-3 text-center">
-                            <p class="text-[10px] text-muted-foreground">Avg REO%</p>
+                            <p class="text-xs text-muted-foreground">Avg REO%</p>
                             <p class="text-sm font-bold text-primary">{{ ltj_aggregate?.avg_reo_pct ?? 0 }}%</p>
                         </div>
                         <div class="rounded-xl border border-primary/20 bg-card p-3 text-center">
-                            <p class="text-[10px] text-muted-foreground">Batch MON</p>
+                            <p class="text-xs text-muted-foreground">Batch MON</p>
                             <p class="text-sm font-bold text-foreground">{{ ltj_aggregate?.batch_count ?? 0 }}</p>
                         </div>
                     </div>
 
                     <!-- Breakdown mini -->
                     <div class="space-y-1.5 border-t border-primary/20 pt-3">
-                        <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                             {{ lang === 'en' ? 'Breakdown' : 'Rincian' }}
                         </p>
                         <div v-for="el in ltj_element_stock" :key="el.element"
@@ -669,7 +667,7 @@ const elementColumns = [
             <!-- Empty state jika belum ada analisis tervalidasi -->
             <div v-if="!ltj_element_stock?.some(e => e.total_kg > 0)"
                  class="rounded-2xl border border-border bg-card p-12 text-center">
-                <div class="text-4xl mb-3">⚗️</div>
+                <div class="text-4xl mb-3"></div>
                 <p class="font-heading text-base font-bold text-foreground mb-1">
                     {{ lang === 'en' ? 'No validated LTJ analyses yet' : 'Belum ada analisis LTJ yang tervalidasi' }}
                 </p>

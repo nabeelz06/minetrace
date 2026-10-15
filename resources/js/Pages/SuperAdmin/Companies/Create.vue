@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from '@/components/app/AppIcon.vue'
 import { ref, computed } from 'vue'
 import { Head, Link, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
@@ -12,7 +13,7 @@ const form = useForm({
     name:          '',
     legal_name:    '',
     industry:      '',
-    primary_color: '#3E5C74',
+    primary_color: 'hsl(var(--primary))',
     city:          '',
     province:      '',
     phone:         '',
@@ -35,19 +36,19 @@ const templates = [
         id:   'tin_mining',
         name: 'Tin Mining',
         desc: 'PT Timah style — Lab Kimia, Wet/Dry Process, Project Plant, Warehouse, Smelter. 11 product codes.',
-        icon: '⛏',
+        icon: 'pickaxe',
     },
     {
         id:   'nickel_mining',
         name: 'Nickel Mining',
         desc: 'PT Vale style — Mine Site, Smelting, Refinery, Warehouse. 5 product codes.',
-        icon: '🔩',
+        icon: 'wrench',
     },
     {
         id:   'blank',
         name: 'Blank (Manual)',
         desc: 'Tidak ada template. Setup locations, products, dan workflow secara manual.',
-        icon: '📋',
+        icon: 'clipboard-list',
     },
 ]
 
@@ -98,9 +99,7 @@ const provinces = [
                         <label
                             v-for="tmpl in templates"
                             :key="tmpl.id"
-                            :class="form.template === tmpl.id
-                                ? 'border-primary bg-primary/5 shadow-sm'
-                                : 'border-border hover:border-primary/30'"
+                            :class="form.template === tmpl.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/30'"
                             class="flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-150 active:scale-[0.99]"
                         >
                             <div
@@ -112,7 +111,7 @@ const provinces = [
                             </div>
                             <div @click="form.template = tmpl.id" class="flex-1">
                                 <div class="flex items-center gap-2">
-                                    <span style="font-size: 18px;">{{ tmpl.icon }}</span>
+                                    <AppIcon :name="tmpl.icon || 'circle'" :size="20" />
                                     <p class="text-sm font-semibold text-foreground">{{ tmpl.name }}</p>
                                 </div>
                                 <p class="text-xs text-muted-foreground mt-1">{{ tmpl.desc }}</p>
@@ -129,19 +128,19 @@ const provinces = [
                         <!-- Code -->
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">
-                                Kode Company <span class="text-red-500">*</span>
+                                Kode Company <span class="text-danger">*</span>
                             </label>
                             <div class="relative">
                                 <input
                                     v-model="form.code"
                                     type="text" maxlength="20"
                                     placeholder="VALE, MINDID, ..."
-                                    class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground uppercase font-mono outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                                    :class="form.errors.code ? 'border-red-500' : 'border-input'"
+                                    class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground uppercase font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                    :class="form.errors.code ? 'border-danger/30' : 'border-input'"
                                 />
                             </div>
-                            <p class="text-[10px] text-muted-foreground">Hanya huruf kapital, angka, underscore. Preview: <span class="font-mono font-bold text-primary">{{ codePreview || '—' }}</span></p>
-                            <p v-if="form.errors.code" class="text-xs text-red-500">{{ form.errors.code }}</p>
+                            <p class="text-xs text-muted-foreground">Hanya huruf kapital, angka, underscore. Preview: <span class="font-mono font-bold text-primary">{{ codePreview || '—' }}</span></p>
+                            <p v-if="form.errors.code" class="text-xs text-danger">{{ form.errors.code }}</p>
                         </div>
 
                         <!-- Color picker -->
@@ -149,39 +148,39 @@ const provinces = [
                             <label class="block text-sm font-semibold text-foreground">Warna Primary</label>
                             <div class="flex items-center gap-2">
                                 <div class="w-11 h-11 rounded-xl border border-input overflow-hidden flex-shrink-0">
-                                    <input v-model="form.primary_color" type="color" class="w-full h-full cursor-pointer border-none outline-none p-0"/>
+                                    <input v-model="form.primary_color" type="color" class="w-full h-full cursor-pointer border-none p-0"/>
                                 </div>
                                 <input v-model="form.primary_color" type="text" maxlength="7"
-                                       class="flex-1 h-11 px-3 rounded-xl text-sm border border-input bg-background text-foreground font-mono outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                                       class="flex-1 h-11 px-3 rounded-xl text-sm border border-input bg-background text-foreground font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                             </div>
                         </div>
 
                         <!-- Name -->
                         <div class="col-span-2 space-y-2">
                             <label class="block text-sm font-semibold text-foreground">
-                                Nama Company <span class="text-red-500">*</span>
+                                Nama Company <span class="text-danger">*</span>
                             </label>
                             <input v-model="form.name" type="text" placeholder="PT Vale Indonesia Tbk"
-                                   class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                                   :class="form.errors.name ? 'border-red-500' : 'border-input'"/>
-                            <p v-if="form.errors.name" class="text-xs text-red-500">{{ form.errors.name }}</p>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                   :class="form.errors.name ? 'border-danger/30' : 'border-input'"/>
+                            <p v-if="form.errors.name" class="text-xs text-danger">{{ form.errors.name }}</p>
                         </div>
 
                         <!-- Legal Name -->
                         <div class="col-span-2 space-y-2">
                             <label class="block text-sm font-semibold text-foreground">Nama Legal</label>
                             <input v-model="form.legal_name" type="text" placeholder="PT Vale Indonesia Tbk (Persero)"
-                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                         </div>
 
                         <!-- Industry -->
                         <div class="col-span-2 space-y-2">
                             <label class="block text-sm font-semibold text-foreground">
-                                Industri <span class="text-red-500">*</span>
+                                Industri <span class="text-danger">*</span>
                             </label>
                             <select v-model="form.industry"
-                                    class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
-                                    :class="form.errors.industry ? 'border-red-500' : 'border-input'">
+                                    class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+                                    :class="form.errors.industry ? 'border-danger/30' : 'border-input'">
                                 <option value="">Pilih industri...</option>
                                 <option v-for="opt in industry_options" :key="opt" :value="opt">{{ opt }}</option>
                             </select>
@@ -191,12 +190,12 @@ const provinces = [
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">Kota</label>
                             <input v-model="form.city" type="text" placeholder="Sorowako"
-                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                         </div>
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">Provinsi</label>
                             <select v-model="form.province"
-                                    class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer">
+                                    class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer">
                                 <option value="">Pilih...</option>
                                 <option v-for="p in ['Bangka Belitung','DKI Jakarta','Jawa Barat','Jawa Timur','Kalimantan Timur','Kepulauan Riau','Sulawesi Selatan','Sumatera Selatan','Sumatera Utara','Papua']" :key="p" :value="p">{{ p }}</option>
                             </select>
@@ -206,25 +205,25 @@ const provinces = [
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">Telepon</label>
                             <input v-model="form.phone" type="text" placeholder="+62..."
-                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                         </div>
                         <div class="space-y-2">
                             <label class="block text-sm font-semibold text-foreground">Email</label>
                             <input v-model="form.email" type="email" placeholder="info@company.com"
-                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+                                   class="w-full h-11 px-4 rounded-xl text-sm border border-input bg-background text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
                         </div>
 
                         <!-- Is Regulator toggle -->
                         <div class="col-span-2 flex items-center gap-3 p-4 rounded-xl bg-muted/30 border border-border">
                             <button type="button" @click="form.is_regulator = !form.is_regulator"
                                     class="w-10 h-6 rounded-full transition-all duration-200 flex items-center relative"
-                                    :class="form.is_regulator ? 'bg-red-500' : 'bg-muted'">
+                                    :class="form.is_regulator ? 'bg-danger' : 'bg-muted'">
                                 <div class="w-4 h-4 rounded-full bg-white shadow transition-all duration-200 absolute"
                                      :class="form.is_regulator ? 'left-5' : 'left-1'"/>
                             </button>
                             <div>
                                 <p class="text-sm font-semibold text-foreground">
-                                    {{ form.is_regulator ? '🔴 Company Regulator (BIM)' : 'Company Operasional' }}
+                                    {{ form.is_regulator ? 'Company Regulator (BIM)' : 'Company Operasional' }}
                                 </p>
                                 <p class="text-xs text-muted-foreground">
                                     {{ form.is_regulator ? 'Company ini adalah regulator — tidak punya data operasional.' : 'Company mining/processing dengan data batch dan ekspor.' }}
