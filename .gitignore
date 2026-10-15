@@ -35,3 +35,5 @@ diagnostic*.sh
 diagnostic*.txt
 script*.sh
 script*-output.txt
+
+.env.testing
