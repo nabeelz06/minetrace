@@ -259,6 +259,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Siklus hidup tag
         Route::post('batches/{batch}/release-tag', [RfidTagController::class, 'release'])->middleware('throttle:rfid-ui')->name('batches.release-tag');
         Route::get('batches/{batch}/tag-history',  [RfidTagController::class, 'history'])->name('batches.tag-history');
+        Route::get('batch-search', [RfidTagController::class, 'search'])->name('batches.search');
 
     });
 

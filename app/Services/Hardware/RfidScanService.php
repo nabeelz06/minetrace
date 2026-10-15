@@ -83,6 +83,10 @@ class RfidScanService
 
             $result = $this->process($ctx, $direction, $uid, $stage, $opts);
 
+            if ($result['status'] !== 'success') {
+                $this->recordReject($ctx, $direction, $uid, $stage, $result);
+            }
+
             if ($result['status'] === 'success') {
                 if (config('rfid.dedupe_seconds') > 0) {
                     Cache::put($dedupeKey, $result, config('rfid.dedupe_seconds'));
@@ -174,6 +178,38 @@ class RfidScanService
     private function eventKey(DeviceContext $ctx, string $eventId): string
     {
         return "rfid:evt:{$ctx->companyId}:{$eventId}";
+    }
+
+    // ─── Pembacaan yang ditolak (jejak singkat untuk UI; bukan audit permanen) ──
+
+    private const REJECT_TTL   = 3600;
+    private const REJECT_LIMIT = 20;
+
+    private function rejectKey(int $companyId): string
+    {
+        return "rfid:rejects:{$companyId}";
+    }
+
+    private function recordReject(DeviceContext $ctx, string $direction, string $uid, ?string $stage, array $result): void
+    {
+        $key  = $this->rejectKey($ctx->companyId);
+        $list = Cache::get($key, []);
+        array_unshift($list, [
+            'uid'       => $uid,
+            'direction' => $direction,
+            'stage'     => $stage,
+            'reader_id' => $ctx->reader?->id,
+            'reader'    => $ctx->reader?->code,
+            'code'      => $result['_code'] ?? 'error',
+            'at'        => now()->toIso8601String(),
+        ]);
+        Cache::put($key, array_slice($list, 0, self::REJECT_LIMIT), self::REJECT_TTL);
+    }
+
+    /** @return array<int,array> pembacaan ditolak terbaru (maks 20, 1 jam) */
+    public function recentRejects(int $companyId): array
+    {
+        return Cache::get($this->rejectKey($companyId), []);
     }
 
     // ─── Pembatalan scan (koreksi, bukan hapus) ───────────────────────────

@@ -73,6 +73,15 @@ function t(key, vars, fallback) {
 }
 
 /**
+ * Ambil field berpasangan dari data server: loc(stage) → stage.label / stage.label_en sesuai bahasa aktif.
+ * Pasangan: `${field}` (Indonesia) dan `${field}_en` (Inggris); jatuh ke Indonesia bila EN kosong.
+ */
+function loc(item, field = 'label') {
+    if (!item) return ''
+    return (lang.value === 'en' ? item[`${field}_en`] : null) ?? item[field] ?? ''
+}
+
+/**
  * Toggle bahasa id ↔ en.
  * Sync ke server dan localStorage.
  */
@@ -165,6 +174,7 @@ export function useI18n() {
         // Core
         lang,
         t,
+        loc,
         toggleLang,
         setLang,
         initFromPage,

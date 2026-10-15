@@ -43,6 +43,7 @@ class RfidScanController extends Controller
             ->with(['batch:id,batch_code,product_code_id', 'batch.productCode:id,code', 'reader:id,code,name'])
             ->when($request->filled('stage'),    fn ($q) => $q->where('scan_stage', $request->string('stage')))
             ->when($request->filled('reader_id'), fn ($q) => $q->where('reader_id', $request->integer('reader_id')))
+            ->when(in_array($request->query('direction'), ['in', 'out'], true), fn ($q) => $q->where('scan_direction', $request->query('direction')))
             ->when($request->filled('batch_id'),  fn ($q) => $q->where('batch_id', $request->integer('batch_id')))
             ->when($request->filled('origin'), function ($q) use ($request) {
                 match ($request->string('origin')->toString()) {
@@ -62,10 +63,20 @@ class RfidScanController extends Controller
                 ->orderByDesc('id')->limit($limit)->get();
         }
 
-        return RfidApi::ok('ok', $rows->map(fn (Checkpoint $c) => $this->present($c))->all(), 200, [
+        $extra = [
             'next_before_id' => $rows->count() === $limit ? $rows->last()?->id : null,
             'server_time'    => now()->toIso8601String(),
-        ]);
+        ];
+        // Pembacaan yang DITOLAK (mis. tag tidak dikenal) tidak membuat checkpoint; ditampilkan dari cache singkat
+        // agar operator melihatnya dan bisa langsung mendaftarkan tag tersebut.
+        if ($request->boolean('include_rejects')) {
+            $extra['rejects'] = array_values(array_filter(
+                $this->scans->recentRejects($request->user()->company_id),
+                fn ($r) => ! $request->filled('reader_id') || ($r['reader_id'] ?? null) === $request->integer('reader_id')
+            ));
+        }
+
+        return RfidApi::ok('ok', $rows->map(fn (Checkpoint $c) => $this->present($c))->all(), 200, $extra);
     }
 
     /** GET overview — angka ringkas untuk kartu di halaman RFID. */

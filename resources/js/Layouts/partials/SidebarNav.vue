@@ -43,9 +43,9 @@ const stateClass = active => active
         </div>
 
         <div v-if="company && showText" class="mx-3 mt-3 rounded-lg border border-sidebar-border bg-sidebar-accent/50 px-3 py-2">
-            <p class="text-xs font-medium text-sidebar-foreground/70">{{ t('nav.company') }}</p>
+            <p class="text-xs font-medium text-muted-foreground">{{ t('nav.company') }}</p>
             <p class="truncate text-sm font-semibold text-sidebar-foreground">{{ company.name }}</p>
-            <p v-if="roleLabel" class="truncate text-xs text-sidebar-foreground/70">{{ roleLabel }}</p>
+            <p v-if="roleLabel" class="truncate text-xs text-muted-foreground">{{ roleLabel }}</p>
         </div>
 
         <nav :aria-label="t('nav.main')" class="mt-3 flex-1 space-y-1 overflow-y-auto px-2 pb-3">
