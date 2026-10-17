@@ -28,7 +28,7 @@ const submit = () => form.post('/reset-password', { onFinish: () => form.reset('
 </script>
 
 <template>
-    <Head :title="`${t('auth.reset_title')} — MINETRACE`" />
+    <Head :title="`${t('auth.reset_title')}`" />
 
     <AuthLayout :heading="t('auth.reset_title')" :subheading="t('auth.reset_subtitle')">
         <form class="space-y-5" novalidate @submit.prevent="submit">

@@ -14,7 +14,7 @@ const submit = () => form.post('/forgot-password')
 </script>
 
 <template>
-    <Head :title="`${t('auth.forgot_title')} — MINETRACE`" />
+    <Head :title="`${t('auth.forgot_title')}`" />
 
     <AuthLayout :heading="t('auth.forgot_title')" :subheading="t('auth.forgot_subtitle')" :status="status">
         <form class="space-y-5" novalidate @submit.prevent="submit">
