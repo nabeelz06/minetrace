@@ -15,7 +15,7 @@ import { Head, usePage }  from '@inertiajs/vue3'
 import AppLayout          from '@/Layouts/AppLayout.vue'
 import { useI18n }        from '@/composables/core/useI18n.js'
 
-const { lang } = useI18n()
+const { lang, t } = useI18n()
 const page      = usePage()
 
 const props = defineProps({
@@ -325,7 +325,7 @@ function getColor(type, key) {
                             <p class="text-xs font-semibold text-muted-foreground">
                                 {{ lang === 'en' ? 'By Month' : 'Per Bulan' }}
                             </p>
-                            <select v-model="selectedMonth"
+                            <select :aria-label="t('a11y.month')" v-model="selectedMonth"
                                     @change="setFromMonth(selectedMonth)"
                                     class="w-full h-9 px-3 rounded-xl border border-border bg-background text-sm text-foreground">
                                 <option value="">{{ lang === 'en' ? 'Select a month...' : 'Pilih bulan...' }}</option>
@@ -345,14 +345,14 @@ function getColor(type, key) {
                                     <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                         {{ lang === 'en' ? 'From' : 'Dari Tanggal' }}
                                     </label>
-                                    <input v-model="dateFrom" type="date"
+                                    <input :aria-label="t('a11y.date_from')" v-model="dateFrom" type="date"
                                            class="w-full h-9 px-3 rounded-xl border border-border bg-background text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/20"/>
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                         {{ lang === 'en' ? 'To' : 'Hingga Tanggal' }}
                                     </label>
-                                    <input v-model="dateTo" type="date"
+                                    <input :aria-label="t('a11y.date_to')" v-model="dateTo" type="date"
                                            :min="dateFrom"
                                            class="w-full h-9 px-3 rounded-xl border border-border bg-background text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/20"/>
                                 </div>

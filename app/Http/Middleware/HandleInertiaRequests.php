@@ -5,7 +5,6 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
-use Tighten\Ziggy\Ziggy;
 
 /**
  * HandleInertiaRequests — share data global ke semua halaman Inertia.
@@ -153,12 +152,6 @@ class HandleInertiaRequests extends Middleware
                 'error'   => $request->session()->get('error'),
                 'warning' => $request->session()->get('warning'),
                 'info'    => $request->session()->get('info'),
-            ],
-
-            // ─── Ziggy routes ─────────────────────────────────────────────
-            'ziggy' => fn() => [
-                ...(new Ziggy)->toArray(),
-                'location' => $request->url(),
             ],
         ]);
     }

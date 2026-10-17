@@ -156,7 +156,7 @@ function submit() {
                         {{ lang === 'en' ? 'Product Code' : 'Kode Produk' }}
                         <span class="text-danger ml-0.5">*</span>
                     </label>
-                    <select
+                    <select :aria-label="t('a11y.product')"
                         v-model="form.product_code_id"
                         class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground cursor-pointer"
                         :class="form.errors.product_code_id ? 'border-danger/30 focus:ring-2 focus:ring-danger/30' : 'border-input focus:border-primary focus:ring-2 focus:ring-primary/20'"
@@ -220,7 +220,7 @@ function submit() {
                         {{ lang === 'en' ? 'Lab Location' : 'Lokasi Lab' }}
                         <span class="text-danger ml-0.5">*</span>
                     </label>
-                    <select
+                    <select :aria-label="t('a11y.location')"
                         v-model="form.location_id"
                         class="w-full h-11 px-4 rounded-xl text-sm border bg-background text-foreground cursor-pointer"
                         :class="form.errors.location_id ? 'border-danger/30 focus:ring-2 focus:ring-danger/30' : 'border-input focus:border-primary focus:ring-2 focus:ring-primary/20'"

@@ -7,7 +7,6 @@ import.meta.glob(['../fonts/*.woff2'])
 import { createApp, h }     from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { createPinia }      from 'pinia'
-import { ZiggyVue }         from '../../vendor/tightenco/ziggy'
 import { BRAND, THEME_KEY, LANG_KEY, readPref, writePref } from './lib/brand'
 
 const appName = import.meta.env.VITE_APP_NAME || BRAND.name
@@ -60,7 +59,6 @@ createInertiaApp({
         const app = createApp({ render: () => h(App, props) })
             .use(plugin)
             .use(pinia)
-            .use(ZiggyVue)
 
         app.mount(el)
         return app

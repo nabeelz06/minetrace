@@ -6,3 +6,4 @@
 - Baseline bundel: `app.js` 1.124 kB (gzip 306 kB), CSS 102 kB.
 - Cadangan `.env`: `~/.minetra-env.backup.*` (di luar repo).
 - Temuan untuk WS3: Ziggy `@routes` membuka seluruh tabel rute ke pengunjung anonim.
+- Fase 3 (kebocoran Ziggy): SELESAI — `@routes`, `ZiggyVue` dan prop Inertia `ziggy` dihapus; tes `PublicExposureTest`. Halaman Batch Index/Create, CCTV Monitor, Laporan dimigrasi ke token + i18n; ada `rfid:benchmark` (non-produksi). Suite: 98 tes lulus; `npm run build` lulus.
