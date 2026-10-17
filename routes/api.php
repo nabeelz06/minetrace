@@ -2,14 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\Hardware\ApiRfidController;
-<<<<<<< HEAD
 use App\Http\Controllers\Api\V1\Rfid\RfidReaderController;
 use App\Http\Controllers\Api\V1\Rfid\RfidRegistrationController;
 use App\Http\Controllers\Api\V1\Rfid\RfidScanController;
 use App\Http\Controllers\Api\V1\Rfid\RfidTagController;
-=======
-use App\Http\Controllers\Api\V1\Hardware\ApiRfidDeviceController;
->>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
 use App\Http\Controllers\Api\V1\Auth\ApiAuthController;
 use App\Http\Controllers\Api\V1\Batch\ApiBatchController;
 use App\Http\Controllers\Api\V1\Checkpoint\ApiCheckpointController;
@@ -51,17 +47,9 @@ Route::prefix('rfid')->group(function () {
         ->middleware('throttle:rfid-device')
         ->name('api.rfid.logout');
 
-<<<<<<< HEAD
     // Heartbeat reader terdaftar (wajib X-Device-Key): status online/offline + sinkronisasi jam.
     Route::post('heartbeat', [ApiRfidController::class, 'heartbeat'])
         ->middleware('throttle:rfid-device')
-=======
-    // Heartbeat ringan (Fase 7 — device registry). Hanya berguna untuk
-    // reader yang sudah punya X-Device-Key; ESP32 legacy boleh tidak
-    // memanggil ini sama sekali tanpa kehilangan fungsi apa pun.
-    Route::post('heartbeat', [ApiRfidController::class, 'deviceHeartbeat'])
-        ->middleware('throttle:120,1')
->>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
         ->name('api.rfid.heartbeat');
 
 }); // end prefix('rfid')
@@ -248,7 +236,6 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('authorization-modes', [ApiRfidController::class, 'setAuthorizationMode'])
             ->name('authorization-modes.set');
 
-<<<<<<< HEAD
         // ── API UI baru (kontrak: code + message + message_en; lihat App\Support\RfidApi) ──
         Route::get('overview', [RfidScanController::class, 'overview'])->name('overview');
 
@@ -273,23 +260,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('batches/{batch}/release-tag', [RfidTagController::class, 'release'])->middleware('throttle:rfid-ui')->name('batches.release-tag');
         Route::get('batches/{batch}/tag-history',  [RfidTagController::class, 'history'])->name('batches.tag-history');
         Route::get('batch-search', [RfidTagController::class, 'search'])->name('batches.search');
-=======
-        // ─────────────────────────────────────────────────────────────
-        // DEVICE REGISTRY — CRUD RFID Reader (Fase 7)
-        // Dipanggil dari tab "Perangkat" di RfidPanel.vue. Otorisasi
-        // per-method ada di ApiRfidDeviceController (admin-only untuk
-        // mutasi, admin+auditor untuk index/lihat).
-        // ─────────────────────────────────────────────────────────────
-        Route::prefix('devices')->name('devices.')->group(function () {
-            Route::get('/',                     [ApiRfidDeviceController::class, 'index'])->name('index');
-            Route::post('/',                    [ApiRfidDeviceController::class, 'store'])->name('store');
-            Route::put('{reader}',              [ApiRfidDeviceController::class, 'update'])->name('update');
-            Route::post('{reader}/regenerate-key', [ApiRfidDeviceController::class, 'regenerateKey'])->name('regenerate-key');
-            Route::post('{reader}/revoke',      [ApiRfidDeviceController::class, 'revoke'])->name('revoke');
-            Route::post('{reader}/reactivate',  [ApiRfidDeviceController::class, 'reactivate'])->name('reactivate');
-        });
->>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
 
     });
 
-});
+}); 
