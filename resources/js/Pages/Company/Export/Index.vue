@@ -2,6 +2,7 @@
 import { ref }              from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout            from '@/Layouts/AppLayout.vue'
+import AppIcon              from '@/components/app/AppIcon.vue'
 import StatusBadge          from '@/components/shared/StatusBadge.vue'
 import WeightDisplay        from '@/components/shared/WeightDisplay.vue'
 import EmptyState           from '@/components/shared/EmptyState.vue'
@@ -143,7 +144,7 @@ function formatValue(usd) {
 
                                 <td class="px-4 py-4">
                                     <div class="flex items-center gap-1.5">
-                                        <span>{{ exp.export_type === 'international' ? 'globe' : 'warehouse' }}</span>
+                                        <AppIcon :name="exp.export_type === 'international' ? 'globe' : 'warehouse'" :size="16" class="text-muted-foreground" />
                                         <span class="text-xs font-medium text-foreground">
                                             {{ exp.export_type === 'international'
                                                 ? (lang === 'en' ? 'International' : 'Internasional')

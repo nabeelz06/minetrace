@@ -934,7 +934,7 @@ const exportPieData = computed(() => {
                      :style="`animation:fade-in 0.22s ease-out ${i*20}ms both`">
                     <div class="w-6 h-6 rounded-lg flex items-center justify-center text-xs flex-shrink-0 mt-0.5"
                          :class="cp.has_discrepancy ? 'bg-danger-soft text-danger ' : 'bg-success-soft text-success '">
-                        {{ cp.has_discrepancy ? 'triangle-alert' : '' }}
+                        <AppIcon :name="cp.has_discrepancy ? 'triangle-alert' : 'check'" :size="14" />
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
