@@ -165,7 +165,8 @@ class BatchController extends Controller
             'rfid_tag'        => $b->rfid_tag,
             // Timestamp detail WIB
             'created_at'      => $b->created_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
-            'created_at_date' => $b->created_at?->timezone($tz)->format('l, d F Y'),
+            'created_at_iso'  => $b->created_at?->toIso8601String(),
+            'created_at_date' => $b->created_at?->timezone($tz)->translatedFormat('l, d F Y'),
             'created_at_time' => $b->created_at?->timezone($tz)->format('H:i:s') . ' WIB',
             'created_at_diff' => $b->created_at?->diffForHumans(),
             'updated_at'      => $b->updated_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
@@ -298,6 +299,7 @@ class BatchController extends Controller
         $batch->load([
             'productCode',
             'currentLocation',
+            'createdByUser',
             'parentBatch.productCode',
             'parentBatch.checkpoints.location',
             'childBatches.productCode',
@@ -324,9 +326,10 @@ class BatchController extends Controller
                 'export_status'   => $batch->export_status,
                 'rfid_tag'        => $batch->rfid_tag,
                 'notes'           => $batch->notes,
+                'created_by_user' => $batch->createdByUser ? ['name' => $batch->createdByUser->name] : null,
                 // Timestamp detail
                 'created_at'      => $batch->created_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
-                'created_at_full' => $batch->created_at?->timezone($tz)->format('l, d F Y — H:i:s') . ' WIB',
+                'created_at_full' => $batch->created_at?->timezone($tz)->translatedFormat('l, d F Y — H:i:s') . ' WIB',
                 'created_at_diff' => $batch->created_at?->diffForHumans(),
                 'updated_at'      => $batch->updated_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
                 'updated_at_diff' => $batch->updated_at?->diffForHumans(),
@@ -335,6 +338,8 @@ class BatchController extends Controller
                     'code'               => $batch->productCode->code,
                     'name'               => $batch->productCode->name,
                     'name_en'            => $batch->productCode->name_en,
+                    'chemical_symbol'    => $batch->productCode->chemical_symbol,
+                    'category'           => $batch->productCode->category,
                     'is_hazardous'       => $batch->productCode->is_hazardous,
                     'is_export_blocked'  => $batch->productCode->is_export_blocked,
                     'radioactive_level'  => $batch->productCode->radioactive_level,

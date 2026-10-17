@@ -207,15 +207,15 @@ const weightRetentionPct = computed(() => {
                                     <svg class="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
                                     </svg>
-                                    <span class="font-semibold text-foreground">{{ batch.product_code?.code }}</span>
-                                    <span class="text-muted-foreground">{{ batch.product_code?.name }}</span>
+                                    <span class="font-semibold text-foreground">{{ batch.product?.code }}</span>
+                                    <span class="text-muted-foreground">{{ batch.product?.name }}</span>
                                 </div>
-                                <div v-if="batch.current_location" class="flex items-center gap-1.5">
+                                <div v-if="batch.location" class="flex items-center gap-1.5">
                                     <svg class="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
                                     </svg>
-                                    <span class="text-muted-foreground">{{ batch.current_location.name }}</span>
+                                    <span class="text-muted-foreground">{{ batch.location.name }}</span>
                                 </div>
                                 <div class="flex items-center gap-1.5">
                                     <svg class="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -228,11 +228,11 @@ const weightRetentionPct = computed(() => {
 
                         <!-- Hazard + Export Block badges -->
                         <div class="flex flex-col items-end gap-2">
-                            <span v-if="batch.product_code?.is_hazardous"
+                            <span v-if="batch.product?.is_hazardous"
                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold badge-radioactive">
                                 <span></span> Material Radioaktif
                             </span>
-                            <span v-if="batch.product_code?.is_export_blocked"
+                            <span v-if="batch.product?.is_export_blocked"
                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold badge-export-blocked">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -304,7 +304,7 @@ const weightRetentionPct = computed(() => {
                             { label: 'Lot Number', value: batch.lot_number || '—', mono: true },
                             { label: 'Stage', value: `${stageLabel(batch.process_stage)}` },
                             { label: 'Status', value: statusLabel(batch.status) },
-                            { label: 'Lokasi', value: batch.current_location?.name || '—' },
+                            { label: 'Lokasi', value: batch.location?.name || '—' },
                             { label: 'Dibuat Oleh', value: batch.created_by_user?.name || '—' },
                         ]" :key="info.label"
                              class="flex items-start justify-between gap-4 py-2 border-b border-border/50 last:border-0"
@@ -322,12 +322,12 @@ const weightRetentionPct = computed(() => {
                     <h3 class="text-sm font-semibold text-foreground">Informasi Produk</h3>
                     <div class="space-y-3">
                         <div v-for="info in [
-                            { label: 'Kode Produk', value: batch.product_code?.code, mono: true },
-                            { label: 'Nama', value: batch.product_code?.name },
-                            { label: 'Kategori', value: batch.product_code?.category },
-                            { label: 'Simbol Kimia', value: batch.product_code?.chemical_symbol || '—' },
-                            { label: 'Radioaktif', value: batch.product_code?.radioactive_level === 'none' ? 'Tidak' : batch.product_code?.radioactive_level },
-                            { label: 'Status Ekspor', value: batch.product_code?.is_export_blocked ? 'Diblokir' : 'Dapat Diekspor' },
+                            { label: 'Kode Produk', value: batch.product?.code, mono: true },
+                            { label: 'Nama', value: batch.product?.name },
+                            { label: 'Kategori', value: batch.product?.category?.replace(/_/g, ' ') },
+                            { label: 'Simbol Kimia', value: batch.product?.chemical_symbol || '—' },
+                            { label: 'Radioaktif', value: batch.product?.radioactive_level === 'none' ? 'Tidak' : batch.product?.radioactive_level },
+                            { label: 'Status Ekspor', value: batch.product?.is_export_blocked ? 'Diblokir' : 'Dapat Diekspor' },
                         ]" :key="info.label"
                              class="flex items-start justify-between gap-4 py-2 border-b border-border/50 last:border-0"
                         >
@@ -357,7 +357,7 @@ const weightRetentionPct = computed(() => {
                             <AppIcon :name="stageIcon(child.process_stage) || 'circle'" :size="18" />
                             <div class="min-w-0">
                                 <p class="text-xs font-mono font-semibold text-foreground truncate">{{ child.batch_code }}</p>
-                                <p class="text-xs text-muted-foreground">{{ child.product_code?.code }} · {{ formatWeight(child.current_weight) }}</p>
+                                <p class="text-xs text-muted-foreground">{{ child.product }} · {{ formatWeight(child.weight) }}</p>
                             </div>
                             <svg class="w-3.5 h-3.5 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />

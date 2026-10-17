@@ -37,7 +37,7 @@ const selectedBatches = computed(() =>
 )
 
 const totalWeight = computed(() =>
-    selectedBatches.value.reduce((sum, b) => sum + (b.current_weight ?? 0), 0)
+    selectedBatches.value.reduce((sum, b) => sum + (b.weight_kg ?? 0), 0)
 )
 
 function toggleBatch(batchId) {
@@ -183,11 +183,11 @@ function submitExport() {
                                 <div class="flex-1 min-w-0" @click="toggleBatch(batch.id)">
                                     <p class="font-mono font-bold text-xs text-foreground">{{ batch.batch_code }}</p>
                                     <p class="text-xs text-muted-foreground">
-                                        {{ batch.product_code?.code }} — {{ formatWeight(batch.current_weight) }}
+                                        {{ batch.product?.code }} — {{ formatWeight(batch.weight_kg) }}
                                     </p>
                                 </div>
                                 <span class="text-xs font-semibold text-right text-foreground flex-shrink-0">
-                                    {{ formatWeight(batch.current_weight) }}
+                                    {{ formatWeight(batch.weight_kg) }}
                                 </span>
                             </label>
                         </div>
