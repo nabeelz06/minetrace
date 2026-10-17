@@ -153,7 +153,7 @@ class ProcessController extends Controller
                 'stage_count'    => count(self::STAGES),
                 'total_exported' => $totalExported,
             ],
-            'current_time' => Carbon::now($tz)->format('l, d F Y — H:i:s') . ' WIB',
+            'current_time' => Carbon::now($tz)->translatedFormat('l, d F Y — H:i:s') . ' WIB',
         ]);
     }
 
@@ -897,7 +897,7 @@ class ProcessController extends Controller
                 'recorded_at' => $lastCp->recorded_at?->diffForHumans(),
             ] : null,
             'created_at'      => $b->created_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
-            'created_at_date' => $b->created_at?->timezone($tz)->format('l, d F Y'),
+            'created_at_date' => $b->created_at?->timezone($tz)->translatedFormat('l, d F Y'),
             'created_at_time' => $b->created_at?->timezone($tz)->format('H:i:s') . ' WIB',
             'created_at_diff' => $b->created_at?->diffForHumans(),
             'updated_at'      => $b->updated_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',

@@ -87,7 +87,7 @@ class DashboardController extends Controller
                 'code'          => $company->code,
                 'primary_color' => $company->primary_color,
             ],
-            'current_time'  => $now->format('l, d F Y — H:i:s'),
+            'current_time'  => $now->translatedFormat('l, d F Y — H:i:s'),
             'timestamp_wib' => $now->format('d/m/Y H:i') . ' WIB',
         ]));
     }
@@ -512,7 +512,7 @@ class DashboardController extends Controller
             'combined_trend'   => $combinedTrend,
             'export_monitor'   => $exportMonitor,
             'alert_monitor'    => $alertMonitor,
-            'current_time'     => Carbon::now('Asia/Jakarta')->format('l, d F Y — H:i:s'),
+            'current_time'     => Carbon::now('Asia/Jakarta')->translatedFormat('l, d F Y — H:i:s'),
         ]);
     }
 
@@ -563,7 +563,7 @@ class DashboardController extends Controller
             'system_stats' => $systemStats,
             'companies'    => $companies,
             'recent_users' => $recentUsers,
-            'current_time' => Carbon::now('Asia/Jakarta')->format('l, d F Y — H:i:s'),
+            'current_time' => Carbon::now('Asia/Jakarta')->translatedFormat('l, d F Y — H:i:s'),
         ]);
     }
 
@@ -603,7 +603,7 @@ class DashboardController extends Controller
             'rfid_tag'        => $batch->rfid_tag,
             // ─── Timestamp detail ──────────────────────────────────────────
             'created_at'      => $batch->created_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
-            'created_at_date' => $batch->created_at?->timezone('Asia/Jakarta')->format('l, d F Y'),
+            'created_at_date' => $batch->created_at?->timezone('Asia/Jakarta')->translatedFormat('l, d F Y'),
             'created_at_time' => $batch->created_at?->timezone('Asia/Jakarta')->format('H:i:s') . ' WIB',
             'created_at_diff' => $batch->created_at?->diffForHumans(),
             'updated_at'      => $batch->updated_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
