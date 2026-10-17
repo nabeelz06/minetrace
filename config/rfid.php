@@ -37,4 +37,31 @@ return [
     'legacy_anonymous'           => (bool) env('RFID_ALLOW_LEGACY_ANONYMOUS', true),
     'legacy_global_tag_fallback' => (bool) env('RFID_LEGACY_GLOBAL_FALLBACK', true),
     'require_device_key'         => (bool) env('RFID_REQUIRE_DEVICE_KEY', false),
+
+    /*
+     * Log pembacaan (rfid_read_logs) + capture CCTV per log.
+     *   capture_on_reject : pembacaan yang DITOLAK (mis. tag asing di gate) juga di-capture — bukti visual.
+     *   capture_on_register : registrasi tag di Receiving Area di-capture.
+     */
+    'read_log' => [
+        'capture_on_reject'   => (bool) env('RFID_CAPTURE_ON_REJECT', true),
+        'capture_on_register' => (bool) env('RFID_CAPTURE_ON_REGISTER', true),
+    ],
+
+    /*
+     * Reader UHF.
+     * Gate (Chainway UR4, TCP) dibaca daemon `php artisan rfid:uhf-gate`:
+     *   presence_seconds : tag yang terus terbaca dianggap SATU kehadiran; baru diproses lagi setelah
+     *                      tidak terbaca selama N detik (UHF membaca tag puluhan kali per detik).
+     *   min_rssi         : abaikan pembacaan lebih lemah dari ini (dBm), mis. -70. null = tanpa filter.
+     *   reconnect_max    : jeda maksimum (detik) antar percobaan sambung ulang.
+     * Desktop (R2000 USB) dibaca browser lewat Web Serial — baud default di sisi UI.
+     */
+    'uhf' => [
+        'ur4_port'         => (int) env('RFID_UR4_PORT', 8888),
+        'presence_seconds' => (int) env('RFID_UHF_PRESENCE_SECONDS', 10),
+        'min_rssi'         => is_numeric(env('RFID_UHF_MIN_RSSI')) ? (int) env('RFID_UHF_MIN_RSSI') : null,
+        'reconnect_max'    => (int) env('RFID_UHF_RECONNECT_MAX', 30),
+        'desktop_baud'     => (int) env('RFID_UHF_DESKTOP_BAUD', 9600),
+    ],
 ];

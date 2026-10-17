@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Rfid\StartRegistrationRequest;
 use App\Models\Batch;
 use App\Models\RfidReader;
+use App\Services\Hardware\RfidReadLogService;
 use App\Services\Hardware\RfidRegistrationService;
 use App\Services\Hardware\RfidService;
 use App\Support\RfidApi;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Gate;
 /**
  * Registrasi tag (ikat UID ke batch) dari UI:
  *  - store : mulai sesi menunggu reader (paralel antar stasiun), ATAU commit langsung bila `uid` diisi
- *            (input manual / reader USB tipe keyboard-wedge).
+ *            (input manual / reader USB tipe keyboard-wedge / reader UHF desktop R2000 via Web Serial).
  *  - status: polling hasil per batch (waiting | completed | expired).
  *  - destroy: batalkan sesi.
  */
@@ -25,6 +26,7 @@ class RfidRegistrationController extends Controller
     public function __construct(
         private readonly RfidRegistrationService $registration,
         private readonly RfidService $rfid,
+        private readonly RfidReadLogService $readLogs,
     ) {}
 
     public function store(StartRegistrationRequest $request): JsonResponse
@@ -73,7 +75,18 @@ class RfidRegistrationController extends Controller
             }
         }
 
-        $result = $this->registration->commit($session, $uid, 'manual', $reader, $request->user()->id);
+        // Reader UHF desktop (Receiving): EPC dibaca browser langsung dari port serial → asal real_uhf.
+        $origin = $request->input('source') === 'uhf_desktop' ? 'real_uhf' : 'manual';
+        $result = $this->registration->commit($session, $uid, $origin, $reader, $request->user()->id);
+
+        $this->readLogs->registration($batch->company_id, $reader, $uid, $result + ['batch_id' => $batch->id], [
+            'origin'  => $origin,
+            'user_id' => $request->user()->id,
+            'rssi'    => $request->input('rssi'),
+            'antenna' => $request->input('antenna'),
+            'tid'     => $request->input('tid'),
+            'meta'    => ['ip' => $request->ip(), 'source' => $request->input('source', 'manual')],
+        ]);
 
         if ($result['status'] !== 'success') {
             $this->registration->cancel($session['id']);

@@ -62,9 +62,11 @@ class ApiHardwareController extends Controller
         [$result, $duplicate] = app(RfidScanService::class)->scan(
             $ctx, $v['direction'], $v['uid'], $v['stage'] ?? null,
             [
-                'origin'   => $ctx->reader->device_type === 'uhf_epc_gen2' ? 'real_uhf' : 'api',
+                'origin'   => $ctx->reader->isUhf() ? 'real_uhf' : 'api',
                 'event_id' => $v['event_id'] ?? $request->header('X-Event-Id'),
                 'ip'       => $request->ip(),
+                'rssi'     => $v['rssi'] ?? null,
+                'antenna'  => $v['antenna_port'] ?? null,
             ]
         );
 

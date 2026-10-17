@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Log;
  *    IDENTIK dengan yang pertama (LCD tidak berubah), tanpa checkpoint/job CCTV baru.
  *  - Serialisasi per UID (lock atomik): dua pembacaan serentak tidak menggandakan transisi tahap.
  *  - Pencatatan RFID tidak pernah menunggu CCTV (job snapshot di-dispatch async).
+ *  - SETIAP panggilan dicatat ke rfid_read_logs (accepted/rejected/duplicate) dan, kecuali duplikat,
+ *    di-capture CCTV — lihat RfidReadLogService.
  */
 class RfidScanService
 {
@@ -27,14 +29,57 @@ class RfidScanService
         private readonly RfidService $rfid,
         private readonly RfidAuthorizationService $authorization,
         private readonly RfidDeviceService $devices,
+        private readonly RfidReadLogService $readLogs,
     ) {}
 
     /**
      * @param  string $direction 'in' | 'out'
-     * @param  array  $opts {origin?:string, event_id?:string, ip?:string, user_id?:int}
+     * @param  array  $opts {origin?:string, event_id?:string, ip?:string, user_id?:int, antenna?:int, rssi?:int, tid?:string}
      * @return array{0:array,1:bool} [hasil gaya-LCD, duplikat?]
      */
     public function scan(DeviceContext $ctx, string $direction, string $rawUid, ?string $stage = null, array $opts = []): array
+    {
+        [$result, $duplicate] = $this->scanOnce($ctx, $direction, $rawUid, $stage, $opts);
+
+        $log = $this->readLogs->record(
+            (int) ($result['_company_id'] ?? $ctx->companyId),
+            $ctx->reader,
+            $direction,
+            $this->rfid->sanitizeUid($rawUid),
+            $result,
+            $duplicate,
+            [
+                'origin'        => $opts['origin'] ?? null,
+                'stage'         => $result['scan_stage'] ?? ($stage ?: $ctx->reader?->stage),
+                'batch_id'      => $result['batch_id'] ?? $result['_batch_id'] ?? null,
+                'checkpoint_id' => $result['_checkpoint_id'] ?? null,
+                'user_id'       => $opts['user_id'] ?? null,
+                'antenna'       => $opts['antenna'] ?? null,
+                'rssi'          => $opts['rssi'] ?? null,
+                'tid'           => $opts['tid'] ?? null,
+                'meta'          => array_filter(['event_id' => $opts['event_id'] ?? null, 'ip' => $opts['ip'] ?? null]) ?: null,
+            ]
+        );
+
+        if (! $duplicate && $result['status'] === 'success' && ! empty($result['_checkpoint_id'])) {
+            $this->dispatchSnapshot(
+                (int) $result['_checkpoint_id'],
+                (int) ($result['_company_id'] ?? $ctx->companyId),   // tenant milik BATCH
+                $result['scan_stage'] ?? null,
+                $direction === 'in' ? 'scan_in' : 'scan_out',
+                $this->rfid->sanitizeUid($rawUid),
+                $log?->id
+            );
+            $log?->update(['snapshot_status' => 'pending']);
+        } else {
+            $this->readLogs->captureIfNeeded($log);
+        }
+
+        return [$result, $duplicate];
+    }
+
+    /** @return array{0:array,1:bool} */
+    private function scanOnce(DeviceContext $ctx, string $direction, string $rawUid, ?string $stage, array $opts): array
     {
         $uid     = $this->rfid->sanitizeUid($rawUid);
         $reader  = $ctx->reader;
@@ -141,27 +186,19 @@ class RfidScanService
             $opts['ip'] ?? '-'
         ));
 
-        $checkpointId = $result['_checkpoint_id'] ?? null;
-        unset($result['_checkpoint_id']);   // kunci internal — bentuk respons perangkat tidak berubah
+        // Kunci internal (awalan '_') dibuang pemanggil sebelum respons — bentuk respons perangkat tidak berubah.
+        // _checkpoint_id dipakai scan() untuk log + capture CCTV setelah log tercatat.
+        $result['_company_id'] = (int) ($result['company_id'] ?? $batch->company_id);
+        $result['_batch_id']   = $batch->id;
 
         if ($ctx->reader) {
             $this->devices->touch($ctx->reader, $opts['ip'] ?? null);
         }
 
-        if ($result['status'] === 'success' && $checkpointId) {
-            $this->dispatchSnapshot(
-                $checkpointId,
-                (int) ($result['company_id'] ?? $batch->company_id),   // tenant milik BATCH
-                $result['scan_stage'] ?? null,
-                $direction === 'in' ? 'scan_in' : 'scan_out',
-                $uid
-            );
-        }
-
         return $result;
     }
 
-    private function dispatchSnapshot(int $checkpointId, int $companyId, ?string $stage, string $scanType, string $uid): void
+    private function dispatchSnapshot(int $checkpointId, int $companyId, ?string $stage, string $scanType, string $uid, ?int $readLogId = null): void
     {
         Checkpoint::whereKey($checkpointId)->update(['snapshot_status' => 'pending']);
 
@@ -171,6 +208,7 @@ class RfidScanService
             stageName:    $stage,
             scanType:     $scanType,
             rfidUid:      $uid,
+            readLogId:    $readLogId,
         ))->onQueue(config('cctv.queue', 'default'))
           ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
     }

@@ -72,4 +72,55 @@ curl -s -X POST $BASE/api/rfid/login     -H "X-Device-Key: $KEY" -H 'Content-Typ
 - [ ] Scan ganda cepat tidak membuat checkpoint ganda (dedupe 3 dtk).
 - [ ] Cabut kabel WiFi → scan 2 kali → pulihkan → entri masuk sekali masing-masing (antrean + `event_id`).
 - [ ] Reader dinonaktifkan di UI → scan ditolak (403) dan layar menampilkan "Error / Perangkat dinonaktifkan".
+- [ ] UHF: registrasi di Receiving (reader desktop) → lewat gate Wet → Dry → Gudang; Log Pembacaan menampilkan tiap entri + foto; tag asing di gate tercatat Ditolak + foto.
 - [ ] Beban: `php artisan rfid:benchmark` (non-produksi) dan `tests/load/rfid-scan.k6.js` terhadap staging.
+
+## 6. Reader UHF — Receiving (desktop USB) & Gate (Chainway UR4)
+
+Alur karung: **Receiving** (registrasi tag, reader desktop) → **gate Wet** → **gate Wet→Dry** → **gate Gudang** (reader UR4).
+Setiap pembacaan — diterima, ditolak (tag asing, arah salah, tag sudah dipakai), maupun duplikat — tercatat di
+tabel `rfid_read_logs` dan tampil di **RFID → Log Pembacaan**. Setiap log selain duplikat memicu capture kamera
+Tapo milik tahap reader (job `CaptureCctvSnapshotJob`, butuh `worker`); foto ditautkan ke log dan ke checkpoint.
+
+```
+ Reader desktop R2000 ─USB(Web Serial)─▶ browser PC Receiving ─HTTPS─▶ Laravel ─▶ checkpoint + rfid_read_logs ─▶ capture Tapo
+ Reader UR4 (gate) ◀─TCP 8888─ php artisan rfid:uhf-gate (mesin di LAN reader) ─▶ RfidScanService ─▶ (sama)
+```
+
+### 6a. Reader desktop R2000 (Receiving Area)
+
+Reader USB "UHF reader/writer" modul UCM60x (jembatan QinHeng `1a86:fe0c`, protokol R2000 `0xA0`, 9600 8N1, RTS wajib —
+referensi: github.com/frebergguru/uhf_reader). Dibaca **langsung oleh browser** lewat Web Serial — tanpa aplikasi tambahan.
+
+1. PC Receiving: Chrome/Edge desktop terbaru; halaman dibuka lewat **HTTPS** (atau `localhost`). Windows: driver CH34x/CDC bawaan.
+2. UI: **RFID → Perangkat → Tambah reader** — jenis **UHF desktop USB (Receiving)**, tahap *Receiving Area*, arah *Scan Masuk*.
+   Kunci perangkat tidak dipakai (browser memakai sesi login operator).
+3. **RFID → Daftarkan Tag** → pilih batch → cara **Reader UHF desktop** → **Hubungkan reader** (pilih port; browser mengingatnya)
+   → letakkan tag → **Baca & daftarkan**. Bila >1 tag terbaca, operator memilih tag karung tersebut.
+4. Baud lain: `RFID_UHF_DESKTOP_BAUD`. Firmware tidak terbaca = baud/port salah.
+
+### 6b. Reader gate Chainway UR4 (Wet, Wet→Dry, Gudang)
+
+Reader jaringan UR4 (TCP, port default 8888; referensi protokol: github.com/ready2tag/chainway-rfid).
+
+1. Beri reader IP tetap. Uji dari mesin daemon: `nc -vz 192.168.99.202 8888`.
+2. UI: **RFID → Perangkat → Tambah reader** per gate — jenis **UHF gate Chainway UR4**, isi IP/port, tahap
+   (`wet_process`, `dry_process`, `warehouse`), arah:
+   - satu arah per reader → set *Scan Masuk* / *Scan Keluar*;
+   - satu reader dua antena (masuk & keluar) → arah *Dua arah* + **Arah per antena** (mis. antena 1 = Masuk, 2 = Keluar).
+   Gate Wet→Dry umumnya = antena *Keluar* tahap Wet **atau** antena *Masuk* tahap Dry — pilih satu agar tidak tercatat ganda.
+3. Jalankan daemon di mesin yang menjangkau reader (satu proses melayani semua reader UR4 aktif; reader baru terpakai ≤60 dtk):
+
+```bash
+php artisan rfid:uhf-gate                          # semua reader UR4 aktif
+php artisan rfid:uhf-gate --reader=WET-GATE-01     # reader tertentu
+docker compose -f docker-compose.prod.yml --profile rfid-gate up -d rfid_gate   # produksi (restart otomatis)
+```
+
+   Daemon sambung ulang otomatis, mengirim heartbeat (status **online** + jumlah peristiwa/pembacaan di kartu reader).
+4. Penyaringan: tag yang terus terbaca dihitung **sekali per kehadiran** (`RFID_UHF_PRESENCE_SECONDS`, default 10 dtk; per reader
+   di form). Tag lemah dari lajur sebelah: isi **RSSI minimum** (mis. -65) atau kurangi daya antena di reader.
+5. `php artisan hardware:check` menguji keterjangkauan TCP tiap reader UR4.
+
+> Server di VPS tidak dapat menjangkau IP LAN pabrik — jalankan `rfid:uhf-gate` di mini-PC pabrik yang terhubung ke database
+> lewat VPN (Tailscale/WireGuard), sama seperti opsi A untuk kamera.

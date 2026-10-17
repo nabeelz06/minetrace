@@ -131,6 +131,27 @@ class HardwareCheck extends Command
             if (($r->last_status['clock_ok'] ?? true) === false) {
                 $this->warn_("Reader {$r->code}: jam perangkat menyimpang {$r->last_status['clock_skew']} dtk (cek NTP)");
             }
+            if ($r->is_active && in_array($r->device_type, RfidReader::NETWORK_TYPES, true)) {
+                $this->checkNetworkReader($r);
+            }
+        }
+    }
+
+    /** Reader gate UR4: alamat TCP harus terjangkau dari mesin yang menjalankan `rfid:uhf-gate`. */
+    private function checkNetworkReader(RfidReader $r): void
+    {
+        $host = $r->connection['host'] ?? null;
+        if (! $host) {
+            $this->bad("Reader {$r->code}: connection.host kosong — isi alamat IP reader UR4 di menu Perangkat.");
+            return;
+        }
+        $port = (int) ($r->connection['port'] ?? config('rfid.uhf.ur4_port', 8888));
+        $sock = @fsockopen($host, $port, $errno, $errstr, 2);
+        if ($sock) {
+            fclose($sock);
+            $this->ok("Reader {$r->code}: TCP {$host}:{$port} terjangkau (jalankan `php artisan rfid:uhf-gate`)");
+        } else {
+            $this->warn_("Reader {$r->code}: TCP {$host}:{$port} tidak terjangkau ({$errstr}) — cek jaringan/IP reader.");
         }
     }
 

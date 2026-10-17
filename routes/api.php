@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\Hardware\ApiRfidController;
+use App\Http\Controllers\Api\V1\Rfid\RfidReadLogController;
 use App\Http\Controllers\Api\V1\Rfid\RfidReaderController;
 use App\Http\Controllers\Api\V1\Rfid\RfidRegistrationController;
 use App\Http\Controllers\Api\V1\Rfid\RfidScanController;
@@ -255,6 +256,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('scans',              [RfidScanController::class, 'index'])->name('scans.index');
         Route::post('scans',             [RfidScanController::class, 'store'])->middleware('throttle:rfid-ui')->name('scans.store');
         Route::post('scans/{id}/void',   [RfidScanController::class, 'void'])->middleware('throttle:rfid-ui')->name('scans.void');
+
+        // Log setiap pembacaan (accepted/rejected/duplicate) + foto CCTV per log
+        Route::get('read-logs', [RfidReadLogController::class, 'index'])->name('read-logs.index');
 
         // Siklus hidup tag
         Route::post('batches/{batch}/release-tag', [RfidTagController::class, 'release'])->middleware('throttle:rfid-ui')->name('batches.release-tag');

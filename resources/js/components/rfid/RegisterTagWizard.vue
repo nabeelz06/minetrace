@@ -3,8 +3,8 @@
  * RegisterTagWizard — Daftarkan Tag dalam 3 langkah (Pilih batch → Tempelkan tag → Hasil).
  *
  * Dari halaman detail batch (initialBatchId) langkah 1 dilewati: 1 klik "Mulai" lalu tempelkan tag.
- * Dua cara membaca tag: reader terdaftar (sesi menunggu, hitung mundur) atau input manual/USB
- * (keyboard-wedge: kolom otomatis fokus, UID + Enter). Semua teks lewat kamus i18n (rfid.reg.*).
+ * Tiga cara membaca tag: reader UHF desktop USB (Receiving Area, Web Serial — UhfDesktopPanel),
+ * reader terdaftar (sesi menunggu, hitung mundur), atau input manual/USB (keyboard-wedge: UID + Enter). Semua teks lewat kamus i18n (rfid.reg.*).
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useLocalStorage, useNow } from '@vueuse/core'
@@ -13,6 +13,7 @@ import AppIcon from '@/components/app/AppIcon.vue'
 import BigActionButton from '@/components/app/BigActionButton.vue'
 import ResultBanner from '@/components/app/ResultBanner.vue'
 import BatchPicker from '@/components/rfid/BatchPicker.vue'
+import UhfDesktopPanel from '@/components/rfid/UhfDesktopPanel.vue'
 import { rfidApi, useApiText } from '@/composables/rfid/useRfidApi.js'
 import { usePolling } from '@/composables/core/usePolling.js'
 import { useI18n } from '@/composables/core/useI18n.js'
@@ -24,6 +25,7 @@ const props = defineProps({
     initialBatchId:  { type: Number, default: null },
     initialUid:      { type: String, default: '' },
     field:           { type: Boolean, default: false },
+    uhfBaud:         { type: Number, default: 9600 },
 })
 const emit = defineEmits(['registered'])
 
@@ -32,8 +34,14 @@ const apiText = useApiText()
 
 const step = ref(1)
 const batch = ref(null)
-const activeReaders = computed(() => props.readers.filter(r => r.is_active))
-const method = ref(activeReaders.value.length ? 'reader' : 'manual')
+// Sesi menunggu hanya untuk reader yang memanggil /api/rfid/register sendiri (ESP32 dll.) — reader desktop
+// (dibaca browser) dan gate UR4 (dibaca daemon, hanya scan) tidak ikut.
+const NON_SESSION_TYPES = ['uhf_desktop_r2000', 'uhf_chainway_ur4']
+const activeReaders = computed(() => props.readers.filter(r => r.is_active && !NON_SESSION_TYPES.includes(r.device_type)))
+const serialSupported = typeof navigator !== 'undefined' && 'serial' in navigator
+const hasDesktopReader = computed(() => props.readers.some(r => r.is_active && r.device_type === 'uhf_desktop_r2000'))
+// Reader UHF desktop terdaftar + browser mendukung Web Serial → cara default di Receiving Area.
+const method = ref(serialSupported && hasDesktopReader.value ? 'desktop' : activeReaders.value.length ? 'reader' : 'manual')
 const rememberedReader = useLocalStorage('minetrace-rfid-reg-reader', '')
 const readerId = ref('')
 const session = ref(null)
@@ -194,7 +202,9 @@ const steps = [1, 2, 3]
             <template v-else>
                 <fieldset class="space-y-2">
                     <legend class="mb-2 text-sm font-medium text-muted-foreground">{{ t('rfid.reg.method') }}</legend>
-                    <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="grid gap-3" :class="serialSupported ? 'sm:grid-cols-3' : 'sm:grid-cols-2'">
+                        <BigActionButton v-if="serialSupported" icon="usb" :title="t('rfid.reg.method_desktop')" :description="t('rfid.reg.method_desktop_desc')"
+                                         :selected="method === 'desktop'" @click="method = 'desktop'" />
                         <BigActionButton icon="radio-tower" :title="t('rfid.reg.method_reader')" :description="t('rfid.reg.method_reader_desc')"
                                          :selected="method === 'reader'" :disabled="!activeReaders.length && false" @click="method = 'reader'" />
                         <BigActionButton icon="keyboard" :title="t('rfid.reg.method_manual')" :description="t('rfid.reg.method_manual_desc')"
@@ -202,7 +212,10 @@ const steps = [1, 2, 3]
                     </div>
                 </fieldset>
 
-                <div v-if="method === 'reader'" class="space-y-4">
+                <UhfDesktopPanel v-if="method === 'desktop'" :batch="batch" :readers="readers" :can-operate="canOperate" :baud="uhfBaud"
+                                 @registered="uid => finish({ type: 'success', uid })" />
+
+                <div v-else-if="method === 'reader'" class="space-y-4">
                     <div class="space-y-1.5">
                         <label for="reg-reader" class="block text-sm font-medium">{{ t('rfid.reg.reader') }}</label>
                         <select id="reg-reader" v-model="readerId" class="min-h-[48px] w-full rounded-lg border border-input bg-background px-3 text-base">

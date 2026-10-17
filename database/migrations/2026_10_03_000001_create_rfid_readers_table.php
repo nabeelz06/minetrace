@@ -36,6 +36,14 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // DINONAKTIFKAN: skema ini tergantikan 2026_10_16_000001_create_rfid_readers_table (sisa merge
+        // cabang lama). Bila tetap jalan, `migrate:fresh` gagal karena tabel dibuat dua kali dan model
+        // RfidReader memakai skema 10_16 (code/key_hash). Database yang sudah menjalankan berkas ini
+        // tidak terpengaruh (migrasi tidak diulang).
+        if (true) {
+            return;
+        }
+
         Schema::create('rfid_readers', function (Blueprint $table) {
             $table->id();
 

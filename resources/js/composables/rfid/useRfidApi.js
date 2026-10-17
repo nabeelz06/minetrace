@@ -20,6 +20,7 @@ export const rfidApi = {
     scans:             (params, o) => http.get(`${BASE}/scans`, { params, ...o }),
     scan:              body        => http.post(`${BASE}/scans`, body),
     voidScan:          (id, reason) => http.post(`${BASE}/scans/${id}/void`, { reason }),
+    readLogs:          (params, o) => http.get(`${BASE}/read-logs`, { params, ...o }),
     releaseTag:        (batchId, body) => http.post(`${BASE}/batches/${batchId}/release-tag`, body),
     authModes:         ()          => http.get(`${BASE}/authorization-modes`),
     setAuthMode:       body        => http.post(`${BASE}/authorization-modes`, body),

@@ -21,7 +21,7 @@ class CctvSnapshot extends Model
     use SoftDeletes, LogsActivity;
 
     protected $fillable = [
-        'company_id', 'batch_id', 'checkpoint_id', 'camera_id',
+        'company_id', 'batch_id', 'checkpoint_id', 'read_log_id', 'camera_id',
         'file_path', 'capture_mode', 'capture_status', 'failure_reason',
         'scan_type', 'rfid_uid', 'stage', 'filesize_kb', 'captured_at',
         'is_verified', 'verified_by', 'verified_at', 'review_notes',

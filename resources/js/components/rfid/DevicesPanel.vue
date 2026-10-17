@@ -98,6 +98,12 @@ async function rotate() {
                     <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
                         <dt class="text-muted-foreground">{{ t('rfid.dev.stage') }}</dt><dd class="text-right">{{ stageName(r.stage) }}</dd>
                         <dt class="text-muted-foreground">{{ t('rfid.dev.direction') }}</dt><dd class="text-right">{{ t(`rfid.dev.dir_${r.direction}`) }}</dd>
+                        <template v-if="r.connection?.host">
+                            <dt class="text-muted-foreground">{{ t('rfid.dev.conn_host') }}</dt><dd class="text-right font-mono text-xs">{{ r.connection.host }}:{{ r.connection.port ?? 8888 }}</dd>
+                        </template>
+                        <template v-if="r.last_status?.reads_total != null">
+                            <dt class="text-muted-foreground">{{ t('rfid.dev.reads') }}</dt><dd class="text-right tabular-nums">{{ r.last_status.events_total }} / {{ r.last_status.reads_total }}</dd>
+                        </template>
                         <dt class="text-muted-foreground">{{ t('rfid.dev.key', { prefix: r.key_prefix }) }}</dt>
                         <dd class="text-right text-muted-foreground">{{ r.firmware_version ? t('rfid.dev.firmware', { v: r.firmware_version }) : '' }}</dd>
                     </dl>

@@ -16,6 +16,7 @@ import BigActionButton from '@/components/app/BigActionButton.vue'
 import RegisterTagWizard from '@/components/rfid/RegisterTagWizard.vue'
 import ScanStation from '@/components/rfid/ScanStation.vue'
 import ScanHistory from '@/components/rfid/ScanHistory.vue'
+import ReadLogList from '@/components/rfid/ReadLogList.vue'
 import DevicesPanel from '@/components/rfid/DevicesPanel.vue'
 import { rfidApi } from '@/composables/rfid/useRfidApi.js'
 import { usePolling } from '@/composables/core/usePolling.js'
@@ -29,7 +30,7 @@ const props = defineProps({
 
 const { t } = useI18n()
 
-const VIEWS = ['register', 'in', 'out', 'history', 'devices']
+const VIEWS = ['register', 'in', 'out', 'history', 'logs', 'devices']
 const view = ref(
     VIEWS.includes(props.initial.view) ? props.initial.view
         : props.initial.register_batch || props.initial.uid ? 'register'
@@ -78,6 +79,7 @@ const CARDS = [
     { key: 'in',       icon: 'arrow-down-to-line', tone: 'info' },
     { key: 'out',      icon: 'arrow-up-from-line', tone: 'neutral' },
     { key: 'history',  icon: 'history',            tone: 'neutral' },
+    { key: 'logs',     icon: 'clipboard-list',     tone: 'neutral' },
 ]
 </script>
 
@@ -107,18 +109,20 @@ const CARDS = [
             </div>
 
             <!-- Empat tugas utama -->
-            <nav class="mb-6 grid gap-3" :class="field ? 'grid-cols-1 sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-4'" :aria-label="t('rfid.title')">
+            <nav class="mb-6 grid gap-3" :class="field ? 'grid-cols-1 sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'" :aria-label="t('rfid.title')">
                 <BigActionButton v-for="c in CARDS" :key="c.key" :icon="c.icon" :tone="c.tone"
                                  :title="t(`rfid.view.${c.key}`)" :description="t(`rfid.view.${c.key}_desc`)" :selected="view === c.key" @click="go(c.key)" />
             </nav>
 
             <RegisterTagWizard v-if="view === 'register'" :key="wizardKey" :readers="readers" :can-operate="can.operate"
-                               :initial-batch-id="prefillBatch" :initial-uid="prefillUid" :field="field" />
+                               :initial-batch-id="prefillBatch" :initial-uid="prefillUid" :field="field" :uhf-baud="rfid.uhf_desktop_baud ?? 9600" />
 
             <ScanStation v-else-if="view === 'in' || view === 'out'" :key="view" :direction="view" :readers="readers" :stages="rfid.stages" :modes="modes"
                          :can-operate="can.operate" :simulation-enabled="rfid.simulation_enabled" :field="field" @register-uid="registerUid" />
 
             <ScanHistory v-else-if="view === 'history'" :readers="readers" :stages="rfid.stages" :can-operate="can.operate" />
+
+            <ReadLogList v-else-if="view === 'logs'" :readers="readers" :stages="rfid.stages" />
 
             <DevicesPanel v-else :readers="readers" :stages="rfid.stages" :modes="modes" :can-manage="can.manage" :esp32-ip="rfid.esp32_ip ?? ''"
                           @readers-changed="refresh" @modes-changed="m => modes = m" />

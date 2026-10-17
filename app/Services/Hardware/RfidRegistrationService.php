@@ -247,7 +247,7 @@ class RfidRegistrationService
                     ]),
                 ]);
 
-                Checkpoint::create([
+                $checkpoint = Checkpoint::create([
                     'batch_id'         => $batch->id,
                     'location_id'      => $batch->current_location_id,
                     'checkpoint_stage' => 'lab_kimia_create',
@@ -291,6 +291,7 @@ class RfidRegistrationService
                     'batch_id'   => $batch->id,
                     'batch_code' => $batch->batch_code,
                     '_code'      => 'tag_registered',
+                    '_checkpoint_id' => $checkpoint->id,   // internal: log pembacaan + capture CCTV
                 ];
             });
         } catch (UniqueConstraintViolationException) {

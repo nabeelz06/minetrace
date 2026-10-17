@@ -9,6 +9,7 @@ use App\Services\Hardware\DeviceContext;
 use App\Support\ProcessFlow;
 use App\Services\Hardware\RfidAuthorizationService;
 use App\Services\Hardware\RfidDeviceService;
+use App\Services\Hardware\RfidReadLogService;
 use App\Services\Hardware\RfidRegistrationService;
 use App\Services\Hardware\RfidScanService;
 use App\Services\Hardware\RfidService;
@@ -55,6 +56,7 @@ class ApiRfidController extends Controller
         private RfidRegistrationService  $registration,
         private RfidScanService          $scans,
         private RfidTagService           $tags,
+        private RfidReadLogService       $readLogs,
     ) {}
 
     // ═══════════════════════════════════════════════════════════════════
@@ -87,6 +89,11 @@ class ApiRfidController extends Controller
         }
 
         Log::info("RFID /register → uid:{$uid} status:{$result['status']} identity:{$ctx->identity} ip:{$request->ip()}");
+
+        $this->readLogs->registration($session['company_id'] ?? $ctx->companyId, $ctx->reader, $uid, $result, [
+            'origin' => $origin,
+            'meta'   => ['ip' => $request->ip(), 'identity' => $ctx->identity],
+        ]);
 
         return $this->hardwareResponse($result);
     }
@@ -520,7 +527,7 @@ class ApiRfidController extends Controller
         if ($ctx->reader) {
             return match (true) {
                 str_starts_with($ctx->reader->device_type, 'esp32') => 'real_esp32',
-                $ctx->reader->device_type === 'uhf_epc_gen2'         => 'real_uhf',
+                $ctx->reader->isUhf()                                => 'real_uhf',
                 $ctx->reader->device_type === 'keyboard_wedge'       => 'manual',
                 default                                              => 'api',
             };

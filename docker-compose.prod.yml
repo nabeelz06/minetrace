@@ -121,6 +121,30 @@ services:
     networks:
       - minetra_net
 
+  # ─── Gate RFID UHF (Chainway UR4 via TCP) ─────────────────────
+  # Membaca reader gate Wet / Wet→Dry / Gudang (jenis uhf_chainway_ur4 di menu RFID → Perangkat).
+  # Host ini HARUS dapat menjangkau IP reader (LAN pabrik / VPN) — lihat docs/INTEGRASI_PERANGKAT.md §6.
+  # Aktifkan dengan: docker compose -f docker-compose.prod.yml --profile rfid-gate up -d rfid_gate
+  rfid_gate:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: production
+    container_name: minetra_rfid_gate
+    env_file: .env.production
+    command: php artisan rfid:uhf-gate
+    profiles: ["rfid-gate"]
+    volumes:
+      - ./storage:/var/www/html/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - minetra_net
+
   # ─── Scheduler (laporan bulanan, pengecekan kapasitas) ─────────
   scheduler:
     build:
