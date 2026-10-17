@@ -55,7 +55,7 @@ const columns = computed(() => [
     { key: 'status', label: t('batchlist.col_status') },
     { key: 'current_weight', label: t('batchlist.col_weight'), align: 'right' },
     { key: 'location', label: t('batchlist.col_location'), hideOnMobile: true },
-    { key: 'created_at', label: t('batchlist.col_created'), hideOnMobile: true },
+    { key: 'created_at_iso', label: t('batchlist.col_created'), hideOnMobile: true },
 ])
 
 const rows = computed(() => props.batches?.data ?? [])
@@ -121,11 +121,11 @@ const nextUrl = computed(() => props.batches?.next_page_url)
             </template>
             <template #cell-product="{ row }">
                 <div class="flex items-center gap-2">
-                    <AppIcon v-if="row.product_code?.is_hazardous" name="radiation" :size="16" class="flex-shrink-0 text-warning" :label="t('batchlist.hazardous')" />
+                    <AppIcon v-if="row.product?.is_hazardous" name="radiation" :size="16" class="flex-shrink-0 text-warning" :label="t('batchlist.hazardous')" />
                     <div class="min-w-0">
-                        <p class="font-semibold">{{ row.product_code?.code }}</p>
-                        <p class="max-w-[160px] truncate text-xs text-muted-foreground">{{ row.product_code?.name }}</p>
-                        <span v-if="row.product_code?.is_export_blocked" class="mt-0.5 inline-flex items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-xs font-semibold text-danger"><AppIcon name="ban" :size="12" />{{ t('batchlist.export_blocked') }}</span>
+                        <p class="font-semibold">{{ row.product?.code }}</p>
+                        <p class="max-w-[160px] truncate text-xs text-muted-foreground">{{ row.product?.name }}</p>
+                        <span v-if="row.product?.is_export_blocked" class="mt-0.5 inline-flex items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-xs font-semibold text-danger"><AppIcon name="ban" :size="12" />{{ t('batchlist.export_blocked') }}</span>
                     </div>
                 </div>
             </template>
@@ -138,10 +138,10 @@ const nextUrl = computed(() => props.batches?.next_page_url)
                 <p v-if="row.mass_loss_pct !== null" class="text-xs" :class="row.has_discrepancy ? 'font-semibold text-danger' : 'text-muted-foreground'">-{{ row.mass_loss_pct }}%</p>
             </template>
             <template #cell-location="{ row }">
-                <template v-if="row.current_location"><p class="text-sm font-medium">{{ row.current_location.code }}</p><p class="text-xs text-muted-foreground">{{ row.current_location.name }}</p></template>
+                <template v-if="row.location"><p class="text-sm font-medium">{{ row.location.code }}</p><p class="text-xs text-muted-foreground">{{ row.location.name }}</p></template>
                 <span v-else class="text-muted-foreground">—</span>
             </template>
-            <template #cell-created_at="{ value }"><span class="text-sm text-muted-foreground">{{ formatDateTime(value, lang) }}</span></template>
+            <template #cell-created_at_iso="{ value }"><span class="text-sm text-muted-foreground">{{ formatDateTime(value, lang) }}</span></template>
             <template #actions="{ row }">
                 <Link :href="`/company/batches/${row.id}`" class="inline-flex min-h-[44px] items-center gap-1 rounded-lg px-3 text-sm font-semibold text-primary hover:bg-accent">
                     {{ t('batchlist.detail') }}<AppIcon name="chevron-right" :size="16" />

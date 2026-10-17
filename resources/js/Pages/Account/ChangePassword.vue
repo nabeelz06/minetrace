@@ -25,7 +25,7 @@ const logout = () => router.post('/logout')
 </script>
 
 <template>
-    <Head :title="`${t('account.title')} — MINETRACE`" />
+    <Head :title="`${t('account.title')}`" />
 
     <AuthLayout :heading="t('account.title')" :subheading="forced ? t('account.forced_desc') : t('account.desc')">
         <form class="space-y-5" novalidate @submit.prevent="submit">

@@ -269,8 +269,8 @@ const lineColors = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--inf
                             class="flex items-center gap-3 px-5 py-3.5 hover:bg-muted/20 transition-colors animate-fade-in"
                             :style="`animation-delay: ${i*40}ms`"
                         >
-                            <div class="text-lg flex-shrink-0">
-                                {{ exp.type === 'international' ? 'globe' : 'warehouse' }}
+                            <div class="flex-shrink-0 text-muted-foreground">
+                                <AppIcon :name="exp.type === 'international' ? 'globe' : 'warehouse'" :size="20" />
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p class="text-xs font-semibold text-foreground truncate">{{ exp.destination }}</p>

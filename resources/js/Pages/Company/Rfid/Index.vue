@@ -84,7 +84,7 @@ const CARDS = [
 </script>
 
 <template>
-    <Head :title="`${t('rfid.title')} — MINETRACE`" />
+    <Head :title="`${t('rfid.title')}`" />
 
     <AppLayout>
         <template #header>{{ t('rfid.title') }}</template>

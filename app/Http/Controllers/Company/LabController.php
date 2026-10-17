@@ -119,7 +119,7 @@ class LabController extends Controller
                 && $a->is_validated,
             // Timestamps detail WIB
             'analyzed_at'     => $a->analyzed_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
-            'analyzed_at_date'=> $a->analyzed_at?->timezone($tz)->format('l, d F Y'),
+            'analyzed_at_date'=> $a->analyzed_at?->timezone($tz)->translatedFormat('l, d F Y'),
             'analyzed_at_diff'=> $a->analyzed_at?->diffForHumans(),
             'validated_at'    => $a->validated_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
             'validated_at_diff'=> $a->validated_at?->diffForHumans(),

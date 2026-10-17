@@ -19,7 +19,7 @@ function submit() {
 </script>
 
 <template>
-    <Head :title="`${t('auth.login')} — MINETRACE`" />
+    <Head :title="`${t('auth.login')}`" />
 
     <AuthLayout :heading="t('auth.welcome')" :subheading="t('auth.login_subtitle')" :status="status">
         <form class="space-y-5" novalidate @submit.prevent="submit">

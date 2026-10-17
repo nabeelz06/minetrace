@@ -25,6 +25,12 @@ import { useI18n }              from '@/composables/core/useI18n.js'
 
 const { t, lang, loc, formatWeight } = useI18n()
 const page = usePage()
+
+/** Nama tahap resmi dari ProcessFlow (props Inertia `stages`), bukan teks mentah "lab_kimia". */
+function stageLabel(key) {
+    const s = (page.props.stages ?? []).find(x => x.key === key)
+    return s ? (lang.value === 'en' ? s.label_en : s.label) : String(key ?? '').replace(/_/g, ' ')
+}
 const can  = computed(() => page.props.can ?? {})
 
 const props = defineProps({
@@ -475,7 +481,8 @@ const contextBadgeStyle = computed(() => ({
                              :style="`animation: fade-in 0.28s ease-out ${i*25}ms both`">
                             <div class="w-6 h-6 rounded-lg flex items-center justify-center text-xs flex-shrink-0 mt-0.5"
                                  :class="cp.has_discrepancy ? 'bg-danger-soft ' : 'bg-success-soft '">
-                                {{ cp.has_discrepancy ? 'triangle-alert' : '' }}
+                                <AppIcon :name="cp.has_discrepancy ? 'triangle-alert' : 'check'" :size="14"
+                                         :class="cp.has_discrepancy ? 'text-danger' : 'text-success'" />
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
@@ -989,7 +996,7 @@ const contextBadgeStyle = computed(() => ({
                                     </td>
                                     <td class="px-4 py-3.5">
                                         <span class="text-xs font-medium text-muted-foreground">
-                                            {{ batch.process_stage?.replace(/_/g,' ') }}
+                                            {{ stageLabel(batch.process_stage) }}
                                         </span>
                                     </td>
                                     <td class="px-4 py-3.5 text-right">

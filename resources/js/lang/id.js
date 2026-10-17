@@ -103,6 +103,7 @@ export default {
         f_lab:              'Analisis laboratorium LTJ',
         f_warehouse:        'Manajemen gudang & ekspor',
         f_audit:            'Jejak audit yang dapat diverifikasi',
+        flow_title:         'Alur ketertelusuran',
         login:              'Masuk',
         logout:             'Keluar',
         logout_confirm:     'Apakah Anda yakin ingin keluar dari sistem?',

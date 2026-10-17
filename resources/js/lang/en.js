@@ -101,6 +101,7 @@ export default {
         f_lab:              'LTJ laboratory analysis',
         f_warehouse:        'Warehouse & export management',
         f_audit:            'Verifiable audit trail',
+        flow_title:         'Traceability flow',
         login:              'Sign In',
         logout:             'Sign Out',
         logout_confirm:     'Are you sure you want to sign out?',

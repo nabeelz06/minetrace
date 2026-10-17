@@ -181,9 +181,9 @@ function submit() {
                         <div v-if="selectedProduct"
                              class="flex items-center gap-3 p-3 rounded-xl border"
                              :class="selectedProduct.is_hazardous ? 'border-danger/30 bg-danger-soft ' : 'border-border bg-muted/40'">
-                            <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-xl"
-                                 :class="selectedProduct.is_hazardous ? 'bg-danger-soft ' : 'bg-primary/10'">
-                                {{ selectedProduct.is_hazardous ? 'radiation' : 'pickaxe' }}
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                 :class="selectedProduct.is_hazardous ? 'bg-danger-soft text-danger' : 'bg-primary/10 text-primary'">
+                                <AppIcon :name="selectedProduct.is_hazardous ? 'radiation' : 'pickaxe'" :size="22" />
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-bold text-foreground">
