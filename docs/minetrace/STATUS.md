@@ -7,3 +7,4 @@
 - Cadangan `.env`: `~/.minetra-env.backup.*` (di luar repo).
 - Temuan untuk WS3: Ziggy `@routes` membuka seluruh tabel rute ke pengunjung anonim.
 - Fase 3 (kebocoran Ziggy): SELESAI — `@routes`, `ZiggyVue` dan prop Inertia `ziggy` dihapus; tes `PublicExposureTest`. Halaman Batch Index/Create, CCTV Monitor, Laporan dimigrasi ke token + i18n; ada `rfid:benchmark` (non-produksi). Suite: 98 tes lulus; `npm run build` lulus.
+- Integrasi perangkat: `hardware:check`, firmware referensi `firmware/esp32-rfid/` (belum diuji di perangkat keras), `docs/INTEGRASI_PERANGKAT.md`, k6 `tests/load`. Remote git: github.com/nabeelz06/minetra; VPS baru 31.97.222.70 (kunci SSH belum terdaftar).
