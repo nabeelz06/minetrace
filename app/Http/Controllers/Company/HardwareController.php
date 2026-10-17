@@ -57,6 +57,7 @@ class HardwareController extends Controller
             $stages[] = ['key' => $key, 'label' => $cfg['label'], 'label_en' => $cfg['label_en'], 'icon' => ProcessFlow::get($key)['icon']];
         }
 
+<<<<<<< HEAD
         return Inertia::render('Company/Rfid/Index', [
             'field'   => $field,
             'initial' => [
@@ -78,6 +79,47 @@ class HardwareController extends Controller
                 'registration_ttl'    => (int) config('rfid.registration_ttl'),
                 'offline_after'       => (int) config('rfid.offline_after_seconds'),
                 'esp32_ip'            => $this->rfid->getEsp32Ip($companyId),
+=======
+        // ─── Load data batch ───────────────────────────────────────
+        $untaggedBatches = $this->rfid->getUntaggedBatches($companyId);
+        $taggedBatches   = $this->rfid->getTaggedBatches($companyId);
+        $pendingBatch    = $this->rfid->getPendingBatch($companyId);
+        $recentActivity  = $this->rfid->getRecentRfidActivity($companyId);
+
+        // ─── Device registry (Fase 7) ───────────────────────────────
+        // Hanya di-query & dikirim ke frontend untuk role yang memang
+        // boleh melihatnya (sama seperti can_view_full_panel di
+        // rfidFieldMode() di atas) — role lain menerima array kosong di
+        // props, BUKAN cuma disembunyikan di UI, supaya tidak ada data
+        // reader yang "ikut terkirim" ke payload Inertia role yang tidak
+        // berwenang (defense in depth; endpoint /devices sendiri juga
+        // tetap melakukan abort_unless-nya sendiri, lihat
+        // ApiRfidDeviceController).
+        $canViewDevices = in_array($userRole, self::FULL_PANEL_ROLES, true);
+        $devices        = $canViewDevices
+            ? RfidReader::where('company_id', $companyId)->orderByDesc('created_at')->get()->map->toDisplayArray()
+            : [];
+
+        // ─── Debug log — untuk verify data yang dikirim ke Vue ─────
+        Log::info('HardwareController::rfidPanel', [
+            'user_id'         => $user->id,
+            'company_id'      => $companyId,
+            'untagged_count'  => count($untaggedBatches),
+            'tagged_count'    => count($taggedBatches),
+        ]);
+
+        return Inertia::render('Company/Hardware/RfidPanel', [
+            'esp32_ip'         => $this->rfid->getEsp32Ip($companyId),
+            'untagged_batches' => $untaggedBatches,
+            'tagged_batches'   => $taggedBatches,
+            'pending_batch'    => $pendingBatch,
+            'recent_activity'  => $recentActivity,
+            'devices'          => $devices,
+            'stats' => [
+                'untagged_count' => count($untaggedBatches),
+                'tagged_count'   => count($taggedBatches),
+                'activity_count' => count($recentActivity),
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
             ],
         ]);
     }

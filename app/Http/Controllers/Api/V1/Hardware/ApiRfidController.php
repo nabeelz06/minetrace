@@ -5,8 +5,13 @@ namespace App\Http\Controllers\Api\V1\Hardware;
 use App\Exceptions\DeviceAuthException;
 use App\Http\Controllers\Controller;
 use App\Models\Batch;
+<<<<<<< HEAD
 use App\Services\Hardware\DeviceContext;
 use App\Support\ProcessFlow;
+=======
+use App\Models\Checkpoint;
+use App\Models\RfidReader;
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
 use App\Services\Hardware\RfidAuthorizationService;
 use App\Services\Hardware\RfidDeviceService;
 use App\Services\Hardware\RfidRegistrationService;
@@ -33,8 +38,26 @@ use Illuminate\Support\Facades\Log;
  *         X-Device-Key (reader terdaftar; opsional, menggantikan token), X-Event-Id (idempotensi; opsional).
  * Respons gaya LCD 16×2: name (baris 1), message (baris 2), status success|failed, detail.
  *
+<<<<<<< HEAD
  * Perilaku scan bergantung pada MODE OTORISASI per tahap (audit_only | scan_to_receive |
  * scan_to_dispatch) — lihat RfidAuthorizationService. Orkestrasi: RfidScanService.
+=======
+ * HARDWARE ENDPOINTS (POST body: { uid, stage?, api_token? }):
+ *   POST /api/rfid/register   → Link UID ke batch pending (Lab Kimia)
+ *   POST /api/rfid/login      → Catat Scan IN (audit trail, NO stage move)
+ *   POST /api/rfid/logout     → Catat Scan OUT (audit trail, NO status change)
+ *   POST /api/rfid/heartbeat  → Heartbeat ringan device terdaftar (Fase 7)
+ *
+ * AUTENTIKASI HARDWARE — DUA JALUR, ADDITIVE (Fase 7):
+ *   1. Header X-Device-Key (BARU) → device terdaftar di tabel rfid_readers
+ *      (lihat RfidReader + ApiRfidDeviceController). company_id di-resolve
+ *      LANGSUNG dari reader, tidak perlu X-Company-Code. Dicek LEBIH DULU
+ *      oleh resolveDeviceContext() di setiap method hardware di bawah.
+ *   2. Header X-Rfid-Token + X-Company-Code (LAMA, tidak diubah) → token
+ *      statis global (RfidService::validateToken()) dipakai HANYA jika
+ *      X-Device-Key tidak dikirim sama sekali. Menjamin ESP32 unit yang
+ *      sudah live dengan firmware lama tetap berfungsi tanpa update.
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
  *
  * ENDPOINT UI LAMA (sesi): /api/v1/company/rfid/* — dipertahankan untuk kompatibilitas;
  * UI baru memakai Api\V1\Rfid\* (reader, sesi registrasi, umpan scan, siklus hidup tag).
@@ -64,11 +87,23 @@ class ApiRfidController extends Controller
     /** REGISTER: tempel tag ke karung → ikat ke batch pada sesi registrasi. POST /api/rfid/register */
     public function registerCard(Request $request): JsonResponse
     {
+<<<<<<< HEAD
         if ($error = $this->guardDevice($request, $ctx)) {
             return $error;
         }
         if ($error = $this->validateUid($request, 'register')) {
             return $error;
+=======
+        $device = $this->resolveDeviceContext($request);
+        if ($device instanceof JsonResponse) {
+            return $device;
+        }
+
+        if ($device === null && !$this->rfid->validateToken(
+            $request->header('X-Rfid-Token') ?? $request->input('api_token', '')
+        )) {
+            return $this->errorResponse('Token tidak valid', 401);
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
         }
 
         $uid    = $this->rfid->sanitizeUid($request->uid);
@@ -86,7 +121,15 @@ class ApiRfidController extends Controller
             }
         }
 
+<<<<<<< HEAD
         Log::info("RFID /register → uid:{$uid} status:{$result['status']} identity:{$ctx->identity} ip:{$request->ip()}");
+=======
+        $companyId    = $device['company_id'] ?? $this->resolveCompanyId($request);
+        $readerLabel  = $device['reader']->device_code ?? 'legacy-token';
+        $result       = $this->rfid->registerBatchTag($request->uid, $companyId);
+
+        Log::info("RFID /register → uid:{$request->uid} status:{$result['status']} reader:{$readerLabel} ip:{$request->ip()}");
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
 
         return $this->hardwareResponse($result);
     }
@@ -94,12 +137,88 @@ class ApiRfidController extends Controller
     /** SCAN IN. POST /api/rfid/login  Body: { uid, stage?, event_id? } */
     public function loginCard(Request $request): JsonResponse
     {
+<<<<<<< HEAD
         return $this->handleScan($request, 'in');
+=======
+        $device = $this->resolveDeviceContext($request);
+        if ($device instanceof JsonResponse) {
+            return $device;
+        }
+
+        if ($device === null && !$this->rfid->validateToken(
+            $request->header('X-Rfid-Token') ?? $request->input('api_token', '')
+        )) {
+            return $this->errorResponse('Token tidak valid', 401);
+        }
+
+        $request->merge([
+            'uid' => strtoupper(str_replace([' ', ':', '-'], '', trim($request->input('uid', ''))))
+        ]);
+
+        try {
+            $request->validate(['uid' => 'required|string|min:4|max:50']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning("RFID /login → validasi gagal ip:{$request->ip()}", ['errors' => $e->errors()]);
+            return $this->errorResponse('UID tidak valid atau kosong', 422);
+        }
+
+        $companyId   = $device['company_id'] ?? $this->resolveCompanyId($request);
+        $rfidOrigin  = $this->resolveOrigin($request);
+        $readerLabel = $device['reader']->device_code ?? 'legacy-token';
+        $sanitizedUid = $this->rfid->sanitizeUid($request->uid);
+
+        $batch = $this->rfid->findBatchByUid($sanitizedUid, $companyId);
+
+        if (!$batch) {
+            Log::warning("RFID /login → uid:{$sanitizedUid} tidak terdaftar pada batch manapun ip:{$request->ip()}");
+            return $this->hardwareResponse([
+                'status'  => 'failed',
+                'name'    => 'Tag Asing',
+                'message' => 'Tag tidak dikenal',
+                'detail'  => "UID {$sanitizedUid} tidak terdaftar. Lakukan registrasi terlebih dahulu.",
+            ]);
+        }
+
+        $scanStage = $this->rfid->resolveScanStage($batch, $request->input('stage'));
+        $strategy  = $this->authorization->getStrategy($batch->company_id, $scanStage);
+
+        $result = $strategy->handleScanIn($batch, $scanStage, ['rfid_origin' => $rfidOrigin]);
+
+        Log::info("RFID /login (SCAN IN, mode:{$strategy->getMode()}) → uid:{$sanitizedUid} stage:{$scanStage} origin:{$rfidOrigin} reader:{$readerLabel} status:{$result['status']} transition_attempted:" . (($result['transition_attempted'] ?? false) ? '1' : '0') . " transition_success:" . (($result['transition_success'] ?? false) ? '1' : '0') . " ip:{$request->ip()}");
+
+        if ($result['status'] === 'success' && !empty($result['batch_id'])) {
+            $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
+                ->whereNotNull('rfid_scan_code')
+                ->latest('recorded_at')
+                ->first();
+
+            if ($checkpoint) {
+                // Multi-tenancy: gunakan company_id MILIK BATCH (dari hasil
+                // service), bukan $companyId hasil resolve request — batch
+                // bisa saja berbeda company dari default/header, terutama
+                // saat scan simulasi yang tidak mengirim X-Company-Code.
+                $captureCompanyId = (int) ($result['company_id'] ?? $companyId);
+
+                $checkpoint->update(['snapshot_status' => 'pending']);
+                dispatch(new CaptureCctvSnapshotJob(
+                    checkpointId: $checkpoint->id,
+                    companyId:    $captureCompanyId,
+                    stageName:    $result['scan_stage'] ?? null,
+                    scanType:     'scan_in',
+                    rfidUid:      $sanitizedUid,
+                ))->onQueue(config('cctv.queue', 'default'))
+                  ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
+            }
+        }
+
+        return $this->hardwareResponse($result);
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
     }
 
     /** SCAN OUT. POST /api/rfid/logout  Body: { uid, stage?, event_id? } */
     public function logoutCard(Request $request): JsonResponse
     {
+<<<<<<< HEAD
         return $this->handleScan($request, 'out');
     }
 
@@ -110,6 +229,17 @@ class ApiRfidController extends Controller
         }
         if ($error = $this->validateUid($request, $direction === 'in' ? 'login' : 'logout')) {
             return $error;
+=======
+        $device = $this->resolveDeviceContext($request);
+        if ($device instanceof JsonResponse) {
+            return $device;
+        }
+
+        if ($device === null && !$this->rfid->validateToken(
+            $request->header('X-Rfid-Token') ?? $request->input('api_token', '')
+        )) {
+            return $this->errorResponse('Token tidak valid', 401);
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
         }
 
         [$result, $duplicate] = $this->scans->scan(
@@ -127,7 +257,58 @@ class ApiRfidController extends Controller
             $response->headers->set('X-Rfid-Duplicate', '1');
         }
 
+<<<<<<< HEAD
         return $response;
+=======
+        $companyId   = $device['company_id'] ?? $this->resolveCompanyId($request);
+        $rfidOrigin  = $this->resolveOrigin($request);
+        $readerLabel = $device['reader']->device_code ?? 'legacy-token';
+        $sanitizedUid = $this->rfid->sanitizeUid($request->uid);
+
+        $batch = $this->rfid->findBatchByUid($sanitizedUid, $companyId);
+
+        if (!$batch) {
+            Log::warning("RFID /logout → uid:{$sanitizedUid} tidak terdaftar ip:{$request->ip()}");
+            return $this->hardwareResponse([
+                'status'  => 'failed',
+                'name'    => 'Tag Asing',
+                'message' => 'Tag tidak dikenal',
+                'detail'  => "UID {$sanitizedUid} tidak terdaftar.",
+            ]);
+        }
+
+        $scanStage = $this->rfid->resolveScanStage($batch, $request->input('stage'));
+        $strategy  = $this->authorization->getStrategy($batch->company_id, $scanStage);
+
+        $result = $strategy->handleScanOut($batch, $scanStage, ['rfid_origin' => $rfidOrigin]);
+
+        Log::info("RFID /logout (SCAN OUT, mode:{$strategy->getMode()}) → uid:{$sanitizedUid} stage:{$scanStage} origin:{$rfidOrigin} reader:{$readerLabel} status:{$result['status']} transition_attempted:" . (($result['transition_attempted'] ?? false) ? '1' : '0') . " transition_success:" . (($result['transition_success'] ?? false) ? '1' : '0') . " ip:{$request->ip()}");
+
+        if ($result['status'] === 'success' && !empty($result['batch_id'])) {
+            $checkpoint = Checkpoint::where('batch_id', $result['batch_id'])
+                ->whereNotNull('rfid_scan_code')
+                ->latest('recorded_at')
+                ->first();
+
+            if ($checkpoint) {
+                // Multi-tenancy: gunakan company_id MILIK BATCH (dari hasil
+                // service), bukan $companyId hasil resolve request.
+                $captureCompanyId = (int) ($result['company_id'] ?? $companyId);
+
+                $checkpoint->update(['snapshot_status' => 'pending']);
+                dispatch(new CaptureCctvSnapshotJob(
+                    checkpointId: $checkpoint->id,
+                    companyId:    $captureCompanyId,
+                    stageName:    $result['scan_stage'] ?? null,
+                    scanType:     'scan_out',
+                    rfidUid:      $sanitizedUid,
+                ))->onQueue(config('cctv.queue', 'default'))
+                  ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
+            }
+        }
+
+        return $this->hardwareResponse($result);
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
     }
 
     /** ESP32 Boot Config */
@@ -178,6 +359,40 @@ class ApiRfidController extends Controller
     public function handleOptions(): JsonResponse
     {
         return response()->json(['ok' => true])->withHeaders(self::CORS_HEADERS);
+    }
+
+    /**
+     * HEARTBEAT: dipanggil bridge/firmware secara periodik (disarankan
+     * tiap 30 detik) agar status online/offline di web panel akurat TANPA
+     * tergantung frekuensi scan tag. Reader yang idle karena area sedang
+     * sepi aktivitas HARUS tetap terlihat "online" di panel, bukan
+     * "offline" — itu sebabnya heartbeat terpisah dari event scan.
+     *
+     * HANYA mengenali X-Device-Key — tidak relevan untuk ESP32 legacy yang
+     * belum migrasi ke device registry (mereka tetap berfungsi penuh
+     * tanpa endpoint ini, hanya tidak akan tampil status online/offline).
+     *
+     * POST /api/rfid/heartbeat
+     */
+    public function deviceHeartbeat(Request $request): JsonResponse
+    {
+        $device = $this->resolveDeviceContext($request);
+        if ($device instanceof JsonResponse) {
+            return $device;
+        }
+
+        if ($device === null) {
+            return $this->errorResponse('Header X-Device-Key wajib untuk heartbeat.', 400);
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Heartbeat diterima.',
+            'data'    => [
+                'reader'      => $device['reader']->device_code,
+                'server_time' => now()->toIso8601String(),
+            ],
+        ])->withHeaders(self::CORS_HEADERS);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -488,6 +703,7 @@ class ApiRfidController extends Controller
         return null;
     }
 
+<<<<<<< HEAD
     /** Normalisasi + validasi UID (pesan & status 422 identik perilaku lama). */
     private function validateUid(Request $request, string $endpoint): ?JsonResponse
     {
@@ -531,3 +747,55 @@ class ApiRfidController extends Controller
             : 'real_esp32';
     }
 }
+=======
+    /**
+     * Resolve konteks device dari header X-Device-Key (Fase 7 — additive,
+     * TIDAK mengubah alur lama sama sekali).
+     *
+     * Tiga kemungkinan hasil, HARUS ditangani beda oleh caller:
+     *
+     *   1. Header TIDAK dikirim           → return null.
+     *      Device ini tidak mengklaim identitas terdaftar. Caller lanjut
+     *      ke alur lama (RfidService::validateToken() + resolveCompanyId())
+     *      TANPA PERUBAHAN APA PUN — ini jalur yang dipakai semua ESP32
+     *      unit yang sudah live dengan firmware lama.
+     *
+     *   2. Header dikirim, TIDAK valid/revoked/nonaktif → return
+     *      JsonResponse (401) LANGSUNG, caller WAJIB return ini apa adanya.
+     *      SENGAJA TIDAK fallback diam-diam ke alur token statis lama di
+     *      sini — kalau fallback diizinkan, device yang baru saja di-revoke
+     *      tetap bisa lolos selama RFID_API_TOKEN kosong di .env (yang
+     *      justru DEFAULT proyek ini — lihat RfidService::validateToken():
+     *      token kosong = validasi dilewati total). Itu akan membuat fitur
+     *      revoke() di ApiRfidDeviceController tidak berarti apa-apa.
+     *      Header HADIR = device ini mengklaim identitas terdaftar, maka
+     *      klaim itu harus valid atau ditolak — titik, tidak ada jalan
+     *      tengah yang diam-diam melemahkan keamanan.
+     *
+     *   3. Header dikirim DAN valid       → return ['company_id','reader'].
+     *      company_id di-resolve LANGSUNG dari reader (device_key SUDAH
+     *      mengikat device ke company tertentu secara kriptografis — tidak
+     *      perlu lagi percaya X-Company-Code yang dikirim client). Sebagai
+     *      efek samping, last_seen_at/last_seen_ip reader diperbarui
+     *      (heartbeat implisit di setiap scan sukses, selain endpoint
+     *      heartbeat() khusus di atas).
+     */
+    private function resolveDeviceContext(Request $request): array|JsonResponse|null
+    {
+        if (!$request->hasHeader('X-Device-Key')) {
+            return null;
+        }
+
+        $reader = RfidReader::findActiveByPlainKey((string) $request->header('X-Device-Key'));
+
+        if (!$reader) {
+            Log::warning("RFID: X-Device-Key dikirim tapi tidak valid/revoked/nonaktif. ip:{$request->ip()}");
+            return $this->errorResponse('Device key tidak valid atau sudah dicabut.', 401);
+        }
+
+        $reader->markSeen($request->ip());
+
+        return ['company_id' => $reader->company_id, 'reader' => $reader];
+    }
+}
+>>>>>>> 05edd2c472c11b0350106b8b2205027fb7046cb4
