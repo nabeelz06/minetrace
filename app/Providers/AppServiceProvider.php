@@ -2,15 +2,24 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Gate;
 use App\Models\User;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Http\Request;
+use App\Services\Analytics\BimAnalyticsService;
+use App\Services\Analytics\CompanyAnalyticsService;
+use App\Services\Batch\BatchCodeService;
+use App\Services\Batch\QrCodeService;
+use App\Services\Company\OnboardingService;
+use App\Services\Hardware\HardwareEventService;
+use App\Services\Hardware\RfidService;
 use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Support\ServiceProvider;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\ServiceProvider;
+use Laravel\Telescope\TelescopeServiceProvider;
 
 /**
  * AppServiceProvider — konfigurasi service dan performance optimizations.
@@ -24,31 +33,33 @@ class AppServiceProvider extends ServiceProvider
     {
         // ─── Bind services ke container ───────────────────────────────────
         $this->app->singleton(
-            \App\Services\Batch\BatchCodeService::class
+            BatchCodeService::class
         );
         $this->app->singleton(
-            \App\Services\Batch\QrCodeService::class
+            QrCodeService::class
         );
         $this->app->singleton(
-            \App\Services\Hardware\RfidService::class
+            RfidService::class
         );
         $this->app->singleton(
-            \App\Services\Hardware\HardwareEventService::class
+            HardwareEventService::class
         );
         $this->app->singleton(
-            \App\Services\Analytics\CompanyAnalyticsService::class
+            CompanyAnalyticsService::class
         );
         $this->app->singleton(
-            \App\Services\Analytics\BimAnalyticsService::class
+            BimAnalyticsService::class
         );
         $this->app->singleton(
-            \App\Services\Company\OnboardingService::class
+            OnboardingService::class
         );
 
         // ─── Register Telescope khusus untuk environment lokal ────────────
-        if ($this->app->environment('local')) {
+        // Telescope adalah dependensi dev: bila terpasang dengan `composer install --no-dev`
+        // kelasnya tidak ada, dan tanpa pemeriksaan ini SEMUA perintah artisan gagal.
+        if ($this->app->environment('local') && class_exists(TelescopeServiceProvider::class)) {
             $this->app->register(\App\Providers\TelescopeServiceProvider::class);
-            $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
+            $this->app->register(TelescopeServiceProvider::class);
         }
     }
 
@@ -79,14 +90,14 @@ class AppServiceProvider extends ServiceProvider
         // Perangkat legacy anonim: 120/mnt per IP (sama dengan perilaku lama).
         RateLimiter::for('rfid-device', function (Request $request) {
             if ($key = $request->header('X-Device-Key')) {
-                return Limit::perMinute(300)->by('dk:' . hash('sha256', $key));
+                return Limit::perMinute(300)->by('dk:'.hash('sha256', $key));
             }
 
-            return Limit::perMinute(120)->by('ip:' . $request->ip() . ':' . $request->header('X-Company-Code', '-'));
+            return Limit::perMinute(120)->by('ip:'.$request->ip().':'.$request->header('X-Company-Code', '-'));
         });
 
         // ─── Rate limit mutasi UI RFID: 120/mnt per pengguna ─────────────────
-        RateLimiter::for('rfid-ui', fn (Request $request) => Limit::perMinute(120)->by('u:' . ($request->user()?->id ?? $request->ip())));
+        RateLimiter::for('rfid-ui', fn (Request $request) => Limit::perMinute(120)->by('u:'.($request->user()?->id ?? $request->ip())));
 
         // ─── Rate limit verifikasi QR publik: 30 permintaan/menit per IP ───
         RateLimiter::for('verify', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
@@ -96,9 +107,9 @@ class AppServiceProvider extends ServiceProvider
             DB::listen(function ($query) {
                 if ($query->time > 1000) { // > 1 detik
                     Log::warning('Slow query detected', [
-                        'sql'      => $query->sql,
+                        'sql' => $query->sql,
                         'bindings' => $query->bindings,
-                        'time_ms'  => $query->time,
+                        'time_ms' => $query->time,
                     ]);
                 }
             });
@@ -106,7 +117,7 @@ class AppServiceProvider extends ServiceProvider
 
         // ─── Enforce HTTPS di production ──────────────────────────────────
         if (config('app.env') === 'production') {
-            \Illuminate\Support\Facades\URL::forceScheme('https');
+            URL::forceScheme('https');
         }
     }
 }

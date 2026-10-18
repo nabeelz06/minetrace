@@ -11,7 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class RfidReader extends Model
 {
-    public const DIRECTIONS   = ['in', 'out', 'any'];
+    public const DIRECTIONS = ['in', 'out', 'any'];
+
     public const DEVICE_TYPES = ['esp32_rc522', 'uhf_epc_gen2', 'uhf_desktop_r2000', 'uhf_chainway_ur4', 'keyboard_wedge', 'other'];
 
     /** Reader jaringan yang dibaca daemon `rfid:uhf-gate` (butuh connection.host). */
@@ -29,11 +30,11 @@ class RfidReader extends Model
     protected $hidden = ['key_hash'];
 
     protected $casts = [
-        'is_active'      => 'boolean',
-        'last_seen_at'   => 'datetime',
+        'is_active' => 'boolean',
+        'last_seen_at' => 'datetime',
         'key_rotated_at' => 'datetime',
-        'last_status'    => 'array',
-        'connection'     => 'array',
+        'last_status' => 'array',
+        'connection' => 'array',
     ];
 
     public function company(): BelongsTo
@@ -57,12 +58,26 @@ class RfidReader extends Model
      */
     public function directionForAntenna(?int $antenna): string
     {
-        $map = $this->connection['antennas'] ?? [];
+        $map = $this->connectionConfig()['antennas'] ?? [];
         if ($antenna !== null && in_array($map[(string) $antenna] ?? null, ['in', 'out'], true)) {
             return $map[(string) $antenna];
         }
 
         return $this->direction === 'out' ? 'out' : 'in';
+    }
+
+    /**
+     * Atribut JSON `connection` (host, port, antennas, ...).
+     *
+     * WAJIB lewat getAttribute: di dalam kelas, `$this->connection` membaca properti internal Eloquent
+     * `$connection` (NAMA KONEKSI DATABASE, bernilai null), bukan atribut ini. Itu sebabnya pemetaan
+     * antena tidak pernah berlaku sebelum perbaikan ini.
+     */
+    public function connectionConfig(): array
+    {
+        $value = $this->getAttribute('connection');
+
+        return is_array($value) ? $value : [];
     }
 
     /** online | offline | never | disabled — berdasar heartbeat/scan terakhir. */
