@@ -55,3 +55,33 @@ test('R2000: sampah di depan dan aliran per byte tetap terurai', () => {
     for (const b of hex('00 11 A0 06 00 72 02 03 01 E2')) out.push(...p.feed([b]))
     assert.equal(out.length, 1)
 })
+
+// ─── Chafon (HW-VX6336) ───────────────────────────────────────────────
+import { ChafonParser, POLL, buildFrame, crc16, decodeInventory } from '../chafon.js'
+
+test('Chafon: CRC16 perintah polling = B41B (bytes 1B B4) dan buildFrame identik dengan POLL', () => {
+    assert.equal(crc16([0x04, 0xff, 0x01]), 0xb41b)
+    assert.deepEqual(buildFrame(0xff, 0x01), POLL)
+})
+
+test('Chafon: balasan dua tag terurai (EPC panjang berbeda) dan terbelah per byte tetap utuh', () => {
+    const epc1 = 'E20000200914016323809025'
+    const data = [2, 12, ...hex(epc1), 4, 0xaa, 0xbb, 0xcc, 0xdd]
+    const frame = buildFrame(0x00, 0x01, [0x01 /* status */, ...data])
+    const p = new ChafonParser()
+    const out = []
+    for (const b of [0x00, 0x77, ...frame]) out.push(...p.feed([b]))   // sampah di depan + per byte
+    assert.equal(out.length, 1)
+    assert.deepEqual(decodeInventory(out[0]), { status: 1, epcs: [epc1, 'AABBCCDD'] })
+})
+
+test('Chafon: CRC rusak dibuang; balasan tanpa tag → daftar kosong; data cacat → null', () => {
+    const good = buildFrame(0x00, 0x01, [0xfb])
+    const bad = Uint8Array.from(good); bad[bad.length - 1] ^= 0xff
+    const p = new ChafonParser()
+    assert.deepEqual(p.feed(bad), [])
+    const [f] = p.feed(good)
+    assert.deepEqual(decodeInventory(f), { status: 0xfb, epcs: [] })
+    const [broken] = new ChafonParser().feed(buildFrame(0, 1, [1, 1, 5, 0xaa]))   // Num=1, EPClen=5 tapi hanya 1 byte
+    assert.equal(decodeInventory(broken), null)
+})

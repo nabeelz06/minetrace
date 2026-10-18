@@ -75,6 +75,14 @@ async function submit(tag) {
         <ResultBanner v-if="!uhf.supported" type="warning" :title="t('rfid.uhf.unsupported')" :description="t('rfid.uhf.unsupported_desc')" />
 
         <template v-else>
+            <!-- Alur singkat untuk operator -->
+            <ol class="space-y-1 rounded-xl border border-border bg-muted/40 p-4 text-sm">
+                <li class="font-semibold">{{ t('rfid.uhf.steps_title') }}</li>
+                <li class="flex gap-2"><span class="font-bold text-primary">1.</span>{{ t('rfid.uhf.step_connect') }}</li>
+                <li class="flex gap-2"><span class="font-bold text-primary">2.</span>{{ t('rfid.uhf.step_place') }}</li>
+                <li class="flex gap-2"><span class="font-bold text-primary">3.</span>{{ t('rfid.uhf.step_register') }}</li>
+            </ol>
+
             <!-- Status koneksi -->
             <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
                 <div class="flex min-w-0 items-center gap-3">
@@ -115,6 +123,16 @@ async function submit(tag) {
                 </select>
             </div>
 
+            <!-- Tag yang sedang terbaca (reader Chafon: diperbarui tiap 300 ms) -->
+            <div v-if="connected && uhf.protocol.value === 'chafon'" class="space-y-2 rounded-xl border border-border bg-card p-4" aria-live="polite">
+                <p class="text-sm font-semibold">{{ t('rfid.uhf.live_title') }}</p>
+                <p v-if="!uhf.live.value.length" class="text-sm text-muted-foreground">{{ t('rfid.uhf.live_empty') }}</p>
+                <ul v-else class="flex flex-wrap gap-2">
+                    <li v-for="e in uhf.live.value" :key="e" class="rounded-lg bg-success-soft px-3 py-1.5 font-mono text-sm font-semibold text-success">{{ groupUid(e) }}</li>
+                </ul>
+                <p v-if="uhf.live.value.length > 1" class="text-sm font-medium text-warning">{{ t('rfid.uhf.live_many') }}</p>
+            </div>
+
             <!-- Baca -->
             <div class="space-y-3 rounded-xl border border-primary/40 bg-card p-6 text-center" aria-live="polite">
                 <span class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-info-soft text-info" :class="uhf.state.value === 'reading' ? 'animate-pulse' : ''">
@@ -136,7 +154,7 @@ async function submit(tag) {
                     <li v-for="c in candidates" :key="c.epc" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-3">
                         <div class="min-w-0">
                             <p class="truncate font-mono text-sm font-semibold">{{ groupUid(c.epc) }}</p>
-                            <p class="text-xs text-muted-foreground">{{ t('rfid.uhf.tag_stats', { count: c.count, rssi: c.rssi ?? '-' }) }}</p>
+                            <p class="text-xs text-muted-foreground">{{ c.rssi == null ? t('rfid.uhf.tag_stats_plain', { count: c.count }) : t('rfid.uhf.tag_stats', { count: c.count, rssi: c.rssi }) }}</p>
                         </div>
                         <button type="button" :disabled="submitting" class="min-h-[44px] rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60" @click="submit(c)">
                             {{ t('rfid.uhf.use_this') }}

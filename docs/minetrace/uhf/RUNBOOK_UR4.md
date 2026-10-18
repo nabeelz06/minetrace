@@ -35,5 +35,5 @@ Skenario: `--scenario=normal|silent|doa`.
 Kode keluar `rfid:uhf-probe`: 0 OK · 2 tak terjangkau · 3 handshake/direbut/macet · 4 konfigurasi tidak aman · 5 alamat ditolak/kunci dipegang.
 
 ## Belum terbukti
-- Electron HW-VX6336 (registrasi tag via USB-serial): protokol belum diidentifikasi pada perangkat nyata. Kode R2000 hanyalah asumsi.
+- Electron HW-VX6336: protokol Chafon 57600 terbukti di perangkat nyata (pembacaan serial). Alur Web Serial di browser belum diuji di Chrome/Edge.
 - Perilaku UR4 fisik (DOA, jeda sambung ulang) baru dari satu unit sumber; ukur di unit sendiri.

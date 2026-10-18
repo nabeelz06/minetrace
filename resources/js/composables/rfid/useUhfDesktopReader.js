@@ -10,12 +10,19 @@
  * Membaca tag: inventory real-time selama jendela pendek → kumpulkan EPC unik (hitungan + RSSI terkuat)
  * → kirim Stop berulang sampai aliran berhenti (inventory UCM60x mengalir terus tanpa Stop; R2000 standar
  * berhenti tiap putaran sehingga inventory dikirim ulang selama jendela).
+ *
+ * Dua protokol, dipilih otomatis saat menyambung:
+ *   - chafon (Electron HW-VX6336, 57600): reader DIAM sampai dipoll → host mengirim POLL tiap 300 ms; balasan
+ *     berisi daftar EPC di medan antena (ref `live`, reaktif). Diprioritaskan karena paling cepat dicoba (±0,5 dtk).
+ *   - r2000 (UCM60x/R2000): alur di atas.
  */
 import { onBeforeUnmount, ref, shallowRef } from 'vue'
 import { FrameParser, decodeRealtime, decodeVersion, frames } from '@/lib/uhf/r2000.js'
+import { CHAFON_BAUD, ChafonParser, POLL, decodeInventory } from '@/lib/uhf/chafon.js'
 
 // QinHeng CH34x, Silicon Labs CP210x, FTDI, Prolific — jembatan USB-serial yang dipakai reader R2000.
 const USB_SERIAL_VENDORS = [0x1a86, 0x10c4, 0x0403, 0x067b]
+const POLL_MS = 300
 const FALLBACK_BAUDS = [9600, 115200, 57600, 38400]
 const FALLBACK_ADDRESSES = [0x00, 0xff, 0x01]
 const sleep = ms => new Promise(r => setTimeout(r, ms))
@@ -27,6 +34,8 @@ export function useUhfDesktopReader({ baud = 9600, address = 0 } = {}) {
     const error = ref('')
     const firmware = ref('')
     const link = ref(null)             // { baud, address } yang terdeteksi
+    const protocol = ref('')           // '' | 'chafon' | 'r2000'
+    const live = ref([])               // chafon: EPC yang sedang berada di depan antena (diperbarui tiap poll)
     const port = shallowRef(null)
 
     let reader = null
@@ -35,6 +44,9 @@ export function useUhfDesktopReader({ baud = 9600, address = 0 } = {}) {
     let standard = false               // R2000 standar: 0x89 satu putaran, perlu dikirim ulang
     let listeners = new Set()
     let parser = new FrameParser()
+    let pollTimer = null
+    let offLive = null
+    let polling = false
 
     function onFrame(fn) { listeners.add(fn); return () => listeners.delete(fn) }
 
@@ -65,10 +77,10 @@ export function useUhfDesktopReader({ baud = 9600, address = 0 } = {}) {
         }
     }
 
-    async function openAt(p, rate) {
+    async function openAt(p, rate, proto = 'r2000') {
         await p.open({ baudRate: rate, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none' })
         await p.setSignals({ requestToSend: true, dataTerminalReady: true })
-        parser = new FrameParser()
+        parser = proto === 'chafon' ? new ChafonParser() : new FrameParser()
         port.value = p
         loop = readLoop(p)
     }
@@ -106,11 +118,88 @@ export function useUhfDesktopReader({ baud = 9600, address = 0 } = {}) {
         await sleep(250)
     }
 
+    // ─── Chafon (HW-VX6336) ───────────────────────────────────────────────
+
+    /** Buka di 57600 dan poll sekali: balasan ber-CRC valid = protokol Chafon. */
+    async function probeChafon(p) {
+        await openAt(p, CHAFON_BAUD, 'chafon')
+        let ok = false
+        const off = onFrame(f => { if (decodeInventory(f)) ok = true })
+        try {
+            for (let i = 0; i < 3 && !ok; i++) {
+                await write(POLL)
+                for (let t = 0; t < 250 && !ok; t += 50) await sleep(50)
+            }
+        } finally {
+            off()
+        }
+        return ok
+    }
+
+    /** Balasan poll = kumpulan tag SAAT INI di medan antena; balasan "tidak ada tag" mengosongkan daftar. */
+    function trackLive(f) {
+        const r = decodeInventory(f)
+        if (!r) return
+        const next = r.epcs
+        const cur = live.value
+        if (next.length !== cur.length || next.some((e, i) => e !== cur[i])) live.value = next
+    }
+
+    function startPolling() {
+        stopPolling()
+        offLive = onFrame(trackLive)
+        pollTimer = setInterval(async () => {
+            if (polling || !port.value) return
+            polling = true
+            try { await write(POLL) } catch (e) {
+                if (port.value && ['connected', 'reading'].includes(state.value)) { error.value = e?.message || String(e); state.value = 'error' }
+            } finally { polling = false }
+        }, POLL_MS)
+    }
+
+    function stopPolling() {
+        if (pollTimer) clearInterval(pollTimer)
+        pollTimer = null
+        offLive?.()
+        offLive = null
+        live.value = []
+    }
+
+    /** Tag di depan antena selama jendela pendek → unik, urut paling sering terbaca. Reader tidak melaporkan RSSI. */
+    async function readChafon(windowMs) {
+        const counts = new Map()
+        const off = onFrame(f => {
+            const r = decodeInventory(f)
+            r?.epcs.forEach(e => counts.set(e, (counts.get(e) ?? 0) + 1))
+        })
+        try {
+            const start = Date.now()
+            while (Date.now() - start < windowMs) {
+                await sleep(100)
+                // Cukup bila satu tag sudah terbaca di ≥2 putaran poll.
+                if (counts.size === 1 && [...counts.values()][0] >= 2) break
+            }
+        } finally {
+            off()
+        }
+        return [...counts].map(([epc, count]) => ({ epc, count, rssi: null, antenna: 1 })).sort((a, b) => b.count - a.count)
+    }
+
     async function open(p) {
         state.value = 'connecting'
         error.value = ''
         const addresses = unique([address, ...FALLBACK_ADDRESSES])
         try {
+            if (await probeChafon(p)) {
+                protocol.value = 'chafon'
+                link.value = { baud: CHAFON_BAUD, address: 0xff }
+                firmware.value = `Chafon/RM09 · ${CHAFON_BAUD} bps`
+                state.value = 'connected'
+                startPolling()
+                return true
+            }
+            await closePort(p)
+            protocol.value = 'r2000'
             for (const rate of unique([baud, ...FALLBACK_BAUDS])) {
                 await openAt(p, rate)
                 await calm(addresses)
@@ -138,6 +227,8 @@ export function useUhfDesktopReader({ baud = 9600, address = 0 } = {}) {
         } catch (e) {
             error.value = e?.message || String(e)
             state.value = 'error'
+            stopPolling()
+            protocol.value = ''
             await closePort(p)
             return false
         }
@@ -172,6 +263,13 @@ export function useUhfDesktopReader({ baud = 9600, address = 0 } = {}) {
         if (!port.value || state.value === 'reading') return []
         state.value = 'reading'
         error.value = ''
+        if (protocol.value === 'chafon') {
+            try {
+                return await readChafon(Math.min(windowMs, 1200))
+            } finally {
+                state.value = port.value ? 'connected' : 'idle'
+            }
+        }
         const seen = new Map()
         let again = false
         const off = onFrame(f => {
@@ -208,6 +306,8 @@ export function useUhfDesktopReader({ baud = 9600, address = 0 } = {}) {
 
     async function disconnect() {
         const p = port.value
+        stopPolling()
+        protocol.value = ''
         state.value = 'idle'
         firmware.value = ''
         link.value = null
@@ -225,5 +325,5 @@ export function useUhfDesktopReader({ baud = 9600, address = 0 } = {}) {
         disconnect()
     })
 
-    return { supported, state, error, firmware, link, connect, autoConnect, readTags, disconnect }
+    return { supported, state, error, firmware, link, protocol, live, connect, autoConnect, readTags, disconnect }
 }

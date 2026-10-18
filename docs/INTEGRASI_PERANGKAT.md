@@ -89,9 +89,10 @@ Tapo milik tahap reader (job `CaptureCctvSnapshotJob`, butuh `worker`); foto dit
 
 ### 6a. Reader desktop USB (Receiving Area)
 
-> **Status protokol: belum terbukti.** Model Electron HW-VX6336 belum diverifikasi memakai protokol R2000 (`0xA0`);
-> kode saat ini mengasumsikannya. Sebelum dipakai di lapangan, jalankan uji identifikasi protokol dengan perangkat nyata
-> (lihat `docs/minetrace/uhf/`). Jangan menganggap integrasi ini selesai sampai ada bukti baca-tag nyata.
+> **HW-VX6336 = protokol Chafon/RM09, 57600 8N1** (terverifikasi pada perangkat nyata; parser `resources/js/lib/uhf/chafon.js`,
+> alat bantu `tools/uhf/chafon-poll.py`). Reader ini **diam sampai dipoll**: browser mengirim perintah inventory tiap 300 ms.
+> Protokol dipilih otomatis saat "Hubungkan reader" (Chafon dicoba lebih dulu, lalu R2000/UCM60x). Chafon tidak melaporkan RSSI.
+> Catatan: antarmuka Web Serial belum diuji otomatis di browser (hanya parser); uji manual di Chrome/Edge Windows.
 
 Reader USB "UHF reader/writer" modul UCM60x (jembatan QinHeng `1a86:fe0c`, protokol R2000 `0xA0`, 9600 8N1, RTS wajib —
 referensi: github.com/frebergguru/uhf_reader). Dibaca **langsung oleh browser** lewat Web Serial — tanpa aplikasi tambahan.
