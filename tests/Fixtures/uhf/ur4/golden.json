@@ -1,0 +1,307 @@
+{
+  "requests": [
+    {
+      "name": "versi_0x02",
+      "label": "DOK",
+      "hex": "A55A0008020A0D0A"
+    },
+    {
+      "name": "daya_0x12",
+      "label": "HITUNG",
+      "hex": "A55A0008121A0D0A"
+    },
+    {
+      "name": "region_0x2E",
+      "label": "DOK",
+      "hex": "A55A00082E260D0A"
+    },
+    {
+      "name": "mask_antena_0x2A",
+      "label": "HITUNG",
+      "hex": "A55A00082A220D0A"
+    },
+    {
+      "name": "sambungan_antena_0x4E",
+      "label": "HITUNG",
+      "hex": "A55A00084E460D0A"
+    },
+    {
+      "name": "mode_inventory_0x72",
+      "label": "HITUNG",
+      "hex": "A55A000A720000780D0A"
+    },
+    {
+      "name": "return_loss_0x26",
+      "label": "DOK",
+      "hex": "A55A0008262E0D0A"
+    },
+    {
+      "name": "start_0x82_0000",
+      "label": "DOK",
+      "hex": "A55A000A820000880D0A"
+    },
+    {
+      "name": "stop_0x8C",
+      "label": "DOK",
+      "hex": "A55A00088C840D0A"
+    },
+    {
+      "name": "stop_header_C88C",
+      "label": "HITUNG",
+      "hex": "C88C00088C840D0A"
+    },
+    {
+      "name": "start_2710_klien_npm",
+      "label": "DOK",
+      "hex": "A55A000A822710BF0D0A"
+    },
+    {
+      "name": "tulis_daya_ant1_15dbm_save0",
+      "label": "HITUNG",
+      "hex": "A55A000E10000105DC05DC1F0D0A"
+    },
+    {
+      "name": "tulis_daya_save2_DILARANG",
+      "label": "HITUNG",
+      "hex": "A55A000E10020105DC05DC1D0D0A"
+    },
+    {
+      "name": "tulis_region_0x3F_save0",
+      "label": "HITUNG",
+      "hex": "A55A000A2C003F190D0A"
+    },
+    {
+      "name": "tulis_mode_inventory_0_save0",
+      "label": "HITUNG",
+      "hex": "A55A000C70000000007C0D0A"
+    },
+    {
+      "name": "tulis_mode_inventory_1_save0",
+      "label": "HITUNG",
+      "hex": "A55A000C70000100007D0D0A"
+    },
+    {
+      "name": "tulis_mask_ant1_save0",
+      "label": "HITUNG",
+      "hex": "A55A000B28000001220D0A"
+    }
+  ],
+  "replies": [
+    {
+      "name": "versi_7_40_1",
+      "label": "LIVE",
+      "hex": "A55A000B03072801260D0A",
+      "expect": {
+        "cmd": 3,
+        "payload": "072801"
+      }
+    },
+    {
+      "name": "ack_stop",
+      "label": "LIVE",
+      "hex": "A55A00098D01850D0A",
+      "expect": {
+        "cmd": 141,
+        "payload": "01"
+      }
+    },
+    {
+      "name": "return_loss_ant1_16db",
+      "label": "DOK",
+      "hex": "A55A0010270110020003000400230D0A",
+      "expect": {
+        "cmd": 39
+      }
+    },
+    {
+      "name": "daya_4_antena_30dbm",
+      "label": "HITUNG",
+      "hex": "A55A001D1300010BB80BB8020BB80BB8030BB80BB8040BB80BB80A0D0A",
+      "expect": {
+        "cmd": 19
+      }
+    },
+    {
+      "name": "region_indonesia_0x3F",
+      "label": "HITUNG",
+      "hex": "A55A000A2F013F1B0D0A",
+      "expect": {
+        "cmd": 47
+      }
+    },
+    {
+      "name": "mask_ant1",
+      "label": "HITUNG",
+      "hex": "A55A000A2B0001200D0A",
+      "expect": {
+        "cmd": 43
+      }
+    },
+    {
+      "name": "sambungan_ant1",
+      "label": "HITUNG",
+      "hex": "A55A000A4F0001440D0A",
+      "expect": {
+        "cmd": 79
+      }
+    },
+    {
+      "name": "mode_inventory_0_fw7401",
+      "label": "HITUNG",
+      "hex": "A55A0010730100000000000000620D0A",
+      "expect": {
+        "cmd": 115
+      }
+    },
+    {
+      "name": "mode_inventory_1",
+      "label": "HITUNG",
+      "hex": "A55A0010730101000000000000630D0A",
+      "expect": {
+        "cmd": 115
+      }
+    },
+    {
+      "name": "ack_set_0x11",
+      "label": "HITUNG",
+      "hex": "A55A00091101190D0A",
+      "expect": {
+        "cmd": 17
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "V1",
+      "label": "SINTETIS",
+      "hex": "A55A0019833000E20000200914016323809025FDD702290D0A",
+      "expect": {
+        "result": "tag",
+        "epc": "E20000200914016323809025",
+        "tid": null,
+        "rssi": -55,
+        "antenna": 2
+      }
+    },
+    {
+      "name": "V2",
+      "label": "HITUNG",
+      "hex": "A55A0019833400523742303030303539353537FDB101FF0D0A",
+      "expect": {
+        "result": "tag",
+        "epc": "523742303030303539353537",
+        "tid": null,
+        "rssi": -59,
+        "antenna": 1
+      }
+    },
+    {
+      "name": "V3",
+      "label": "HITUNG",
+      "hex": "A55A0025833400523742303030303539353537E2801170200041FF40AC0B9FFDB101260D0A",
+      "expect": {
+        "result": "tag",
+        "epc": "523742303030303539353537",
+        "tid": "E2801170200041FF40AC0B9F",
+        "rssi": -59,
+        "antenna": 1
+      }
+    },
+    {
+      "name": "V4_fase_frekuensi",
+      "label": "LIVE",
+      "hex": "A55A002A833400523742303030303539353537E2801170200041FF40AC0B9F00510D3A54FDB1011B0D0A",
+      "expect": {
+        "result": "unparseable"
+      }
+    },
+    {
+      "name": "V5_epc_16_byte",
+      "label": "SINTETIS",
+      "hex": "A55A001D834000E20000200914016323809025AABBCCDDFD4401CD0D0A",
+      "expect": {
+        "result": "tag",
+        "epc": "E20000200914016323809025AABBCCDD",
+        "tid": null,
+        "rssi": -70,
+        "antenna": 1
+      }
+    },
+    {
+      "name": "epc_nol_byte",
+      "label": "SINTETIS",
+      "hex": "A55A000D830000FE0C017D0D0A",
+      "expect": {
+        "result": "unparseable"
+      }
+    },
+    {
+      "name": "rssi_nol_tidak_sah",
+      "label": "SINTETIS",
+      "hex": "A55A0019833000E20000200914016323809025000001000D0A",
+      "expect": {
+        "result": "tag",
+        "epc": "E20000200914016323809025",
+        "tid": null,
+        "rssi": null,
+        "antenna": 1
+      }
+    },
+    {
+      "name": "xpc_tidak_didukung",
+      "label": "SINTETIS",
+      "hex": "A55A0019833200E20000200914016323809025FE0C01F00D0A",
+      "expect": {
+        "result": "unparseable"
+      }
+    },
+    {
+      "name": "epc_terlalu_panjang_26_byte",
+      "label": "SINTETIS",
+      "hex": "A55A00278368000102030405060708090A0B0C0D0E0F101112131415161718191AFE0C01240D0A",
+      "expect": {
+        "result": "epc_too_long"
+      }
+    }
+  ],
+  "streams": [
+    {
+      "name": "X1_xor_rusak",
+      "hex": "A55A0019833000E20000200914016323809025FDD702D60D0A",
+      "expect": {
+        "tags": 0,
+        "frames_bad": 1
+      }
+    },
+    {
+      "name": "X2_heartbeat_00_di_antara",
+      "hex": "A55A0019833000E20000200914016323809025FDD702290D0A00A55A0019833400523742303030303539353537FDB101FF0D0A",
+      "expect": {
+        "tags": 2,
+        "frames_bad": 0
+      }
+    },
+    {
+      "name": "F1_satu_byte_per_satu",
+      "hex": "A55A0019833000E20000200914016323809025FDD702290D0A",
+      "expect": {
+        "tags": 1,
+        "chunk": 1
+      }
+    },
+    {
+      "name": "sampah_di_depan",
+      "hex": "01A55A0004FFA55A0019833000E20000200914016323809025FDD702290D0A",
+      "expect": {
+        "tags": 1
+      }
+    },
+    {
+      "name": "payload_memuat_0D0A",
+      "hex": "A55A001983340052374230303030350D0A3537FDB101F40D0A",
+      "expect": {
+        "frames": 1
+      }
+    }
+  ]
+}

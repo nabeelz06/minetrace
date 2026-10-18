@@ -3,7 +3,9 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:uhf": "node --test resources/js/lib/uhf/__tests__/",
+        "i18n:check": "node scripts/check-i18n.mjs"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.11",
