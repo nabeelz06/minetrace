@@ -13,7 +13,7 @@ import { rfidApi, useApiText } from '@/composables/rfid/useRfidApi.js'
 import { http } from '@/lib/http'
 import { pushToast } from '@/composables/core/useToast.js'
 import { useI18n } from '@/composables/core/useI18n.js'
-import { formatDateTime, groupUid } from '@/lib/format'
+import { formatDateTime, formatUidGrouped, formatUidShort, groupUid } from '@/lib/format'
 
 const props = defineProps({
     batch:      { type: Object, required: true },     // { id, batch_code, rfid_tag }
@@ -57,7 +57,11 @@ async function loadHistory(e) {
                 </span>
                 <div>
                     <h2 class="text-base font-semibold">{{ t('rfid.tag.title') }}</h2>
-                    <p v-if="batch.rfid_tag" class="text-sm"><span class="text-muted-foreground">{{ t('rfid.tag.attached') }}:</span> <span class="font-mono font-semibold">{{ groupUid(batch.rfid_tag) }}</span></p>
+                    <p v-if="batch.rfid_tag" class="text-sm">
+                        <span class="text-muted-foreground">{{ t('rfid.tag.attached') }}:</span>
+                        <span class="hidden font-mono font-semibold sm:inline" :title="batch.rfid_tag">{{ formatUidGrouped(batch.rfid_tag) }}</span>
+                        <span class="font-mono font-semibold sm:hidden" :title="batch.rfid_tag">{{ formatUidShort(batch.rfid_tag) }}</span>
+                    </p>
                     <p v-else class="text-sm text-muted-foreground">{{ t('rfid.tag.none') }}</p>
                 </div>
             </div>

@@ -34,9 +34,10 @@ const apiText = useApiText()
 
 const step = ref(1)
 const batch = ref(null)
-// Sesi menunggu hanya untuk reader yang memanggil /api/rfid/register sendiri (ESP32 dll.) — reader desktop
-// (dibaca browser) dan gate UR4 (dibaca daemon, hanya scan) tidak ikut.
-const NON_SESSION_TYPES = ['uhf_desktop_r2000', 'uhf_chainway_ur4']
+// Sesi menunggu: reader yang memanggil /api/rfid/register sendiri (ESP32 dll.) ATAU gate UR4 (daemon
+// rfid:uhf-gate mengikat tap pertama ke sesi aktif — lihat UhfGate::tryRegister). Reader desktop (dibaca
+// langsung oleh browser lewat Web Serial, tanpa sesi) tidak ikut.
+const NON_SESSION_TYPES = ['uhf_desktop_r2000']
 const activeReaders = computed(() => props.readers.filter(r => r.is_active && !NON_SESSION_TYPES.includes(r.device_type)))
 const serialSupported = typeof navigator !== 'undefined' && 'serial' in navigator
 const hasDesktopReader = computed(() => props.readers.some(r => r.is_active && r.device_type === 'uhf_desktop_r2000'))

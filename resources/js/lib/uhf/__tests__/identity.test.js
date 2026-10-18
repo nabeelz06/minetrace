@@ -85,3 +85,18 @@ test('Chafon: CRC rusak dibuang; balasan tanpa tag → daftar kosong; data cacat
     const [broken] = new ChafonParser().feed(buildFrame(0, 1, [1, 1, 5, 0xaa]))   // Num=1, EPClen=5 tapi hanya 1 byte
     assert.equal(decodeInventory(broken), null)
 })
+
+// ─── Format UID (standar industri: kelompok 4 karakter, dash) ─────────
+import { formatUidGrouped, formatUidShort } from '../../format.js'
+
+test('formatUidGrouped: kelompok 4 karakter dengan dash, tanpa dash di akhir', () => {
+    assert.equal(formatUidGrouped('E280689400004022DEE59CCC'), 'E280-6894-0000-4022-DEE5-9CCC')
+    assert.equal(formatUidGrouped('ABCD'), 'ABCD')
+    assert.equal(formatUidGrouped(''), '')
+})
+
+test('formatUidShort: 8 karakter terakhir, prefiks …; UID pendek tidak dipotong', () => {
+    assert.equal(formatUidShort('E280689400004022DEE59CCC'), '…DEE5-9CCC')
+    assert.equal(formatUidShort('ABCD1234'), 'ABCD-1234')
+    assert.equal(formatUidShort('ABCD'), 'ABCD')
+})

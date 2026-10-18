@@ -5,6 +5,8 @@ namespace App\Services\Hardware\Uhf;
 use App\Models\RfidReader;
 use App\Services\Hardware\DeviceContext;
 use App\Services\Hardware\HardwareEventService;
+use App\Services\Hardware\RfidReadLogService;
+use App\Services\Hardware\RfidRegistrationService;
 use App\Services\Hardware\RfidScanService;
 use Carbon\Carbon;
 use Closure;
@@ -19,9 +21,12 @@ use Illuminate\Support\Str;
  *   - memuat reader aktif bertipe jaringan; memuat ulang saat revisi cache berubah (≤ 2 dtk) atau tiap 60 dtk;
  *   - EndpointGuard (cegah SSRF) dan satu klien per endpoint: reader ganda ke host:port yang sama dilewati,
  *     kunci eksklusif Ur4ExclusiveLock dipegang selama tautan hidup (alat kooperatif menghormatinya);
- *   - tag → UID kanonik → filter RSSI → (arbitrasi antena IN/OUT) → filter kehadiran (Redis) → RfidScanService,
+ *   - tag → UID kanonik → filter RSSI → sesi registrasi aktif? → commit registrasi (lewati presence/arbiter;
+ *     satu tap = satu niat) : (arbitrasi antena IN/OUT) → filter kehadiran (Redis) → RfidScanService,
  *     jalur yang SAMA dengan ESP32/UI, sehingga checkpoint, mode otorisasi, dedupe, isolasi tenant, rfid_read_logs
  *     dan capture CCTV tetap berlaku;
+ *   - "Pakai reader" di UI Daftarkan Tag: operator start sesi menunggu untuk reader UR4 tertentu →
+ *     tap pertama di reader itu mengikat tag ke batch (findForDevice + commit), BUKAN scan in/out;
  *   - status jujur di rfid_readers.last_status: "online" (last_seen_at) hanya diperbarui saat tautan SEHAT.
  *
  * Tidak memiliki loop: command memanggil reloadIfNeeded(), tick(), poll(), heartbeat(), refreshLocks().
@@ -69,6 +74,8 @@ final class UhfGate
         private readonly array $codes = [],
         ?string $owner = null,
         private readonly ?Closure $connectCheck = null,
+        private readonly ?RfidRegistrationService $registrations = null,
+        private readonly ?RfidReadLogService $readLogs = null,
     ) {
         $this->owner = $owner ?? ('gate:'.(gethostname() ?: 'host').':'.getmypid());
     }
@@ -378,6 +385,10 @@ final class UhfGate
         }
         $reader = $gate['reader'];
 
+        if ($this->registrations && $this->tryRegister($id, $reader, $gate, $epc, $antenna, $rssi, $tid)) {
+            return;
+        }
+
         // Kunci per reader+EPC (bukan per arah): satu tag di zona tumpang tindih tidak menghasilkan dua peristiwa.
         if (! $gate['presence']->shouldProcess("{$reader->id}:{$epc}")) {
             return;
@@ -418,6 +429,42 @@ final class UhfGate
             $data = array_filter($result, fn ($k) => ! str_starts_with((string) $k, '_'), ARRAY_FILTER_USE_KEY);
             $this->events->dispatchRfidScan($data, (int) ($result['_company_id'] ?? $reader->company_id));
         }
+    }
+
+    /**
+     * "Pakai reader" (Daftarkan Tag di UI): bila ADA sesi registrasi menunggu reader ini (atau sesi
+     * "any" perusahaan), tap ini mengikat tag ke batch — bukan scan in/out. Sesi dikonsumsi sekali oleh
+     * commit() sendiri (DB lockForUpdate), jadi tap berulang dari tag yang sama hanya sukses sekali;
+     * tap berikutnya (sesi sudah tak ada) jatuh ke jalur scan normal seperti biasa.
+     *
+     * @return bool true bila tap ini DITANGANI sebagai registrasi (proses scan normal dilewati)
+     */
+    private function tryRegister(int $id, RfidReader $reader, array $gate, string $epc, int $antenna, ?int $rssi, ?string $tid): bool
+    {
+        $ctx = new DeviceContext($reader->company_id, $reader, 'device_key');
+        $session = $this->registrations->findForDevice($ctx);
+        if (! $session) {
+            return false;
+        }
+
+        $result = $this->registrations->commit($session, $epc, 'real_uhf', $reader);
+        $this->gates[$id]['events']++;
+
+        $this->readLogs?->registration($session['company_id'] ?? $reader->company_id, $reader, $epc, $result + ['batch_id' => $session['batch_id'] ?? null], [
+            'origin' => 'real_uhf',
+            'antenna' => $antenna,
+            'rssi' => $rssi,
+            'tid' => $tid,
+            'meta' => ['ip' => $gate['host']],
+        ]);
+
+        ($this->out)('line', sprintf(
+            '[%s] %s REGISTER %s ant:%s rssi:%s → %s %s',
+            now('Asia/Jakarta')->format('H:i:s'), $reader->code, $epc,
+            $antenna, $rssi ?? '-', strtoupper($result['status']), $result['detail'] ?? $result['message'] ?? '',
+        ));
+
+        return true;
     }
 
     private function reject(int $id, string $reason): void

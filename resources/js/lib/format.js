@@ -39,6 +39,18 @@ export function groupUid(uid) {
     return String(uid ?? '').replace(/(.{2})/g, '$1 ').trim()
 }
 
+/** UID dikelompokkan per 4 karakter dengan tanda hubung: E2800000... → E280-0000-... (format "Tag terpasang"). */
+export function formatUidGrouped(uid) {
+    return String(uid ?? '').replace(/(.{4})/g, '$1-').replace(/-$/, '')
+}
+
+/** 8 karakter terakhir (paling unik) dengan prefiks "…": …DEE5-9CCC. Sisanya dibuang, bukan disamarkan. */
+export function formatUidShort(uid) {
+    const u = String(uid ?? '')
+
+    return u.length <= 8 ? formatUidGrouped(u) : `…${formatUidGrouped(u.slice(-8))}`
+}
+
 export function newEventId() {
     return globalThis.crypto?.randomUUID?.() ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }

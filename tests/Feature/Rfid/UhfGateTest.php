@@ -2,12 +2,16 @@
 
 namespace Tests\Feature\Rfid;
 
+use App\Models\Batch;
 use App\Models\Company;
+use App\Models\ProductCode;
 use App\Models\RfidReader;
 use App\Models\RfidReadLog;
 use App\Models\User;
 use App\Services\Hardware\HardwareEventService;
 use App\Services\Hardware\RfidDeviceService;
+use App\Services\Hardware\RfidReadLogService;
+use App\Services\Hardware\RfidRegistrationService;
 use App\Services\Hardware\RfidScanService;
 use App\Services\Hardware\Uhf\UhfGate;
 use App\Services\Hardware\Uhf\Ur4ExclusiveLock;
@@ -90,6 +94,8 @@ class UhfGateTest extends TestCase
             },
             owner: 'gate:test',
             connectCheck: fn () => true,
+            registrations: app(RfidRegistrationService::class),
+            readLogs: app(RfidReadLogService::class),
         );
     }
 
@@ -144,6 +150,36 @@ class UhfGateTest extends TestCase
         $this->assertSame('real_uhf', $logs[0]->origin);
         $this->assertSame(1, $logs[0]->antenna);
         $this->assertSame(-50, $logs[0]->rssi);
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function pakai_reader_tap_pertama_di_gate_ur4_mengikat_tag_ke_sesi_registrasi_aktif(): void
+    {
+        $reader = $this->reader('WET-GATE-REG', extra: ['direction' => 'in', 'connection' => [
+            'host' => '192.168.99.202', 'port' => 8888, 'antennas' => ['1' => 'in'],
+        ]]);
+        $product = ProductCode::where('company_id', $this->company->id)->firstOrFail();
+        $batch = Batch::factory()->create([
+            'company_id' => $this->company->id, 'product_code_id' => $product->id,
+            'process_stage' => 'wet_process', 'status' => 'in_process', 'rfid_tag' => null,
+        ]);
+        app(RfidRegistrationService::class)->start($this->admin, $batch, $reader);
+
+        $gate = $this->gate();
+        $this->step($gate);
+        $this->streaming($gate, $reader->id);
+
+        $peer = $this->peers['192.168.99.202:8888'];
+        for ($i = 0; $i < 3; $i++) {
+            $peer->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+            $this->step($gate, 0.1);
+        }
+
+        $this->assertSame(self::EPC, $batch->fresh()->rfid_tag, 'tap pertama di reader sesi mengikat tag, bukan scan in/out');
+        $log = RfidReadLog::where('epc', self::EPC)->firstOrFail();
+        $this->assertSame(['register', 'accepted', 'real_uhf'], [$log->action, $log->result, $log->origin]);
+        $this->assertSame($batch->id, $log->batch_id);
         $gate->shutdown();
     }
 

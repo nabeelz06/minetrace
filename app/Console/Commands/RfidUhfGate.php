@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Services\Hardware\HardwareEventService;
+use App\Services\Hardware\RfidReadLogService;
+use App\Services\Hardware\RfidRegistrationService;
 use App\Services\Hardware\RfidScanService;
 use App\Services\Hardware\Uhf\UhfGate;
 use App\Services\Hardware\Uhf\Ur4Link;
@@ -36,7 +38,7 @@ class RfidUhfGate extends Command
 
     private bool $running = true;
 
-    public function handle(RfidScanService $scans, HardwareEventService $events): int
+    public function handle(RfidScanService $scans, HardwareEventService $events, RfidRegistrationService $registrations, RfidReadLogService $readLogs): int
     {
         $this->trapSignals();
 
@@ -54,6 +56,8 @@ class RfidUhfGate extends Command
             fn () => microtime(true),
             Ur4Link::tcpConnector(),
             (array) $this->option('reader'),
+            registrations: $registrations,
+            readLogs: $readLogs,
         );
 
         $maxRuntime = (int) $this->option('max-runtime');
