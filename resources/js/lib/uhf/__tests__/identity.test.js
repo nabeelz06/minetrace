@@ -42,10 +42,11 @@ test('R2000: balasan versi contoh README terurai sebagai UCM601 v2.3', () => {
     assert.equal(decodeVersion(f), 'UCM601 v2.3')
 })
 
-test('R2000: checksum rusak ditandai sumOk=false dan parser sinkron kembali', () => {
-    const bad = hex('A0 06 00 72 02 03 01 E3')
-    const [f] = new FrameParser().feed(bad)
-    assert.equal(f.sumOk, false)
+test('R2000: checksum rusak dibuang (tidak pernah diteruskan) dan parser sinkron kembali', () => {
+    const p = new FrameParser()
+    assert.deepEqual(p.feed(hex('A0 06 00 72 02 03 01 E3')), [])
+    const [f] = p.feed(hex('A0 06 00 72 02 03 01 E2'))
+    assert.equal(f.sumOk, true)
 })
 
 test('R2000: sampah di depan dan aliran per byte tetap terurai', () => {

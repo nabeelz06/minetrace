@@ -104,11 +104,16 @@ async function rotate() {
                         <template v-if="r.last_status?.reads_total != null">
                             <dt class="text-muted-foreground">{{ t('rfid.dev.reads') }}</dt><dd class="text-right tabular-nums">{{ r.last_status.events_total }} / {{ r.last_status.reads_total }}</dd>
                         </template>
+                        <template v-if="r.last_status?.link_state">
+                            <dt class="text-muted-foreground">{{ t('rfid.dev.link_label') }}</dt>
+                            <dd class="text-right" :class="r.last_status.link_state === 'streaming' ? 'text-success' : 'text-warning'">{{ t(`rfid.dev.link_${r.last_status.link_state}`) }}</dd>
+                        </template>
                         <dt class="text-muted-foreground">{{ t('rfid.dev.key', { prefix: r.key_prefix }) }}</dt>
                         <dd class="text-right text-muted-foreground">{{ r.firmware_version ? t('rfid.dev.firmware', { v: r.firmware_version }) : '' }}</dd>
                     </dl>
 
                     <p v-if="r.last_seen_at" class="text-sm text-muted-foreground">{{ t('rfid.dev.last_seen', { time: formatRelative(r.last_seen_at, lang) }) }}</p>
+                    <p v-for="w in (r.last_status?.warnings ?? [])" :key="w" class="text-sm text-warning">{{ w }}</p>
                     <p v-if="r.state !== 'online'" class="text-sm font-medium" :class="r.state === 'offline' ? 'text-danger' : 'text-warning'">{{ t(`rfid.dev.hint_${r.state}`) }}</p>
 
                     <div v-if="canManage" class="flex flex-wrap gap-2 border-t border-border pt-3">
