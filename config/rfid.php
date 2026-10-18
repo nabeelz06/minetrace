@@ -63,5 +63,32 @@ return [
         'min_rssi'         => is_numeric(env('RFID_UHF_MIN_RSSI')) ? (int) env('RFID_UHF_MIN_RSSI') : null,
         'reconnect_max'    => (int) env('RFID_UHF_RECONNECT_MAX', 30),
         'desktop_baud'     => (int) env('RFID_UHF_DESKTOP_BAUD', 9600),
+
+        // ─── Keamanan alamat reader (EndpointGuard) ───────────────────────────
+        // Hanya IPv4 literal. Loopback hanya di local/testing atau bila allow_loopback=true (server UR4 tiruan).
+        'allow_loopback'   => (bool) env('RFID_UHF_ALLOW_LOOPBACK', false),
+        'allowed_cidrs'    => array_values(array_filter(array_map('trim', explode(',', (string) env('RFID_UHF_ALLOWED_CIDRS', '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'))))),
+        'allowed_ports'    => array_values(array_filter(array_map('intval', explode(',', (string) env('RFID_UHF_ALLOWED_PORTS', '8888'))))),
+
+        // ─── Protokol & tautan UR4 ────────────────────────────────────────────
+        'verify_xor'           => (bool) env('RFID_UHF_VERIFY_XOR', true),
+        'handshake_timeout'    => (float) env('RFID_UHF_HANDSHAKE_TIMEOUT', 2.0),
+        // Jeda sebelum sambung ulang. Sumber protokol mencatat koneksi mati-sejak-lahir 1/20 tanpa jeda,
+        // 3/20 setelah 1 dtk, 0/20 setelah 2 dtk (sampel kecil, satu unit): ukur di unit sendiri (rfid:uhf-probe --cycles).
+        'reconnect_pause'      => (float) env('RFID_UHF_RECONNECT_PAUSE', 2.0),
+        'idle_heartbeat_after' => (float) env('RFID_UHF_IDLE_HEARTBEAT_AFTER', 5.0),
+        'heartbeat_interval'   => (float) env('RFID_UHF_HEARTBEAT_INTERVAL', 3.0),
+        'rearm_per_minute'     => (int) env('RFID_UHF_REARM_PER_MINUTE', 3),
+        'contested_resets'     => (int) env('RFID_UHF_CONTESTED_RESETS', 2),
+        'contested_window'     => (int) env('RFID_UHF_CONTESTED_WINDOW', 120),
+        'contested_backoff'    => (int) env('RFID_UHF_CONTESTED_BACKOFF', 60),
+        'lock_ttl'             => (int) env('RFID_UHF_LOCK_TTL', 30),
+        'arbitration_ms'       => (int) env('RFID_UHF_ARBITRATION_MS', 1200),
+
+        // ─── Keselamatan RF ──────────────────────────────────────────────────
+        // max_power_dbm terisi: bila daya yang TERBACA dari reader (terbesar antara baca dan tulis, pada antena
+        // aktif) melebihi batas, tautan masuk config_mismatch dan inventory TIDAK dimulai. Meja uji: 15.
+        'max_power_dbm'    => is_numeric(env('RFID_UHF_MAX_POWER_DBM')) ? (float) env('RFID_UHF_MAX_POWER_DBM') : null,
+        'warn_power_dbm'   => (float) env('RFID_UHF_WARN_POWER_DBM', 26),
     ],
 ];

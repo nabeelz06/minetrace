@@ -28,9 +28,9 @@ class UpdateReaderRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $v) {
-            $direction = $this->input('direction')
-                ?? RfidReader::where('company_id', $this->user()->company_id)->find($this->route('id'))?->direction;
-            StoreReaderRequest::validateConnection($v, $direction);
+            $existing  = RfidReader::where('company_id', $this->user()->company_id)->find($this->route('id'));
+            $direction = $this->input('direction') ?? $existing?->direction;
+            StoreReaderRequest::validateConnection($v, $direction, $existing);
         });
     }
 }
