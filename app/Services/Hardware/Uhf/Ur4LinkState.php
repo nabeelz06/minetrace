@@ -9,6 +9,7 @@ namespace App\Services\Hardware\Uhf;
  *   Connecting     soket dibuka (async), menunggu siap tulis
  *   Handshake      kirim STOP berulang sampai ack 0x8D, lalu hening singkat
  *   Configuring    membaca konfigurasi reader (versi, daya, region, mask, mode) satu per satu
+ *   Ready          terkonfigurasi, inventory BELUM dimulai (dipakai alat diagnostik rfid:uhf-probe)
  *   Streaming      inventory berjalan; tag diteruskan
  *   Contested      klien lain merebut satu-satunya slot reader; jeda panjang agar tidak saling rebut
  *   Stalled        reader berhenti sendiri berulang kali
@@ -20,6 +21,7 @@ enum Ur4LinkState: string
     case Connecting = 'connecting';
     case Handshake = 'handshake';
     case Configuring = 'configuring';
+    case Ready = 'ready';
     case Streaming = 'streaming';
     case Contested = 'contested';
     case Stalled = 'stalled';

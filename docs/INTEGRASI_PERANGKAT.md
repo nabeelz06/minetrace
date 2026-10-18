@@ -87,7 +87,11 @@ Tapo milik tahap reader (job `CaptureCctvSnapshotJob`, butuh `worker`); foto dit
  Reader UR4 (gate) ◀─TCP 8888─ php artisan rfid:uhf-gate (mesin di LAN reader) ─▶ RfidScanService ─▶ (sama)
 ```
 
-### 6a. Reader desktop R2000 (Receiving Area)
+### 6a. Reader desktop USB (Receiving Area)
+
+> **Status protokol: belum terbukti.** Model Electron HW-VX6336 belum diverifikasi memakai protokol R2000 (`0xA0`);
+> kode saat ini mengasumsikannya. Sebelum dipakai di lapangan, jalankan uji identifikasi protokol dengan perangkat nyata
+> (lihat `docs/minetrace/uhf/`). Jangan menganggap integrasi ini selesai sampai ada bukti baca-tag nyata.
 
 Reader USB "UHF reader/writer" modul UCM60x (jembatan QinHeng `1a86:fe0c`, protokol R2000 `0xA0`, 9600 8N1, RTS wajib —
 referensi: github.com/frebergguru/uhf_reader). Dibaca **langsung oleh browser** lewat Web Serial — tanpa aplikasi tambahan.
@@ -103,13 +107,15 @@ referensi: github.com/frebergguru/uhf_reader). Dibaca **langsung oleh browser** 
 
 Reader jaringan UR4 (TCP, port default 8888; referensi protokol: github.com/ready2tag/chainway-rfid).
 
-1. Beri reader IP tetap. Uji dari mesin daemon: `nc -vz 192.168.99.202 8888`.
+1. Beri reader IP tetap. **Jangan** uji dengan `nc`/`telnet`/UHFAPP: UR4 hanya melayani SATU klien, koneksi uji akan
+   merebut aliran dari daemon. Uji terkontrol: `php artisan rfid:uhf-probe --host=192.168.99.202` (baca-saja, tidak memancar;
+   menghormati kunci eksklusif daemon).
 2. UI: **RFID → Perangkat → Tambah reader** per gate — jenis **UHF gate Chainway UR4**, isi IP/port, tahap
    (`wet_process`, `dry_process`, `warehouse`), arah:
    - satu arah per reader → set *Scan Masuk* / *Scan Keluar*;
    - satu reader dua antena (masuk & keluar) → arah *Dua arah* + **Arah per antena** (mis. antena 1 = Masuk, 2 = Keluar).
    Gate Wet→Dry umumnya = antena *Keluar* tahap Wet **atau** antena *Masuk* tahap Dry — pilih satu agar tidak tercatat ganda.
-3. Jalankan daemon di mesin yang menjangkau reader (satu proses melayani semua reader UR4 aktif; reader baru terpakai ≤60 dtk):
+3. Jalankan daemon di mesin yang menjangkau reader (satu proses melayani semua reader UR4 aktif; reader baru/diubah terpakai ≤3 dtk):
 
 ```bash
 php artisan rfid:uhf-gate                          # semua reader UR4 aktif
@@ -120,7 +126,10 @@ docker compose -f docker-compose.prod.yml --profile rfid-gate up -d rfid_gate   
    Daemon sambung ulang otomatis, mengirim heartbeat (status **online** + jumlah peristiwa/pembacaan di kartu reader).
 4. Penyaringan: tag yang terus terbaca dihitung **sekali per kehadiran** (`RFID_UHF_PRESENCE_SECONDS`, default 10 dtk; per reader
    di form). Tag lemah dari lajur sebelah: isi **RSSI minimum** (mis. -65) atau kurangi daya antena di reader.
-5. `php artisan hardware:check` menguji keterjangkauan TCP tiap reader UR4.
+5. `php artisan hardware:check` memeriksa reader UR4 secara **pasif** (alamat, kunci, status daemon). `--active` membuka TCP
+   hanya bila tak ada daemon aktif. Diagnostik rinci: `rfid:uhf-probe` (`--listen=N` untuk mendengar tag; memancar RF).
+6. Simulasi tanpa perangkat: `php tools/uhf/fake-ur4-server.php --port=18888` lalu daftarkan reader `127.0.0.1:18888`
+   (`RFID_UHF_ALLOWED_PORTS=8888,18888`).
 
 > Server di VPS tidak dapat menjangkau IP LAN pabrik — jalankan `rfid:uhf-gate` di mini-PC pabrik yang terhubung ke database
 > lewat VPN (Tailscale/WireGuard), sama seperti opsi A untuk kamera.

@@ -92,13 +92,18 @@ final class Ur4Link
 
     private bool $stopped = false;
 
+    private ?Ur4Command $pendingWrite = null;
+
+    private ?bool $writeResult = null;
+
     /**
-     * @param Closure(string,int):mixed $connector     membuka soket non-blocking (resource) atau false
-     * @param Closure():float           $now           jam (detik, pecahan)
-     * @param Closure(array):void       $onTag         tag terurai: epc, tid, rssi, antenna
-     * @param Closure(mixed):bool|null  $connectCheck  true bila soket benar-benar tersambung (bawaan: peer TCP ada)
-     * @param Closure():float|null      $jitter        pengali 0,8..1,2 untuk backoff (bawaan acak)
-     * @param Closure(string,string):void|null $log    level, pesan
+     * @param  Closure(string,int):mixed  $connector  membuka soket non-blocking (resource) atau false
+     * @param  Closure():float  $now  jam (detik, pecahan)
+     * @param  Closure(array):void  $onTag  tag terurai: epc, tid, rssi, antenna
+     * @param  Closure(mixed):bool|null  $connectCheck  true bila soket benar-benar tersambung (bawaan: peer TCP ada)
+     * @param  Closure():float|null  $jitter  pengali 0,8..1,2 untuk backoff (bawaan acak)
+     * @param  Closure(string,string):void|null  $log  level, pesan
+     * @param  Closure(string,string):void|null  $tap  arah ('rx'|'tx') dan byte mentah (rekaman tangkapan)
      */
     public function __construct(
         private readonly string $host,
@@ -110,6 +115,7 @@ final class Ur4Link
         private readonly ?Closure $connectCheck = null,
         private readonly ?Closure $jitter = null,
         private readonly ?Closure $log = null,
+        private readonly ?Closure $tap = null,
     ) {
         $this->proto = new ChainwayUr4Protocol($cfg->verifyXor);
         $this->stateSince = ($this->now)();
@@ -139,7 +145,7 @@ final class Ur4Link
     /** Soket untuk stream_select (baca): setiap state yang memegang soket tersambung. */
     public function wantsRead()
     {
-        return in_array($this->state, [Ur4LinkState::Handshake, Ur4LinkState::Configuring, Ur4LinkState::Streaming], true) ? $this->stream : null;
+        return in_array($this->state, [Ur4LinkState::Handshake, Ur4LinkState::Configuring, Ur4LinkState::Ready, Ur4LinkState::Streaming], true) ? $this->stream : null;
     }
 
     /** Soket untuk stream_select (tulis): hanya saat menunggu sambungan async selesai. */
@@ -190,7 +196,7 @@ final class Ur4Link
 
     public function onReadable(): void
     {
-        if (! $this->stream || ! in_array($this->state, [Ur4LinkState::Handshake, Ur4LinkState::Configuring, Ur4LinkState::Streaming], true)) {
+        if (! $this->stream || ! in_array($this->state, [Ur4LinkState::Handshake, Ur4LinkState::Configuring, Ur4LinkState::Ready, Ur4LinkState::Streaming], true)) {
             return;
         }
         $now = ($this->now)();
@@ -210,6 +216,9 @@ final class Ur4Link
         }
 
         $this->lastRxAt = $now;
+        if ($this->tap) {
+            ($this->tap)('rx', $data);
+        }
         foreach ($this->proto->feedFrames($data) as $frame) {
             $this->lastFrameAt = $now;
             $this->dispatch($frame, $now);
@@ -231,6 +240,49 @@ final class Ur4Link
         $this->nextTry = PHP_FLOAT_MAX;
     }
 
+    /** Mulai inventory dari state Ready (alat diagnostik). Batas daya sudah diperiksa saat konfigurasi dibaca. */
+    public function startInventory(): bool
+    {
+        if ($this->state !== Ur4LinkState::Ready) {
+            return false;
+        }
+        $this->becomeStreaming(($this->now)());
+
+        return true;
+    }
+
+    /** Ukur return loss per port (memancar sesaat). Hanya di state Ready dan hanya atas permintaan eksplisit. */
+    public function requestReturnLoss(): bool
+    {
+        if ($this->state !== Ur4LinkState::Ready) {
+            return false;
+        }
+
+        return $this->send(ChainwayUr4Protocol::request(Ur4Command::ReturnLoss), ($this->now)());
+    }
+
+    /**
+     * Kirim satu perintah TULIS konfigurasi yang dibangun builder set* (selalu save=0). Hanya di state Ready.
+     * Hasil ack lewat writeResult(): true = 01, false = galat, null = menunggu.
+     */
+    public function applyWrite(Ur4Command $cmd, string $frame): bool
+    {
+        // Pertahanan berlapis: cmd harus tulis-konfigurasi, cocok dengan bingkai, dan byte pertama payload (save) = 0.
+        if ($this->state !== Ur4LinkState::Ready || ! $cmd->isConfigWrite()
+            || strlen($frame) < 8 || ord($frame[4]) !== $cmd->value || $frame[5] !== "\x00") {
+            return false;
+        }
+        $this->pendingWrite = $cmd;
+        $this->writeResult = null;
+
+        return $this->send($frame, ($this->now)());
+    }
+
+    public function writeResult(): ?bool
+    {
+        return $this->writeResult;
+    }
+
     /** Detik sampai peristiwa berwaktu berikutnya (untuk batas waktu stream_select). */
     public function nextWake(): float
     {
@@ -240,6 +292,7 @@ final class Ur4Link
             Ur4LinkState::Backoff, Ur4LinkState::Contested, Ur4LinkState::Stalled, Ur4LinkState::ConfigMismatch => $this->nextTry - $now,
             Ur4LinkState::Connecting => $this->stateSince + $this->cfg->connectTimeout - $now,
             Ur4LinkState::Handshake => $this->cfg->handshakeResendEvery,
+            Ur4LinkState::Ready => 1.0,
             Ur4LinkState::Configuring => $this->cfgSentAt + $this->cfg->configTimeout - $now,
             Ur4LinkState::Streaming => max($this->lastRxAt + $this->cfg->idleHeartbeatAfter, $this->lastTxAt + $this->cfg->heartbeatInterval) - $now,
         });
@@ -250,6 +303,7 @@ final class Ur4Link
     {
         return match ($this->state) {
             Ur4LinkState::Streaming => 'streaming',
+            Ur4LinkState::Ready => 'ready',
             Ur4LinkState::Connecting, Ur4LinkState::Handshake => 'connecting',
             Ur4LinkState::Configuring => 'configuring',
             Ur4LinkState::Contested => 'contested',
@@ -353,8 +407,23 @@ final class Ur4Link
             Ur4LinkState::Handshake => $this->onHandshakeFrame($frame, $now),
             Ur4LinkState::Configuring => $this->onConfigFrame($frame, $now),
             Ur4LinkState::Streaming => $this->onStreamFrame($frame, $now),
+            Ur4LinkState::Ready => $this->onReadyFrame($frame),
             default => null,
         };
+    }
+
+    /** Di state Ready hanya balasan opt-in (return loss, ack tulis konfigurasi) yang berarti; sisanya diabaikan. */
+    private function onReadyFrame(Ur4Frame $frame): void
+    {
+        if ($frame->cmd === Ur4Command::ReturnLoss->replyCmd()) {
+            $this->device['return_loss'] = ChainwayUr4Protocol::parseReturnLoss($frame);
+
+            return;
+        }
+        if ($this->pendingWrite !== null && $frame->cmd === $this->pendingWrite->replyCmd()) {
+            $this->writeResult = $frame->payload === "\x01";
+            $this->pendingWrite = null;
+        }
     }
 
     private function onHandshakeFrame(Ur4Frame $frame, float $now): void
@@ -492,7 +561,7 @@ final class Ur4Link
             return;
         }
         if ($this->cfg->antennaMap !== [] && array_intersect($active, array_keys($this->cfg->antennaMap)) === []) {
-            $this->mismatch('no_mapped_antenna', 'aktif=' . implode(',', $active), $now);
+            $this->mismatch('no_mapped_antenna', 'aktif='.implode(',', $active), $now);
 
             return;
         }
@@ -529,6 +598,13 @@ final class Ur4Link
             $this->warnings[] = 'antenna_maybe_disconnected';
         }
 
+        if (! $this->cfg->startInventory) {
+            $this->setState(Ur4LinkState::Ready, $now);
+            $this->backoffExp = 0;
+            $this->lastError = null;
+
+            return;
+        }
         $this->becomeStreaming($now);
     }
 
@@ -537,7 +613,7 @@ final class Ur4Link
         $this->closeStream();
         $this->lastError = $code;
         $this->detail = $detail;
-        $this->log('warning', "konfigurasi reader tidak sesuai: {$code}" . ($detail ? " ({$detail})" : ''));
+        $this->log('warning', "konfigurasi reader tidak sesuai: {$code}".($detail ? " ({$detail})" : ''));
         $this->enterWaiting(Ur4LinkState::ConfigMismatch, $now + $this->cfg->mismatchRetry);
     }
 
@@ -614,6 +690,9 @@ final class Ur4Link
             $this->fail('write_failed', $now);
 
             return false;
+        }
+        if ($this->tap) {
+            ($this->tap)('tx', $bytes);
         }
 
         return true;

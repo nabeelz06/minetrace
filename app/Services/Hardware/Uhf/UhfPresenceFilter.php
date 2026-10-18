@@ -7,7 +7,7 @@ namespace App\Services\Hardware\Uhf;
  * Filter ini mengubah aliran itu menjadi SATU peristiwa per kehadiran: kunci baru diproses lagi
  * hanya setelah tidak terbaca selama $windowSeconds (jendela bergeser — tiap pembacaan memperpanjang).
  */
-final class UhfPresenceFilter
+final class UhfPresenceFilter implements PresenceFilter
 {
     /** @var array<string,float> kunci → waktu terakhir terbaca */
     private array $lastSeen = [];

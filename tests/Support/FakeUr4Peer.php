@@ -14,6 +14,9 @@ final class FakeUr4Peer
 
     public int $heartbeats = 0;
 
+    /** @var list<string> bingkai tulis-konfigurasi yang diterima (hex) */
+    public array $writes = [];
+
     private string $buf = '';
 
     private bool $closed = false;
@@ -57,8 +60,12 @@ final class FakeUr4Peer
                 return;
             }
             $cmd = ord($this->buf[4]);
+            $raw = substr($this->buf, 0, $len);
             $this->buf = substr($this->buf, $len);
             $this->commands[] = $cmd;
+            if (in_array($cmd, [0x10, 0x2C, 0x70, 0x28], true)) {
+                $this->writes[] = strtoupper(bin2hex($raw));
+            }
             $this->reply($cmd);
         }
     }
@@ -75,6 +82,8 @@ final class FakeUr4Peer
             0x2A => $this->answerConfig ? $send(0x2B, pack('n', $this->antennaMask)) : null,
             0x4E => $this->answerConfig ? $send(0x4F, pack('n', $this->antennaConn)) : null,
             0x72 => $this->answerConfig ? $send(0x73, "\x01".chr($this->inventoryMode)."\x00\x00\x00\x00\x00\x00") : null,
+            0x26 => $send(0x27, "\x01\x10\x02\x00\x03\x00\x04\x00"),
+            0x10, 0x2C, 0x70, 0x28 => $send($cmd + 1, "\x01"),
             default => null,   // 0x82 start: tanpa ack, langsung aliran
         };
     }

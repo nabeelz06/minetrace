@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Services;
 
+use App\Services\Hardware\Uhf\ChainwayUr4Protocol;
+use App\Services\Hardware\Uhf\Ur4Command;
 use App\Services\Hardware\Uhf\Ur4Link;
 use App\Services\Hardware\Uhf\Ur4LinkConfig;
 use App\Services\Hardware\Uhf\Ur4LinkState;
@@ -488,5 +490,111 @@ class Ur4LinkTest extends TestCase
         $this->streaming();
         $this->assertNull($this->link->wantsWrite());
         $this->assertNotNull($this->link->wantsRead());
+    }
+
+    // ─── State Ready (alat diagnostik) ───────────────────────────────────
+
+    private function ready(): void
+    {
+        $this->make(new Ur4LinkConfig(startInventory: false));
+        $this->runUntil(fn () => $this->link->state() === Ur4LinkState::Ready);
+        $this->peer()->service();
+    }
+
+    #[Test]
+    public function tanpa_start_inventory_berhenti_di_ready_dan_tidak_pernah_memancar(): void
+    {
+        $this->ready();
+
+        $this->assertSame('ready', $this->link->uiState());
+        $this->assertSame([0x8C, 0x02, 0x12, 0x2E, 0x2A, 0x4E, 0x72], $this->peer()->commands);
+        $this->assertFalse($this->peer()->sawCommand(0x82), 'START tidak boleh terkirim di Ready');
+
+        // Dari Ready inventory baru dimulai atas permintaan eksplisit.
+        $this->assertTrue($this->link->startInventory());
+        $this->peer()->service();
+        $this->assertTrue($this->peer()->sawCommand(0x82));
+        $this->assertSame(Ur4LinkState::Streaming, $this->link->state());
+    }
+
+    #[Test]
+    public function start_inventory_tetap_menghormati_batas_daya_karena_konfigurasi_dinilai_dulu(): void
+    {
+        $this->peerOpts = ['powerDbm' => 30.0];
+        $this->make(new Ur4LinkConfig(startInventory: false, maxPowerDbm: 15.0));
+        $this->runUntil(fn () => $this->link->state() === Ur4LinkState::ConfigMismatch);
+
+        $this->assertFalse($this->link->startInventory(), 'dari ConfigMismatch tidak ada jalan ke inventory');
+        $this->assertFalse($this->peer()->sawCommand(0x82));
+    }
+
+    #[Test]
+    public function return_loss_hanya_diukur_atas_permintaan_eksplisit_di_ready(): void
+    {
+        $this->make();
+        $this->streaming();
+        $this->assertFalse($this->link->requestReturnLoss(), 'tidak di Streaming');
+
+        $this->peers = [];
+        $this->ready();
+        $this->assertFalse($this->peer()->sawCommand(0x26));
+        $this->assertTrue($this->link->requestReturnLoss());
+        $this->step();
+        $this->assertTrue($this->peer()->sawCommand(0x26));
+        $this->assertSame(16, $this->link->status()['device']['return_loss'][1]);
+    }
+
+    #[Test]
+    public function tulis_konfigurasi_hanya_di_ready_dengan_save_nol_dan_menunggu_ack(): void
+    {
+        $this->ready();
+
+        $frame = ChainwayUr4Protocol::setPower(1, 15);
+        $this->assertTrue($this->link->applyWrite(Ur4Command::SetPower, $frame));
+        $this->step();
+        $this->assertTrue($this->link->writeResult());
+        $this->assertSame([strtoupper(bin2hex($frame))], $this->peer()->writes);
+    }
+
+    #[Test]
+    public function applywrite_menolak_save_bukan_nol_cmd_tak_cocok_dan_state_selain_ready(): void
+    {
+        $this->ready();
+
+        // Bingkai daya dengan byte save = 02 (simpan permanen) harus ditolak walau cmd benar.
+        $save2 = "\xA5\x5A\x00\x0E\x10\x02\x01\x05\xDC\x05\xDC\x1D\x0D\x0A";
+        $this->assertFalse($this->link->applyWrite(Ur4Command::SetPower, $save2));
+        // Cmd tak cocok dengan bingkai.
+        $this->assertFalse($this->link->applyWrite(Ur4Command::SetRegion, ChainwayUr4Protocol::setPower(1, 15)));
+        // Perintah baca-saja bukan perintah tulis.
+        $this->assertFalse($this->link->applyWrite(Ur4Command::Power, ChainwayUr4Protocol::request(Ur4Command::Power)));
+        $this->step();
+        $this->assertSame([], $this->peer()->writes);
+
+        $this->peers = [];
+        $this->make();
+        $this->streaming();
+        $this->assertFalse($this->link->applyWrite(Ur4Command::SetPower, ChainwayUr4Protocol::setPower(1, 15)), 'tidak boleh saat Streaming');
+    }
+
+    #[Test]
+    public function tap_merekam_byte_rx_dan_tx(): void
+    {
+        $log = [];
+        $this->link = new Ur4Link('192.168.99.202', 8888, new Ur4LinkConfig(startInventory: false),
+            function () {
+                [$a, $b] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+                stream_set_blocking($a, false);
+                $this->peers[] = new FakeUr4Peer($b);
+
+                return $a;
+            }, fn () => $this->t, fn () => null, connectCheck: fn () => true, jitter: fn () => 1.0,
+            tap: function (string $dir, string $bytes) use (&$log) {
+                $log[] = [$dir, strtoupper(bin2hex($bytes))];
+            });
+        $this->runUntil(fn () => $this->link->state() === Ur4LinkState::Ready);
+
+        $this->assertSame(['tx', 'A55A00088C840D0A'], $log[0]);
+        $this->assertContains('rx', array_column($log, 0));
     }
 }

@@ -6,7 +6,7 @@ namespace App\Services\Hardware\Uhf;
 final class Ur4LinkConfig
 {
     /**
-     * @param array<int,string> $antennaMap nomor antena => 'in'|'out' (kosong = tanpa pemetaan)
+     * @param  array<int,string>  $antennaMap  nomor antena => 'in'|'out' (kosong = tanpa pemetaan)
      */
     public function __construct(
         public readonly float $connectTimeout = 3.0,
@@ -29,6 +29,8 @@ final class Ur4LinkConfig
         public readonly float $warnPowerDbm = 26.0,
         public readonly bool $verifyXor = true,
         public readonly array $antennaMap = [],
+        /** false = berhenti di state Ready setelah konfigurasi dibaca (alat diagnostik; tidak memancar). */
+        public readonly bool $startInventory = true,
     ) {}
 
     public static function fromConfig(array $antennaMap = []): self

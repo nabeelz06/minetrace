@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * RfidReader — perangkat pembaca terdaftar (read point tetap: tahap + arah).
@@ -36,6 +37,27 @@ class RfidReader extends Model
         'last_status' => 'array',
         'connection' => 'array',
     ];
+
+    /** Kunci revisi: daemon memeriksanya tiap beberapa detik dan memuat ulang daftar reader bila berubah. */
+    public const REVISION_KEY = 'rfid:readers:rev';
+
+    /** Atribut yang memengaruhi perilaku daemon (heartbeat/last_status TIDAK termasuk, agar tak memicu reload). */
+    private const RELEVANT = ['code', 'stage', 'direction', 'device_type', 'connection', 'is_active'];
+
+    protected static function booted(): void
+    {
+        static::saved(function (self $r) {
+            if ($r->wasRecentlyCreated || $r->wasChanged(self::RELEVANT)) {
+                self::bumpRevision();
+            }
+        });
+        static::deleted(fn () => self::bumpRevision());
+    }
+
+    public static function bumpRevision(): void
+    {
+        Cache::increment(self::REVISION_KEY);
+    }
 
     public function company(): BelongsTo
     {
