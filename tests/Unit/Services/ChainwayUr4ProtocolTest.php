@@ -27,9 +27,10 @@ class ChainwayUr4ProtocolTest extends TestCase
     public function perintah_start_dan_stop_sama_dengan_pustaka_referensi(): void
     {
         $this->assertSame('a55a000a822710bf0d0a', bin2hex(ChainwayUr4Protocol::START_INVENTORY));
-        $this->assertSame('c88c00088c840d0a', bin2hex(ChainwayUr4Protocol::STOP_INVENTORY));
-        // Builder menghasilkan bingkai start yang identik (checksum XOR terverifikasi).
+        $this->assertSame('a55a00088c840d0a', bin2hex(ChainwayUr4Protocol::STOP_INVENTORY));
+        // Builder menghasilkan bingkai start & stop yang identik (checksum XOR terverifikasi).
         $this->assertSame(ChainwayUr4Protocol::START_INVENTORY, ChainwayUr4Protocol::frame(0x82, "\x27\x10"));
+        $this->assertSame(ChainwayUr4Protocol::STOP_INVENTORY, ChainwayUr4Protocol::frame(0x8C));
     }
 
     #[Test]

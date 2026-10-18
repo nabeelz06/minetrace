@@ -10,10 +10,12 @@ namespace App\Services\Hardware\Uhf;
  *
  *     Head(2)  Len(2, big-endian = panjang SELURUH bingkai)  Cmd(1)  Data…  XOR(1)  0D 0A
  *
- *   Head = A5 5A (perintah/respons) — perintah stop memakai C8 8C.
+ *   Head = A5 5A (perintah dan respons).
  *   XOR  = XOR semua byte dari Len s.d. akhir Data.
  *   Contoh terverifikasi: start inventory  A5 5A 00 0A 82 27 10 BF 0D 0A  (00^0A^82^27^10 = BF)
- *                         stop inventory   C8 8C 00 08 8C 84 0D 0A        (00^08^8C = 84)
+ *                         stop inventory   A5 5A 00 08 8C 84 0D 0A        (00^08^8C = 84)
+ *   Pustaka referensi mengirim stop dengan header C8 8C — sisa obfuskasinya, bukan header protokol;
+ *   UR4 mengabaikan bingkai itu sehingga inventory tak pernah berhenti. Parser tetap menerima C8 8C.
  *
  * Laporan tag = Cmd 0x83, Data = [PC(2)] EPC(n) [TID(12)] RSSI(2) ANT(1).
  * Pustaka referensi menganggap Data = EPC + TID(12) + RSSI(2) + ANT(1). Di sini PC dilepas bila
@@ -25,7 +27,7 @@ namespace App\Services\Hardware\Uhf;
 final class ChainwayUr4Protocol
 {
     public const START_INVENTORY = "\xA5\x5A\x00\x0A\x82\x27\x10\xBF\x0D\x0A";
-    public const STOP_INVENTORY  = "\xC8\x8C\x00\x08\x8C\x84\x0D\x0A";
+    public const STOP_INVENTORY  = "\xA5\x5A\x00\x08\x8C\x84\x0D\x0A";
 
     public const CMD_TAG_REPORT = 0x83;
 

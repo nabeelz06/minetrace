@@ -8,6 +8,8 @@
  * Contoh terverifikasi: GetFirmwareVersion → A0 03 00 72 EB ; balasan A0 06 00 72 02 03 01 E2 (UCM601 v2.3)
  *
  * Inventory real-time (0x89) MENGALIR TERUS sampai StopInventory (0x8C) — selalu kirim stop setelah membaca.
+ * Firmware R2000 standar (Impinj) memakai bingkai sama tetapi baud 115200, alamat 0x01/0xFF, dan 0x89
+ * hanya satu putaran — decodeRealtime() mengenali kedua varian, useUhfDesktopReader mendeteksi link.
  */
 
 export const HEAD = 0xa0
@@ -40,8 +42,9 @@ export const frames = {
 }
 
 /**
- * Parser aliran byte → bingkai. feed() mengembalikan daftar bingkai lengkap.
- * Sinkron ulang otomatis: byte pertama bingkai harus 0xA0; panjang tak masuk akal dibuang.
+ * Parser aliran byte → bingkai. feed() mengembalikan daftar bingkai lengkap (checksum valid saja).
+ * Sinkron ulang otomatis: byte pertama bingkai harus 0xA0. Panjang tak masuk akal atau checksum salah
+ * → buang satu byte lalu cari 0xA0 berikutnya di sisa buffer, sehingga bingkai sah sesudahnya tidak hilang.
  */
 export class FrameParser {
     constructor() { this.buf = [] }
@@ -49,23 +52,19 @@ export class FrameParser {
     /** @param {Uint8Array|number[]} chunk @returns {{adr:number, cmd:number, data:Uint8Array, sumOk:boolean}[]} */
     feed(chunk) {
         const out = []
-        for (const byte of chunk) {
-            if (this.buf.length === 0 && byte !== HEAD) continue
-            this.buf.push(byte)
-            if (this.buf.length === 2) {
-                const need = byte + 2
-                if (need < 5 || need > 256) { this.buf = []; continue }
-            }
-            if (this.buf.length >= 2 && this.buf.length === this.buf[1] + 2) {
-                const f = this.buf
-                this.buf = []
-                out.push({
-                    adr: f[2],
-                    cmd: f[3],
-                    data: Uint8Array.from(f.slice(4, f.length - 1)),
-                    sumOk: checksum(f.slice(0, f.length - 1)) === f[f.length - 1],
-                })
-            }
+        for (const byte of chunk) this.buf.push(byte)
+        while (this.buf.length) {
+            const start = this.buf.indexOf(HEAD)
+            if (start < 0) { this.buf = []; break }
+            if (start > 0) this.buf = this.buf.slice(start)
+            if (this.buf.length < 2) break
+            const total = this.buf[1] + 2
+            if (total < 5) { this.buf = this.buf.slice(1); continue }
+            if (this.buf.length < total) break
+            const f = this.buf.slice(0, total)
+            if (checksum(f.slice(0, total - 1)) !== f[total - 1]) { this.buf = this.buf.slice(1); continue }
+            this.buf = this.buf.slice(total)
+            out.push({ adr: f[2], cmd: f[3], data: Uint8Array.from(f.slice(4, total - 1)), sumOk: true })
         }
         return out
     }
@@ -99,33 +98,42 @@ export function rssiDbm(raw, epcLen) {
 }
 
 /**
- * Urai satu bingkai inventory real-time (0x89).
- *   tag   : ant(1) PC(2) EPC(epcLen) RSSI(4) Freq(3), epcLen = (PC[0] >> 3) * 2
- *   status: satu byte (0x10 sukses / 0x36 tidak ada tag)
- * @returns {{type:'tag', epc:string, antenna:number, rssi:number|null, freq:number|null} | {type:'status', code:number} | null}
+ * Urai satu bingkai inventory real-time (0x89). Dua varian firmware R2000 yang beredar:
+ *   UCM60x (uhf_reader) : ant(1) PC(2) EPC(epcLen) RSSI(4) Freq(3) — mengalir terus sampai Stop
+ *   R2000 standar Impinj: FreqAnt(1) PC(2) EPC(epcLen) RSSI(1)     — satu putaran, lalu bingkai
+ *                         akhir-putaran ant(1) ReadRate(2) TotalRead(4) (7 byte)
+ *   epcLen = (PC[0] >> 3) * 2. Status: satu byte (0x10 sukses / 0x36 tidak ada tag).
+ * Sisa sesudah EPC harus cocok persis dengan salah satu varian; bingkai lain bukan tag (dulu
+ * bingkai akhir-putaran terbaca sebagai EPC sampah).
+ * @returns {{type:'tag', epc:string, antenna:number, rssi:number|null, freq:number|null}
+ *          | {type:'status', code:number} | {type:'round_end'} | null}
  */
 export function decodeRealtime(frame) {
     if (frame.cmd !== CMD.REALTIME_INV) return null
     const d = frame.data
     if (d.length <= 2) return { type: 'status', code: d.length ? d[0] : 0 }
     const epcLen = (d[1] >> 3) * 2
-    if (epcLen <= 0 || 3 + epcLen > d.length) return null
-    const epc = toHex(d.slice(3, 3 + epcLen))
-    let i = 3 + epcLen
-    let rssi = null
-    let freq = null
-    if (i + 4 <= d.length) {
-        const raw = ((d[i] << 24) | (d[i + 1] << 16) | (d[i + 2] << 8) | d[i + 3]) >>> 0
-        rssi = rssiDbm(raw, epcLen)
-        i += 4
+    const rest = d.length - 3 - epcLen
+    if (epcLen > 0 && (rest === 7 || rest === 1)) {
+        const epc = toHex(d.slice(3, 3 + epcLen))
+        const i = 3 + epcLen
+        if (rest === 7) {
+            const raw = ((d[i] << 24) | (d[i + 1] << 16) | (d[i + 2] << 8) | d[i + 3]) >>> 0
+            const freq = (d[i + 4] << 16) | (d[i + 5] << 8) | d[i + 6]
+            return { type: 'tag', epc, antenna: d[0], rssi: rssiDbm(raw, epcLen), freq }
+        }
+        // R2000 standar: RSSI 1 byte (dBm = nilai − 129), antena = 2 bit bawah FreqAnt (0-based).
+        return { type: 'tag', epc, antenna: (d[0] & 0x03) + 1, rssi: Math.max(-90, Math.min(0, d[i] - 129)), freq: null }
     }
-    if (i + 3 <= d.length) freq = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]
-    return { type: 'tag', epc, antenna: d[0], rssi, freq }
+    if (d.length === 7) return { type: 'round_end' }
+    return null
 }
 
-/** Balasan versi firmware (0x72) → "UCM601 v2.3". */
+/** Balasan versi firmware (0x72) → "UCM601 v2.3" (UCM60x, 3 byte) atau "R2000 v1.5" (standar, 2 byte). */
 export function decodeVersion(frame) {
-    if (frame.cmd !== CMD.GET_FW_VERSION || frame.data.length < 3) return null
-    const [major, minor, model] = frame.data
-    return `UCM60${model} v${major}.${minor}`
+    if (frame.cmd !== CMD.GET_FW_VERSION) return null
+    const d = frame.data
+    if (d.length >= 3) return `UCM60${d[2]} v${d[0]}.${d[1]}`
+    if (d.length === 2) return `R2000 v${d[0]}.${d[1]}`
+    return null
 }

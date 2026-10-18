@@ -24,6 +24,9 @@ use Illuminate\Support\Str;
  *   - setiap pembacaan tercatat di rfid_read_logs dan memicu capture CCTV (Tapo) tahap reader.
  *
  * Arah (IN/OUT) per pembacaan: connection.antennas {"1":"in","2":"out"} → arah tetap reader → IN.
+ * Pengawas link: senyap IDLE_REARM detik → kirim ulang Stop+Start (memulihkan inventory yang berhenti
+ * dan memancing balasan); tetap senyap PROBE_TIMEOUT detik sesudahnya → koneksi dianggap mati
+ * (kabel/daya putus tanpa FIN TCP) lalu disambung ulang. Penulisan gagal → putus seketika.
  * Sambung ulang otomatis dengan jeda bertahap; daftar reader dimuat ulang tiap 60 detik sehingga
  * reader baru/diubah dari panel web terpakai tanpa restart.
  *
@@ -44,10 +47,12 @@ class RfidUhfGate extends Command
     private const RELOAD_EVERY      = 60;
     private const HEARTBEAT_EVERY   = 20;
     private const CONNECT_TIMEOUT   = 3;
+    private const IDLE_REARM        = 30;
+    private const PROBE_TIMEOUT     = 10;
 
     private bool $running = true;
 
-    /** @var array<int,array{reader:RfidReader,socket:resource|null,proto:ChainwayUr4Protocol,presence:UhfPresenceFilter,next_try:float,backoff:int,reads:int,events:int,connected_at:?float}> */
+    /** @var array<int,array{reader:RfidReader,socket:resource|null,proto:ChainwayUr4Protocol,presence:UhfPresenceFilter,next_try:float,backoff:int,reads:int,events:int,connected_at:?float,last_rx:float,probe_at:?float}> */
     private array $links = [];
 
     public function handle(RfidScanService $scans, RfidDeviceService $devices, HardwareEventService $events): int
@@ -79,6 +84,7 @@ class RfidUhfGate extends Command
             }
 
             $this->pump($scans, $events);
+            $this->watchdog();
 
             if ($now - $lastBeat >= self::HEARTBEAT_EVERY) {
                 $this->heartbeat($devices);
@@ -137,6 +143,8 @@ class RfidUhfGate extends Command
                     'reads'        => 0,
                     'events'       => 0,
                     'connected_at' => null,
+                    'last_rx'      => 0.0,
+                    'probe_at'     => null,
                 ];
                 $this->line("Reader {$reader->code} ({$this->endpoint($reader)}) — tahap " . ($reader->stage ?? '-'));
             }
@@ -160,18 +168,57 @@ class RfidUhfGate extends Command
         }
 
         stream_set_blocking($socket, false);
-        // Stop dulu (reader mungkin masih inventory dari sesi lama), lalu mulai inventory kontinu.
-        @fwrite($socket, ChainwayUr4Protocol::STOP_INVENTORY);
-        usleep(100_000);
-        @fwrite($socket, ChainwayUr4Protocol::START_INVENTORY);
-
         $this->links[$id]['socket']       = $socket;
         $this->links[$id]['backoff']      = 1;
         $this->links[$id]['proto']        = new ChainwayUr4Protocol();
         $this->links[$id]['connected_at'] = microtime(true);
+        $this->links[$id]['last_rx']      = microtime(true);
+        $this->links[$id]['probe_at']     = null;
+
+        // Stop dulu (reader mungkin masih inventory dari sesi lama), lalu mulai inventory kontinu.
+        if (! $this->armInventory($id)) {
+            return;
+        }
 
         $this->info("Reader {$reader->code}: terhubung {$target}, inventory berjalan");
         Log::info("rfid:uhf-gate {$reader->code} terhubung {$target}");
+    }
+
+    /** Kirim Stop lalu Start; false (dan putus) bila soket menolak ditulisi. */
+    private function armInventory(int $id): bool
+    {
+        $socket = $this->links[$id]['socket'];
+        $ok = @fwrite($socket, ChainwayUr4Protocol::STOP_INVENTORY);
+        usleep(100_000);
+        $ok = $ok && @fwrite($socket, ChainwayUr4Protocol::START_INVENTORY);
+        if (! $ok) {
+            $this->disconnect($id, 'gagal menulis perintah ke reader');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Pulihkan inventory yang senyap; putus bila reader tidak menjawab sama sekali. */
+    private function watchdog(): void
+    {
+        $now = microtime(true);
+        foreach ($this->links as $id => $link) {
+            if (! $link['socket']) {
+                continue;
+            }
+            if ($link['probe_at'] !== null && $link['last_rx'] < $link['probe_at']) {
+                if ($now - $link['probe_at'] >= self::PROBE_TIMEOUT) {
+                    $this->disconnect($id, 'reader tidak menjawab ' . (int) ($now - $link['last_rx']) . ' dtk');
+                }
+                continue;
+            }
+            if ($now - $link['last_rx'] >= self::IDLE_REARM) {
+                $this->links[$id]['probe_at'] = $now;
+                $this->armInventory($id);
+            }
+        }
     }
 
     private function disconnect(int $id, string $why, bool $reconnect = true): void
@@ -216,6 +263,9 @@ class RfidUhfGate extends Command
             if ($chunk === false || ($chunk === '' && feof($socket))) {
                 $this->disconnect($id, 'koneksi ditutup reader');
                 continue;
+            }
+            if ($chunk !== '') {
+                $this->links[$id]['last_rx'] = microtime(true);
             }
 
             foreach ($this->links[$id]['proto']->feed($chunk) as $tag) {
