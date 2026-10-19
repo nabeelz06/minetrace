@@ -47,7 +47,7 @@ paths:
 
   # ── PHYSICAL CAMERA SOURCE — Utama ───────────────────────────────────
   live_gate1:
-    source: rtsp://admin_minetra:Tapo123%21@192.168.18.38/stream2
+    source: rtsp://admin_minetrace:minetrace123@192.168.0.3:554/stream2
     sourceProtocol: tcp
 
   # ── ALIAS PATHS — Menggunakan stream fisik yang sama ──────────────────
