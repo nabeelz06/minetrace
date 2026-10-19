@@ -26,7 +26,7 @@ class RfidDeviceService
     /** @return array{0:string,1:string,2:string} [kunci-asli, prefix, hash] */
     private function newKey(): array
     {
-        $plain = self::KEY_PREFIX . Str::random(40);
+        $plain = self::KEY_PREFIX.Str::random(40);
 
         return [$plain, substr($plain, 0, 8), hash('sha256', $plain)];
     }
@@ -37,18 +37,19 @@ class RfidDeviceService
         [$plain, $prefix, $hash] = $this->newKey();
 
         $reader = RfidReader::create([
-            'company_id'  => $companyId,
-            'code'        => strtoupper($attrs['code']),
-            'name'        => $attrs['name'],
-            'stage'       => $attrs['stage'] ?? null,
-            'direction'   => $attrs['direction'] ?? 'any',
+            'company_id' => $companyId,
+            'code' => strtoupper($attrs['code']),
+            'name' => $attrs['name'],
+            'stage' => $attrs['stage'] ?? null,
+            'direction' => $attrs['direction'] ?? 'any',
             'device_type' => $attrs['device_type'] ?? 'esp32_rc522',
-            'connection'  => $attrs['connection'] ?? null,
-            'key_prefix'  => $prefix,
-            'key_hash'    => $hash,
-            'is_active'   => true,
+            'connection' => $attrs['connection'] ?? null,
+            'camera_url' => $attrs['camera_url'] ?? null,
+            'key_prefix' => $prefix,
+            'key_hash' => $hash,
+            'is_active' => true,
             'key_rotated_at' => now(),
-            'created_by'  => $userId,
+            'created_by' => $userId,
         ]);
 
         Log::info("RFID reader dibuat: {$reader->code} company_id={$companyId} oleh={$userId}");
@@ -148,7 +149,7 @@ class RfidDeviceService
     }
 
     /**
-     * @param  array $payload {firmware?, uptime_s?, rssi?, free_heap?, queued?, device_time?}
+     * @param  array  $payload  {firmware?, uptime_s?, rssi?, free_heap?, queued?, device_time?}
      * @return array respons heartbeat (waktu server untuk sinkronisasi jam perangkat)
      */
     public function heartbeat(RfidReader $reader, array $payload, ?string $ip): array
@@ -159,30 +160,30 @@ class RfidDeviceService
         }
 
         $status = array_filter([
-            'uptime_s'   => $payload['uptime_s']  ?? null,
-            'rssi'       => $payload['rssi']      ?? null,
-            'free_heap'  => $payload['free_heap'] ?? null,
-            'queued'     => $payload['queued']    ?? null,
+            'uptime_s' => $payload['uptime_s'] ?? null,
+            'rssi' => $payload['rssi'] ?? null,
+            'free_heap' => $payload['free_heap'] ?? null,
+            'queued' => $payload['queued'] ?? null,
             'clock_skew' => $skew,
-            'clock_ok'   => $skew === null ? null : abs($skew) <= config('rfid.clock_skew_seconds'),
+            'clock_ok' => $skew === null ? null : abs($skew) <= config('rfid.clock_skew_seconds'),
         ], fn ($v) => $v !== null);
 
         $reader->forceFill([
-            'last_seen_at'     => now(),
-            'last_ip'          => $ip,
+            'last_seen_at' => now(),
+            'last_ip' => $ip,
             'firmware_version' => $payload['firmware'] ?? $reader->firmware_version,
-            'last_status'      => $status,
+            'last_status' => $status,
         ])->save();
         Cache::put("rfid:seen:{$reader->id}", 1, self::TOUCH_INTERVAL);
 
         return [
-            'status'      => 'success',
+            'status' => 'success',
             'server_time' => now()->toIso8601String(),
-            'epoch'       => now()->timestamp,
-            'reader'      => $reader->code,
-            'stage'       => $reader->stage,
-            'direction'   => $reader->direction,
-            'interval_s'  => 30,
+            'epoch' => now()->timestamp,
+            'reader' => $reader->code,
+            'stage' => $reader->stage,
+            'direction' => $reader->direction,
+            'interval_s' => 30,
         ];
     }
 
@@ -190,21 +191,22 @@ class RfidDeviceService
     public function present(RfidReader $reader): array
     {
         return [
-            'id'               => $reader->id,
-            'code'             => $reader->code,
-            'name'             => $reader->name,
-            'stage'            => $reader->stage,
-            'direction'        => $reader->direction,
-            'device_type'      => $reader->device_type,
-            'connection'       => $reader->connection,
-            'key_prefix'       => $reader->key_prefix,
-            'is_active'        => $reader->is_active,
-            'state'            => $reader->connectionState(),
-            'last_seen_at'     => $reader->last_seen_at?->toIso8601String(),
-            'last_ip'          => $reader->last_ip,
+            'id' => $reader->id,
+            'code' => $reader->code,
+            'name' => $reader->name,
+            'stage' => $reader->stage,
+            'direction' => $reader->direction,
+            'device_type' => $reader->device_type,
+            'connection' => $reader->connection,
+            'camera_url' => $reader->camera_url,
+            'key_prefix' => $reader->key_prefix,
+            'is_active' => $reader->is_active,
+            'state' => $reader->connectionState(),
+            'last_seen_at' => $reader->last_seen_at?->toIso8601String(),
+            'last_ip' => $reader->last_ip,
             'firmware_version' => $reader->firmware_version,
-            'last_status'      => $reader->last_status,
-            'key_rotated_at'   => $reader->key_rotated_at?->toIso8601String(),
+            'last_status' => $reader->last_status,
+            'key_rotated_at' => $reader->key_rotated_at?->toIso8601String(),
         ];
     }
 }

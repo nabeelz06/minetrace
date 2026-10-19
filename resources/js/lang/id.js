@@ -867,6 +867,8 @@ export default {
             type_uhf_desktop_r2000: 'UHF desktop USB (Receiving)',
             type_uhf_chainway_ur4: 'UHF gate Chainway UR4 (jaringan)',
             desktop_hint: 'Dibaca browser di PC Receiving lewat USB (Chrome/Edge). Tidak perlu kunci di perangkat.',
+            camera_url: 'URL kamera CCTV (opsional)',
+            camera_url_hint: 'RTSP/HTTP kamera yang menghadap reader ini. Mengganti kamera berdasarkan tahap untuk reader ini saja; kosongkan untuk pakai kamera tahap seperti biasa.',
             conn_title: 'Koneksi reader UR4',
             conn_host: 'Alamat IP',
             conn_host_hint: 'IP reader di jaringan lokal, mis. 192.168.99.202',

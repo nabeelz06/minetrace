@@ -2,7 +2,7 @@
 
 namespace App\Services\Hardware;
 
-use App\Jobs\CaptureCctvSnapshotJob;
+use App\Events\RfidTagScanned;
 use App\Models\Checkpoint;
 use App\Models\User;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -33,8 +33,8 @@ class RfidScanService
     ) {}
 
     /**
-     * @param  string $direction 'in' | 'out'
-     * @param  array  $opts {origin?:string, event_id?:string, ip?:string, user_id?:int, antenna?:int, rssi?:int, tid?:string}
+     * @param  string  $direction  'in' | 'out'
+     * @param  array  $opts  {origin?:string, event_id?:string, ip?:string, user_id?:int, antenna?:int, rssi?:int, tid?:string}
      * @return array{0:array,1:bool} [hasil gaya-LCD, duplikat?]
      */
     public function scan(DeviceContext $ctx, string $direction, string $rawUid, ?string $stage = null, array $opts = []): array
@@ -49,28 +49,20 @@ class RfidScanService
             $result,
             $duplicate,
             [
-                'origin'        => $opts['origin'] ?? null,
-                'stage'         => $result['scan_stage'] ?? ($stage ?: $ctx->reader?->stage),
-                'batch_id'      => $result['batch_id'] ?? $result['_batch_id'] ?? null,
+                'origin' => $opts['origin'] ?? null,
+                'stage' => $result['scan_stage'] ?? ($stage ?: $ctx->reader?->stage),
+                'batch_id' => $result['batch_id'] ?? $result['_batch_id'] ?? null,
                 'checkpoint_id' => $result['_checkpoint_id'] ?? null,
-                'user_id'       => $opts['user_id'] ?? null,
-                'antenna'       => $opts['antenna'] ?? null,
-                'rssi'          => $opts['rssi'] ?? null,
-                'tid'           => $opts['tid'] ?? null,
-                'meta'          => array_filter(['event_id' => $opts['event_id'] ?? null, 'ip' => $opts['ip'] ?? null]) ?: null,
+                'user_id' => $opts['user_id'] ?? null,
+                'antenna' => $opts['antenna'] ?? null,
+                'rssi' => $opts['rssi'] ?? null,
+                'tid' => $opts['tid'] ?? null,
+                'meta' => array_filter(['event_id' => $opts['event_id'] ?? null, 'ip' => $opts['ip'] ?? null]) ?: null,
             ]
         );
 
-        if (! $duplicate && $result['status'] === 'success' && ! empty($result['_checkpoint_id'])) {
-            $this->dispatchSnapshot(
-                (int) $result['_checkpoint_id'],
-                (int) ($result['_company_id'] ?? $ctx->companyId),   // tenant milik BATCH
-                $result['scan_stage'] ?? null,
-                $direction === 'in' ? 'scan_in' : 'scan_out',
-                $this->rfid->sanitizeUid($rawUid),
-                $log?->id
-            );
-            $log?->update(['snapshot_status' => 'pending']);
+        if (! $duplicate && $result['status'] === 'success' && ! empty($result['_checkpoint_id']) && $log) {
+            event(new RfidTagScanned($log));   // DispatchCctvSnapshotForScan dispatch job CCTV (async, lihat docblock kelas)
         } else {
             $this->readLogs->captureIfNeeded($log);
         }
@@ -81,19 +73,20 @@ class RfidScanService
     /** @return array{0:array,1:bool} */
     private function scanOnce(DeviceContext $ctx, string $direction, string $rawUid, ?string $stage, array $opts): array
     {
-        $uid     = $this->rfid->sanitizeUid($rawUid);
-        $reader  = $ctx->reader;
+        $uid = $this->rfid->sanitizeUid($rawUid);
+        $reader = $ctx->reader;
         $eventId = $opts['event_id'] ?? null;
 
         // Arah reader tetap (read point): reader "in" tidak boleh dipakai untuk Scan OUT dan sebaliknya.
         if ($reader && $reader->direction !== 'any' && $reader->direction !== $direction) {
             $label = $reader->direction === 'in' ? 'SCAN IN' : 'SCAN OUT';
+
             return [[
-                'status'  => 'failed',
-                '_code'   => 'direction_mismatch',
-                'name'    => 'Arah Salah',
+                'status' => 'failed',
+                '_code' => 'direction_mismatch',
+                'name' => 'Arah Salah',
                 'message' => "Reader {$label} saja",
-                'detail'  => "Reader {$reader->code} dikonfigurasi hanya untuk {$label}.",
+                'detail' => "Reader {$reader->code} dikonfigurasi hanya untuk {$label}.",
             ], false];
         }
 
@@ -108,11 +101,11 @@ class RfidScanService
             $lock->block(3);
         } catch (LockTimeoutException) {
             return [[
-                'status'  => 'failed',
-                '_code'   => 'busy',
-                'name'    => 'Sistem Sibuk',
+                'status' => 'failed',
+                '_code' => 'busy',
+                'name' => 'Sistem Sibuk',
                 'message' => 'Coba lagi',
-                'detail'  => "UID {$uid} sedang diproses. Tempelkan ulang tag.",
+                'detail' => "UID {$uid} sedang diproses. Tempelkan ulang tag.",
             ], false];
         }
 
@@ -121,7 +114,7 @@ class RfidScanService
             if ($eventId && ($replay = Cache::get($this->eventKey($ctx, $eventId)))) {
                 return [$replay, true];
             }
-            $dedupeKey = "rfid:dd:{$uid}:{$direction}:" . ($stage ?? '-');
+            $dedupeKey = "rfid:dd:{$uid}:{$direction}:".($stage ?? '-');
             if (config('rfid.dedupe_seconds') > 0 && ($previous = Cache::get($dedupeKey))) {
                 return [$previous, true];
             }
@@ -150,28 +143,28 @@ class RfidScanService
     private function process(DeviceContext $ctx, string $direction, string $uid, ?string $stage, array $opts): array
     {
         $allowGlobal = $ctx->identity === 'anonymous' && config('rfid.legacy_global_tag_fallback');
-        $batch       = $this->rfid->findBatchByUid($uid, $ctx->companyId, $allowGlobal);
+        $batch = $this->rfid->findBatchByUid($uid, $ctx->companyId, $allowGlobal);
 
         if (! $batch) {
             Log::warning("RFID scan {$direction}: UID {$uid} tidak dikenal (identity={$ctx->identity}, company_id={$ctx->companyId})");
 
             return [
-                'status'  => 'failed',
-                '_code'   => 'tag_unknown',
-                'name'    => 'Tag Asing',
+                'status' => 'failed',
+                '_code' => 'tag_unknown',
+                'name' => 'Tag Asing',
                 'message' => 'Tag tidak dikenal',
-                'detail'  => $direction === 'in'
+                'detail' => $direction === 'in'
                     ? "UID {$uid} tidak terdaftar. Lakukan registrasi terlebih dahulu."
                     : "UID {$uid} tidak terdaftar.",
             ];
         }
 
-        $origin    = $opts['origin'] ?? 'real_esp32';
+        $origin = $opts['origin'] ?? 'real_esp32';
         $scanStage = $this->rfid->resolveScanStage($batch, $stage);
-        $strategy  = $this->authorization->getStrategy($batch->company_id, $scanStage);
-        $context   = [
+        $strategy = $this->authorization->getStrategy($batch->company_id, $scanStage);
+        $context = [
             'rfid_origin' => $origin,
-            'meta'        => ['event_id' => $opts['event_id'] ?? null, 'reader_id' => $ctx->reader?->id],
+            'meta' => ['event_id' => $opts['event_id'] ?? null, 'reader_id' => $ctx->reader?->id],
         ];
 
         $result = $direction === 'in'
@@ -189,28 +182,13 @@ class RfidScanService
         // Kunci internal (awalan '_') dibuang pemanggil sebelum respons — bentuk respons perangkat tidak berubah.
         // _checkpoint_id dipakai scan() untuk log + capture CCTV setelah log tercatat.
         $result['_company_id'] = (int) ($result['company_id'] ?? $batch->company_id);
-        $result['_batch_id']   = $batch->id;
+        $result['_batch_id'] = $batch->id;
 
         if ($ctx->reader) {
             $this->devices->touch($ctx->reader, $opts['ip'] ?? null);
         }
 
         return $result;
-    }
-
-    private function dispatchSnapshot(int $checkpointId, int $companyId, ?string $stage, string $scanType, string $uid, ?int $readLogId = null): void
-    {
-        Checkpoint::whereKey($checkpointId)->update(['snapshot_status' => 'pending']);
-
-        dispatch(new CaptureCctvSnapshotJob(
-            checkpointId: $checkpointId,
-            companyId:    $companyId,
-            stageName:    $stage,
-            scanType:     $scanType,
-            rfidUid:      $uid,
-            readLogId:    $readLogId,
-        ))->onQueue(config('cctv.queue', 'default'))
-          ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
     }
 
     private function eventKey(DeviceContext $ctx, string $eventId): string
@@ -220,7 +198,8 @@ class RfidScanService
 
     // ─── Pembacaan yang ditolak (jejak singkat untuk UI; bukan audit permanen) ──
 
-    private const REJECT_TTL   = 3600;
+    private const REJECT_TTL = 3600;
+
     private const REJECT_LIMIT = 20;
 
     private function rejectKey(int $companyId): string
@@ -230,16 +209,16 @@ class RfidScanService
 
     private function recordReject(DeviceContext $ctx, string $direction, string $uid, ?string $stage, array $result): void
     {
-        $key  = $this->rejectKey($ctx->companyId);
+        $key = $this->rejectKey($ctx->companyId);
         $list = Cache::get($key, []);
         array_unshift($list, [
-            'uid'       => $uid,
+            'uid' => $uid,
             'direction' => $direction,
-            'stage'     => $stage,
+            'stage' => $stage,
             'reader_id' => $ctx->reader?->id,
-            'reader'    => $ctx->reader?->code,
-            'code'      => $result['_code'] ?? 'error',
-            'at'        => now()->toIso8601String(),
+            'reader' => $ctx->reader?->code,
+            'code' => $result['_code'] ?? 'error',
+            'at' => now()->toIso8601String(),
         ]);
         Cache::put($key, array_slice($list, 0, self::REJECT_LIMIT), self::REJECT_TTL);
     }
@@ -257,7 +236,7 @@ class RfidScanService
      * Bila scan itu memicu transisi tahap otomatis, transisi TIDAK dibalik otomatis:
      * koreksi tahap dilakukan lewat alur proses resmi (dikembalikan pada pemanggil sebagai peringatan).
      *
-     * @throws \DomainException  not_a_scan | already_voided
+     * @throws \DomainException not_a_scan | already_voided
      */
     public function void(Checkpoint $checkpoint, User $user, string $reason): Checkpoint
     {
@@ -269,8 +248,8 @@ class RfidScanService
         }
 
         $checkpoint->update([
-            'voided_at'   => now(),
-            'voided_by'   => $user->id,
+            'voided_at' => now(),
+            'voided_by' => $user->id,
             'void_reason' => mb_substr($reason, 0, 255),
         ]);
 

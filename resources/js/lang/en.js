@@ -809,6 +809,8 @@ export default {
             type_uhf_desktop_r2000: 'UHF desktop USB (Receiving)',
             type_uhf_chainway_ur4: 'UHF gate Chainway UR4 (network)',
             desktop_hint: 'Read by the browser on the Receiving PC over USB (Chrome/Edge). No device key needed.',
+            camera_url: 'CCTV camera URL (optional)',
+            camera_url_hint: 'RTSP/HTTP camera facing this reader. Overrides the stage camera for this reader only; leave blank to use the stage camera as usual.',
             conn_title: 'UR4 reader connection',
             conn_host: 'IP address',
             conn_host_hint: 'Reader IP on the local network, e.g. 192.168.99.202',

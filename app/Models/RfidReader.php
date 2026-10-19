@@ -23,7 +23,7 @@ class RfidReader extends Model
     public const UHF_TYPES = ['uhf_epc_gen2', 'uhf_desktop_r2000', 'uhf_chainway_ur4'];
 
     protected $fillable = [
-        'company_id', 'code', 'name', 'stage', 'direction', 'device_type', 'connection',
+        'company_id', 'code', 'name', 'stage', 'direction', 'device_type', 'connection', 'camera_url',
         'key_prefix', 'key_hash', 'is_active', 'last_seen_at', 'last_ip',
         'firmware_version', 'last_status', 'key_rotated_at', 'created_by',
     ];

@@ -17,18 +17,19 @@ class UpdateReaderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'        => ['sometimes', 'string', 'max:100'],
-            'stage'       => ['sometimes', 'nullable', Rule::in(StoreReaderRequest::stages())],
-            'direction'   => ['sometimes', Rule::in(RfidReader::DIRECTIONS)],
+            'name' => ['sometimes', 'string', 'max:100'],
+            'stage' => ['sometimes', 'nullable', Rule::in(StoreReaderRequest::stages())],
+            'direction' => ['sometimes', Rule::in(RfidReader::DIRECTIONS)],
             'device_type' => ['sometimes', Rule::in(RfidReader::DEVICE_TYPES)],
-            'is_active'   => ['sometimes', 'boolean'],
+            'is_active' => ['sometimes', 'boolean'],
+            'camera_url' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^(rtsp|http|https):\/\//i'],
         ] + StoreReaderRequest::connectionRules();
     }
 
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $v) {
-            $existing  = RfidReader::where('company_id', $this->user()->company_id)->find($this->route('id'));
+            $existing = RfidReader::where('company_id', $this->user()->company_id)->find($this->route('id'));
             $direction = $this->input('direction') ?? $existing?->direction;
             StoreReaderRequest::validateConnection($v, $direction, $existing);
         });

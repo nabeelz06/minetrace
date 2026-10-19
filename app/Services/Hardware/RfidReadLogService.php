@@ -89,6 +89,7 @@ class RfidReadLogService
             scanType: $log->action === 'out' ? 'scan_out' : 'scan_in',
             rfidUid: $log->epc,
             readLogId: $log->id,
+            readerId: $log->reader_id,
         ))->onQueue(config('cctv.queue', 'default'))
             ->delay(now()->addSeconds(config('cctv.snapshot_delay', 2)));
     }

@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\CctvCamera;
 use App\Models\CctvSnapshot;
 use App\Models\Checkpoint;
+use App\Models\RfidReader;
 use App\Models\RfidReadLog;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -32,117 +33,126 @@ class CaptureCctvSnapshotJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int   $tries   = 3;
-    public int   $timeout = 60;
-    public array $backoff  = [5, 15, 30];
+    public int $tries = 3;
 
-    private const TZ           = 'Asia/Jakarta';
+    public int $timeout = 60;
+
+    public array $backoff = [5, 15, 30];
+
+    private const TZ = 'Asia/Jakarta';
+
     private const SNAPSHOT_DIR = 'cctv-snapshots';
 
     // A3: readiness probe constants
-    private const PROBE_RETRIES      = 5;
-    private const PROBE_INTERVAL_US  = 500_000; // 0.5 s
+    private const PROBE_RETRIES = 5;
+
+    private const PROBE_INTERVAL_US = 500_000; // 0.5 s
 
     public function __construct(
-        private ?int    $checkpointId,
-        private int     $companyId,
-        private ?string $stageName  = null,
-        private string  $scanType   = 'scan_in',
-        private string  $rfidUid    = '',
-        private ?int    $readLogId  = null,
+        private ?int $checkpointId,
+        private int $companyId,
+        private ?string $stageName = null,
+        private string $scanType = 'scan_in',
+        private string $rfidUid = '',
+        private ?int $readLogId = null,
+        private ?int $readerId = null,
     ) {}
 
     public function handle(): void
     {
         $checkpoint = $this->checkpointId ? Checkpoint::find($this->checkpointId) : null;
-        $readLog    = $this->readLogId ? RfidReadLog::find($this->readLogId) : null;
+        $readLog = $this->readLogId ? RfidReadLog::find($this->readLogId) : null;
 
-        if (!$checkpoint && !$readLog) {
+        if (! $checkpoint && ! $readLog) {
             Log::warning('CaptureCctvSnapshotJob: checkpoint/log tidak ditemukan.', [
                 'checkpoint_id' => $this->checkpointId,
-                'read_log_id'   => $this->readLogId,
+                'read_log_id' => $this->readLogId,
             ]);
+
             return;
         }
 
-        $camera  = $this->resolveCamera();
+        $camera = $this->resolveCamera();
         $rtspUrl = $camera?->effective_rtsp_url ?? config('cctv.rtsp_url');
 
-        if (!$rtspUrl) {
+        if (! $rtspUrl) {
             Log::debug('CaptureCctvSnapshotJob: tidak ada RTSP URL, skip.', [
                 'company_id' => $this->companyId,
-                'stage'      => $this->stageName,
+                'stage' => $this->stageName,
             ]);
             $this->markFailed($checkpoint, $readLog, 'no_rtsp_url', $camera);
+
             return;
         }
 
-        $cameraName  = $camera?->name ?? 'CCTV Utama';
+        $cameraName = $camera?->name ?? 'CCTV Utama';
         $captureMode = $camera?->getCaptureMode() ?? (env('CCTV_USE_REAL', false) ? 'real' : 'simulation');
 
         // A3 — Probe mediamtx readiness before committing ffmpeg resources
-        if (!$this->probeRtspReady($rtspUrl, $captureMode)) {
+        if (! $this->probeRtspReady($rtspUrl, $captureMode)) {
             Log::warning('CaptureCctvSnapshotJob: RTSP tidak siap setelah probe.', [
-                'rtsp_url'      => $rtspUrl,
+                'rtsp_url' => $rtspUrl,
                 'checkpoint_id' => $this->checkpointId,
             ]);
             $this->markFailed($checkpoint, $readLog, 'rtsp_not_ready', $camera, $captureMode);
+
             return;
         }
 
-        $storageDir  = self::SNAPSHOT_DIR . '/' . $this->companyId;
+        $storageDir = self::SNAPSHOT_DIR.'/'.$this->companyId;
         $absoluteDir = Storage::disk('public')->path($storageDir);
 
-        if (!is_dir($absoluteDir)) {
+        if (! is_dir($absoluteDir)) {
             mkdir($absoluteDir, 0755, true);
         }
 
-        $startMs  = (int) (microtime(true) * 1000);
+        $startMs = (int) (microtime(true) * 1000);
         $bestPath = $this->captureMultipleFrames($rtspUrl, $absoluteDir);
 
-        if (!$bestPath || !file_exists($bestPath)) {
+        if (! $bestPath || ! file_exists($bestPath)) {
             Log::warning('CaptureCctvSnapshotJob: semua percobaan ffmpeg gagal.', [
                 'checkpoint_id' => $this->checkpointId,
-                'rtsp_url'      => $rtspUrl,
+                'rtsp_url' => $rtspUrl,
             ]);
             $this->markFailed($checkpoint, $readLog, 'ffmpeg_failed', $camera, $captureMode);
+
             return;
         }
 
-        $durationMs   = (int) (microtime(true) * 1000) - $startMs;
-        $filesizeKb   = round(filesize($bestPath) / 1024, 1);
-        $relativePath = $storageDir . '/' . basename($bestPath);
-        $publicUrl    = '/storage/' . $relativePath;
-        $capturedAt   = Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB';
+        $durationMs = (int) (microtime(true) * 1000) - $startMs;
+        $filesizeKb = round(filesize($bestPath) / 1024, 1);
+        $relativePath = $storageDir.'/'.basename($bestPath);
+        $publicUrl = '/storage/'.$relativePath;
+        $capturedAt = Carbon::now(self::TZ)->format('d/m/Y H:i:s').' WIB';
 
         // A5 — persist mode in every photo entry
         $photoEntry = [
-            'url'          => $publicUrl,
-            'path'         => $relativePath,
-            'type'         => $this->scanType === 'scan_out' ? 'departure_snapshot' : 'rfid_snapshot',
-            'stage'        => $this->stageName,
-            'scan_type'    => $this->scanType,
-            'rfid_uid'     => $this->rfidUid,
-            'camera_name'  => $cameraName,
-            'filesize_kb'  => $filesizeKb,
-            'captured_at'  => $capturedAt,
-            'duration_ms'  => $durationMs,
-            'sha256'       => hash_file('sha256', $bestPath),
-            'mode'         => $captureMode,  // A5
+            'url' => $publicUrl,
+            'path' => $relativePath,
+            'type' => $this->scanType === 'scan_out' ? 'departure_snapshot' : 'rfid_snapshot',
+            'stage' => $this->stageName,
+            'scan_type' => $this->scanType,
+            'rfid_uid' => $this->rfidUid,
+            'camera_name' => $cameraName,
+            'filesize_kb' => $filesizeKb,
+            'captured_at' => $capturedAt,
+            'duration_ms' => $durationMs,
+            'sha256' => hash_file('sha256', $bestPath),
+            'mode' => $captureMode,  // A5
         ];
 
         if ($checkpoint) {
-            $photos   = $checkpoint->photos ?? [];
+            $photos = $checkpoint->photos ?? [];
             $photos[] = $photoEntry;
 
             $checkpointData = $checkpoint->checkpoint_data ?? [];
             $checkpointData['snapshot_captured'] = true;
-            $checkpointData['snapshot_at']       = $capturedAt;
+            $checkpointData['snapshot_at'] = $capturedAt;
 
             $checkpoint->update([
-                'photos'            => $photos,
-                'checkpoint_data'   => $checkpointData,
-                'snapshot_status'   => 'captured',
+                'photos' => $photos,
+                'checkpoint_data' => $checkpointData,
+                'snapshot_status' => 'captured',
                 'capture_attempted' => true,
                 'capture_succeeded' => true,
             ]);
@@ -152,31 +162,31 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         // checkpoints.photos — entri di atas tetap ditulis sebagai mirror
         // ringan untuk kompatibilitas mundur kode yang belum di-migrasi.
         $snapshot = CctvSnapshot::create([
-            'company_id'     => $this->companyId,
-            'batch_id'       => $checkpoint?->batch_id ?? $readLog?->batch_id,
-            'checkpoint_id'  => $checkpoint?->id,
-            'read_log_id'    => $readLog?->id,
-            'camera_id'      => $camera?->id,
-            'file_path'      => $relativePath,
-            'capture_mode'   => $captureMode,
+            'company_id' => $this->companyId,
+            'batch_id' => $checkpoint?->batch_id ?? $readLog?->batch_id,
+            'checkpoint_id' => $checkpoint?->id,
+            'read_log_id' => $readLog?->id,
+            'camera_id' => $camera?->id,
+            'file_path' => $relativePath,
+            'capture_mode' => $captureMode,
             'capture_status' => 'success',
-            'scan_type'      => $this->scanType,
-            'rfid_uid'       => $this->rfidUid ?: null,
-            'stage'          => $this->stageName,
-            'filesize_kb'    => (int) round($filesizeKb),
-            'captured_at'    => now(),
+            'scan_type' => $this->scanType,
+            'rfid_uid' => $this->rfidUid ?: null,
+            'stage' => $this->stageName,
+            'filesize_kb' => (int) round($filesizeKb),
+            'captured_at' => now(),
         ]);
 
         $readLog?->update(['snapshot_status' => 'captured', 'snapshot_id' => $snapshot->id]);
 
         Log::info('CaptureCctvSnapshotJob: snapshot berhasil.', [
             'checkpoint_id' => $this->checkpointId,
-            'read_log_id'   => $this->readLogId,
-            'path'          => $relativePath,
-            'filesize_kb'   => $filesizeKb,
-            'duration_ms'   => $durationMs,
-            'camera'        => $cameraName,
-            'mode'          => $captureMode,
+            'read_log_id' => $this->readLogId,
+            'path' => $relativePath,
+            'filesize_kb' => $filesizeKb,
+            'duration_ms' => $durationMs,
+            'camera' => $cameraName,
+            'mode' => $captureMode,
         ]);
     }
 
@@ -184,11 +194,11 @@ class CaptureCctvSnapshotJob implements ShouldQueue
     {
         Log::error('CaptureCctvSnapshotJob: job gagal setelah semua retry.', [
             'checkpoint_id' => $this->checkpointId,
-            'error'         => $e->getMessage(),
+            'error' => $e->getMessage(),
         ]);
 
         $checkpoint = $this->checkpointId ? Checkpoint::find($this->checkpointId) : null;
-        $readLog    = $this->readLogId ? RfidReadLog::find($this->readLogId) : null;
+        $readLog = $this->readLogId ? RfidReadLog::find($this->readLogId) : null;
         if ($checkpoint || $readLog) {
             // A4 — write structured failure entry to photos[] on total exhaustion
             $this->markFailed($checkpoint, $readLog, 'job_exhausted');
@@ -243,11 +253,11 @@ class CaptureCctvSnapshotJob implements ShouldQueue
             // jika proses belum juga keluar. "-nostdin" mencegah ffmpeg
             // menunggu input keyboard interaktif saat dijalankan tanpa tty
             // (selalu kasusnya di sini, dipanggil lewat PHP exec()).
-            $probePath = sys_get_temp_dir() . '/minetrace_probe_' . $this->targetKey() . '.jpg';
-            $cmd       = sprintf(
+            $probePath = sys_get_temp_dir().'/minetrace_probe_'.$this->targetKey().'.jpg';
+            $cmd = sprintf(
                 'timeout -k 5 %d ffmpeg -nostdin -loglevel error -rtsp_transport tcp '
-                . '-analyzeduration 2000000 -probesize 2000000 '
-                . '-i %s -frames:v 1 -q:v %d -y %s 2>&1',
+                .'-analyzeduration 2000000 -probesize 2000000 '
+                .'-i %s -frames:v 1 -q:v %d -y %s 2>&1',
                 $timeout,
                 escapeshellarg($rtspUrl),
                 $quality,
@@ -260,13 +270,14 @@ class CaptureCctvSnapshotJob implements ShouldQueue
                 @unlink($probePath);
                 Log::debug('CaptureCctvSnapshotJob: RTSP probe berhasil.', [
                     'attempt' => $i + 1,
-                    'url'     => $rtspUrl,
+                    'url' => $rtspUrl,
                 ]);
+
                 return true;
             }
 
             @unlink($probePath);
-            Log::debug('CaptureCctvSnapshotJob: RTSP probe attempt ' . ($i + 1) . ' gagal.');
+            Log::debug('CaptureCctvSnapshotJob: RTSP probe attempt '.($i + 1).' gagal.');
         }
 
         return false;
@@ -285,7 +296,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         $snapshot = $this->writeFailureEntry($checkpoint, $readLog, $reason, $camera, $captureMode);
 
         $checkpoint?->update([
-            'snapshot_status'   => 'failed',
+            'snapshot_status' => 'failed',
             'capture_attempted' => true,
             'capture_succeeded' => false,
         ]);
@@ -300,45 +311,60 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         string $captureMode = 'simulation'
     ): CctvSnapshot {
         if ($checkpoint) {
-            $failedAt   = Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB';
-            $photos     = $checkpoint->photos ?? [];
-            $photos[]   = [
-                'type'        => 'snapshot_failed',
-                'scan_type'   => $this->scanType,
-                'stage'       => $this->stageName,
-                'rfid_uid'    => $this->rfidUid,
+            $failedAt = Carbon::now(self::TZ)->format('d/m/Y H:i:s').' WIB';
+            $photos = $checkpoint->photos ?? [];
+            $photos[] = [
+                'type' => 'snapshot_failed',
+                'scan_type' => $this->scanType,
+                'stage' => $this->stageName,
+                'rfid_uid' => $this->rfidUid,
                 'camera_name' => $camera?->name ?? 'Unknown',
-                'mode'        => $captureMode,
-                'failed_at'   => $failedAt,
-                'reason'      => $reason,
+                'mode' => $captureMode,
+                'failed_at' => $failedAt,
+                'reason' => $reason,
             ];
             $checkpoint->update(['photos' => $photos]);
         }
 
         return CctvSnapshot::create([
-            'company_id'     => $this->companyId,
-            'batch_id'       => $checkpoint?->batch_id ?? $readLog?->batch_id,
-            'checkpoint_id'  => $checkpoint?->id,
-            'read_log_id'    => $readLog?->id,
-            'camera_id'      => $camera?->id,
-            'file_path'      => null,
-            'capture_mode'   => $captureMode,
+            'company_id' => $this->companyId,
+            'batch_id' => $checkpoint?->batch_id ?? $readLog?->batch_id,
+            'checkpoint_id' => $checkpoint?->id,
+            'read_log_id' => $readLog?->id,
+            'camera_id' => $camera?->id,
+            'file_path' => null,
+            'capture_mode' => $captureMode,
             'capture_status' => 'failed',
             'failure_reason' => $reason,
-            'scan_type'      => $this->scanType,
-            'rfid_uid'       => $this->rfidUid ?: null,
-            'stage'          => $this->stageName,
-            'captured_at'    => now(),
+            'scan_type' => $this->scanType,
+            'rfid_uid' => $this->rfidUid ?: null,
+            'stage' => $this->stageName,
+            'captured_at' => now(),
         ]);
     }
 
     // ─── Strategy Pattern: Camera Resolution ─────────────────────────────────
 
+    /**
+     * Prioritas: camera_url per-reader (override, tanpa disimpan ke tabel cctv_cameras) →
+     * CctvCamera stage-specific → kamera aktif pertama perusahaan → null (caller fallback ke config).
+     */
     private function resolveCamera(): ?CctvCamera
     {
+        if ($this->readerId && ($url = RfidReader::find($this->readerId)?->camera_url)) {
+            return new CctvCamera([
+                'company_id' => $this->companyId,
+                'name' => 'Reader camera_url',
+                'rtsp_url' => $url,
+                'is_active' => true,
+            ]);
+        }
+
         if ($this->stageName) {
             $camera = CctvCamera::getDefaultForStage($this->companyId, $this->stageName);
-            if ($camera) return $camera;
+            if ($camera) {
+                return $camera;
+            }
         }
 
         return CctvCamera::where('company_id', $this->companyId)
@@ -358,7 +384,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
                 usleep(500_000);
             }
 
-            $filePath = $dir . '/' . $this->buildFilename();
+            $filePath = $dir.'/'.$this->buildFilename();
 
             if ($this->captureFrame($rtspUrl, $filePath)) {
                 $captured[] = ['path' => $filePath, 'size' => filesize($filePath)];
@@ -382,7 +408,7 @@ class CaptureCctvSnapshotJob implements ShouldQueue
     {
         $timeout = (int) config('cctv.ffmpeg_timeout', 30);
         $quality = (int) config('cctv.ffmpeg_quality', 2);
-        $scale   = config('cctv.ffmpeg_scale', '1280:720');
+        $scale = config('cctv.ffmpeg_scale', '1280:720');
 
         // Lihat catatan di probeRtspReady(): flag "-timeout" TIDAK dipakai
         // karena semantiknya di-deprecate menjadi RTSP listen-mode pada
@@ -396,8 +422,8 @@ class CaptureCctvSnapshotJob implements ShouldQueue
         // sebagai proses zombie yang menghabiskan memori container.
         $cmd = sprintf(
             'timeout -k 5 %d ffmpeg -nostdin -loglevel error -rtsp_transport tcp '
-            . '-analyzeduration 3000000 -probesize 3000000 '
-            . '-i %s -frames:v 1 -q:v %d -vf scale=%s -y %s 2>&1',
+            .'-analyzeduration 3000000 -probesize 3000000 '
+            .'-i %s -frames:v 1 -q:v %d -vf scale=%s -y %s 2>&1',
             $timeout,
             escapeshellarg($rtspUrl),
             $quality,
@@ -407,12 +433,13 @@ class CaptureCctvSnapshotJob implements ShouldQueue
 
         exec($cmd, $output, $exitCode);
 
-        if ($exitCode !== 0 || !file_exists($outputPath) || filesize($outputPath) < 1024) {
+        if ($exitCode !== 0 || ! file_exists($outputPath) || filesize($outputPath) < 1024) {
             Log::debug('CaptureCctvSnapshotJob: ffmpeg frame gagal.', [
                 'exit_code' => $exitCode,
-                'output'    => implode("\n", array_slice($output, -3)),
+                'output' => implode("\n", array_slice($output, -3)),
             ]);
             @unlink($outputPath);
+
             return false;
         }
 
@@ -424,12 +451,13 @@ class CaptureCctvSnapshotJob implements ShouldQueue
     /** Penanda target untuk nama berkas: id checkpoint, atau 'log{id}' bila tanpa checkpoint. */
     private function targetKey(): string
     {
-        return $this->checkpointId ? (string) $this->checkpointId : 'log' . $this->readLogId;
+        return $this->checkpointId ? (string) $this->checkpointId : 'log'.$this->readLogId;
     }
 
     private function buildFilename(): string
     {
         $random = strtolower(substr(bin2hex(random_bytes(2)), 0, 4));
+
         return sprintf(
             'snap_%d_%s_%s_%s.jpg',
             $this->companyId,

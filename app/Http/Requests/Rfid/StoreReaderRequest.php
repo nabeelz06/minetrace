@@ -4,6 +4,7 @@ namespace App\Http\Requests\Rfid;
 
 use App\Models\RfidReader;
 use App\Services\Hardware\Uhf\EndpointGuard;
+use App\Support\ProcessFlow;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -13,7 +14,7 @@ class StoreReaderRequest extends FormRequest
     /** Tahap yang punya scan RFID (satu sumber: ProcessFlow). */
     public static function stages(): array
     {
-        return \App\Support\ProcessFlow::rfidStages();
+        return ProcessFlow::rfidStages();
     }
 
     public function authorize(): bool
@@ -24,12 +25,13 @@ class StoreReaderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'code'        => ['required', 'string', 'max:40', 'regex:/^[A-Za-z0-9_-]+$/',
-                              Rule::unique('rfid_readers', 'code')->where('company_id', $this->user()->company_id)],
-            'name'        => ['required', 'string', 'max:100'],
-            'stage'       => ['nullable', Rule::in(self::stages())],
-            'direction'   => ['required', Rule::in(RfidReader::DIRECTIONS)],
+            'code' => ['required', 'string', 'max:40', 'regex:/^[A-Za-z0-9_-]+$/',
+                Rule::unique('rfid_readers', 'code')->where('company_id', $this->user()->company_id)],
+            'name' => ['required', 'string', 'max:100'],
+            'stage' => ['nullable', Rule::in(self::stages())],
+            'direction' => ['required', Rule::in(RfidReader::DIRECTIONS)],
             'device_type' => ['required', Rule::in(RfidReader::DEVICE_TYPES)],
+            'camera_url' => ['nullable', 'string', 'max:255', 'regex:/^(rtsp|http|https):\/\//i'],
         ] + self::connectionRules();
     }
 
@@ -40,13 +42,13 @@ class StoreReaderRequest extends FormRequest
     public static function connectionRules(): array
     {
         return [
-            'connection'                  => ['nullable', 'array'],
-            'connection.host'             => ['nullable', 'required_if:device_type,uhf_chainway_ur4', 'string', 'max:255',
-                                              'regex:/^[A-Za-z0-9.:_-]+$/'],
-            'connection.port'             => ['nullable', 'integer', 'between:1,65535'],
-            'connection.antennas'         => ['nullable', 'array'],
-            'connection.antennas.*'       => [Rule::in(['in', 'out'])],
-            'connection.min_rssi'         => ['nullable', 'integer', 'between:-120,0'],
+            'connection' => ['nullable', 'array'],
+            'connection.host' => ['nullable', 'required_if:device_type,uhf_chainway_ur4', 'string', 'max:255',
+                'regex:/^[A-Za-z0-9.:_-]+$/'],
+            'connection.port' => ['nullable', 'integer', 'between:1,65535'],
+            'connection.antennas' => ['nullable', 'array'],
+            'connection.antennas.*' => [Rule::in(['in', 'out'])],
+            'connection.min_rssi' => ['nullable', 'integer', 'between:-120,0'],
             'connection.presence_seconds' => ['nullable', 'integer', 'between:1,3600'],
         ];
     }
@@ -55,7 +57,7 @@ class StoreReaderRequest extends FormRequest
      * Nomor antena 1–16; arah antena tidak boleh bertentangan dengan arah tetap reader; alamat jaringan
      * lolos EndpointGuard (cegah SSRF) dan tidak dipakai reader aktif lain (UR4 hanya melayani satu klien).
      *
-     * @param RfidReader|null $existing reader yang sedang diubah (null saat membuat)
+     * @param  RfidReader|null  $existing  reader yang sedang diubah (null saat membuat)
      */
     public static function validateConnection(Validator $validator, ?string $direction, ?RfidReader $existing = null): void
     {
@@ -68,10 +70,12 @@ class StoreReaderRequest extends FormRequest
         foreach ($antennas as $port => $dir) {
             if (! ctype_digit((string) $port) || (int) $port < 1 || (int) $port > 16) {
                 $validator->errors()->add('connection.antennas', 'Nomor antena harus 1–16.');
+
                 return;
             }
             if ($direction && $direction !== 'any' && $dir !== $direction) {
                 $validator->errors()->add('connection.antennas', 'Arah antena bertentangan dengan arah reader. Pilih arah "Dua arah".');
+
                 return;
             }
         }

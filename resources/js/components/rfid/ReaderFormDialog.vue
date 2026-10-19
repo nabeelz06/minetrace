@@ -23,7 +23,7 @@ const apiText = useApiText()
 const TYPES = ['uhf_chainway_ur4', 'uhf_desktop_r2000', 'esp32_rc522', 'uhf_epc_gen2', 'keyboard_wedge', 'other']
 const ANTENNAS = [1, 2, 3, 4]
 const blankConn = () => ({ host: '', port: 8888, min_rssi: '', presence_seconds: '', antennas: { 1: '', 2: '', 3: '', 4: '' } })
-const blank = () => ({ code: '', name: '', stage: '', direction: 'in', device_type: 'uhf_chainway_ur4', conn: blankConn() })
+const blank = () => ({ code: '', name: '', stage: '', direction: 'in', device_type: 'uhf_chainway_ur4', camera_url: '', conn: blankConn() })
 const form = ref(blank())
 const isUr4 = computed(() => form.value.device_type === 'uhf_chainway_ur4')
 
@@ -54,16 +54,16 @@ watch(() => props.open, o => {
     if (!o) return
     errors.value = {}; message.value = ''
     form.value = props.reader
-        ? { code: props.reader.code, name: props.reader.name, stage: props.reader.stage ?? '', direction: props.reader.direction, device_type: props.reader.device_type, conn: toConn(props.reader.connection) }
+        ? { code: props.reader.code, name: props.reader.name, stage: props.reader.stage ?? '', direction: props.reader.direction, device_type: props.reader.device_type, camera_url: props.reader.camera_url ?? '', conn: toConn(props.reader.connection) }
         : blank()
 })
 
 async function submit() {
     loading.value = true; errors.value = {}; message.value = ''
     const { conn, ...rest } = form.value
-    const body = { ...rest, stage: rest.stage || null, connection: connectionBody() }
+    const body = { ...rest, stage: rest.stage || null, camera_url: rest.camera_url.trim() || null, connection: connectionBody() }
     const res = props.reader
-        ? await rfidApi.updateReader(props.reader.id, { name: body.name, stage: body.stage, direction: body.direction, device_type: body.device_type, connection: body.connection })
+        ? await rfidApi.updateReader(props.reader.id, { name: body.name, stage: body.stage, direction: body.direction, device_type: body.device_type, camera_url: body.camera_url, connection: body.connection })
         : await rfidApi.createReader(body)
     loading.value = false
     if (res.ok) { emit('saved', res.data); emit('update:open', false) }
@@ -108,6 +108,10 @@ async function submit() {
                     </select>
                 </FormField>
                 <p v-if="form.device_type === 'uhf_desktop_r2000'" class="text-sm text-muted-foreground">{{ t('rfid.dev.desktop_hint') }}</p>
+
+                <FormField :label="t('rfid.dev.camera_url')" :hint="t('rfid.dev.camera_url_hint')" :error="errors.camera_url" v-slot="{ id, describedby, invalid }">
+                    <FormInput :id="id" v-model="form.camera_url" :invalid="invalid" :describedby="describedby" autocomplete="off" placeholder="rtsp://192.168.1.50:554/stream1" />
+                </FormField>
 
                 <!-- Koneksi reader gate UR4 -->
                 <fieldset v-if="isUr4" class="space-y-4 rounded-xl border border-border p-4">

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Rfid;
 
+use App\Events\RfidTagScanned;
 use App\Jobs\CaptureCctvSnapshotJob;
 use App\Models\Batch;
 use App\Models\Company;
@@ -15,6 +16,7 @@ use App\Services\Hardware\RfidScanService;
 use Database\Seeders\Core\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -137,7 +139,28 @@ class UhfReadLogTest extends TestCase
         $this->assertSame(['in', 'accepted', $batch->id, $reader->id, 1, -60], [$log->action, $log->result, $log->batch_id, $log->reader_id, $log->antenna, $log->rssi]);
         $this->assertNotNull($log->checkpoint_id);
 
-        Queue::assertPushed(CaptureCctvSnapshotJob::class, 1);
+        Queue::assertPushed(CaptureCctvSnapshotJob::class, function (CaptureCctvSnapshotJob $job) use ($reader) {
+            $ref = new \ReflectionProperty($job, 'readerId');
+
+            return $ref->getValue($job) === $reader->id;
+        });
+    }
+
+    #[Test]
+    public function registrasi_tidak_memicu_event_rfidtagscanned_hanya_scan_in_out(): void
+    {
+        Event::fake([RfidTagScanned::class]);
+        $reader = $this->gateReader();
+        $batch = $this->batch(['rfid_tag' => self::EPC]);
+
+        app(RfidScanService::class)->scan(new DeviceContext($this->company->id, $reader, 'device_key'), 'in', self::EPC, $reader->stage, ['origin' => 'real_uhf']);
+        Event::assertDispatched(RfidTagScanned::class, fn ($e) => $e->log->action === 'in');
+
+        Event::fake([RfidTagScanned::class]);
+        $this->actingAs($this->wet)->postJson(self::BASE.'/registration', [
+            'batch_id' => $this->batch(['process_stage' => 'receiving'])->id, 'uid' => 'E200AAAA00000099', 'source' => 'uhf_desktop',
+        ]);
+        Event::assertNotDispatched(RfidTagScanned::class);
     }
 
     #[Test]
