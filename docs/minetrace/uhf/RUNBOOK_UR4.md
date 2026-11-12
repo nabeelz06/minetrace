@@ -40,7 +40,16 @@ Skenario: `--scenario=normal|silent|doa`.
    - **Lepas tag** (administrator & operator; alasan baku): membebaskan UID agar bisa didaftarkan ke batch lain (juga batch arsip).
    Tidak ada riwayat yang dihapus: catatan hanya diberi tanda *dibatalkan* (siapa, kapan, mengapa) dan tampil di riwayat tag.
 
-### Saklar lingkungan (`.env.production`, lalu `docker compose up -d --build`)
+### Saklar lingkungan (`.env.production`)
+Setelah mengubah `.env.production`, buat ulang kontainer (`restart` saja TIDAK memuat ulang `env_file`; image `worker`/`scheduler`/
+`rfid_gate` membekukan konfigurasi saat build, jadi ikut dibangun ulang). Jalankan di luar jam scan aktif — `optimize:clear`
+mengosongkan cache RFID (mode aktif, sesi registrasi, dedupe):
+```bash
+cd ~/minetrace && export COMPOSE_FILE=docker-compose.prod.yml
+docker compose up -d --force-recreate app
+docker compose --profile rfid-gate up -d --build worker scheduler rfid_gate
+docker compose exec -T app php artisan optimize:clear && docker compose exec -T app php artisan optimize
+```
 | Variabel | Bawaan | Catatan |
 |---|---|---|
 | `RFID_TEST_RESET_ENABLED` | `true` | **Matikan (`false`) saat go-live** — menutup tombol Reset uji. Lepas tag tetap tersedia. |
