@@ -433,6 +433,11 @@ const exportPieData = computed(() => {
                           class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-info-soft text-info border border-info/30">
                         <span></span> RFID Auto-Kirim
                     </span>
+                    <!-- Mode penuh: Scan IN menerima + Scan OUT mengirim (gate dua arah) -->
+                    <span v-else-if="rfid_auth_mode === 'scan_full'"
+                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-success-soft text-success border border-success/30">
+                        <span></span> {{ lang === 'en' ? 'RFID Auto Receive & Dispatch' : 'RFID Auto-Terima & Kirim' }}
+                    </span>
                     <span v-else
                           class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-muted text-muted-foreground border border-border">
                         <span></span> RFID Audit Only

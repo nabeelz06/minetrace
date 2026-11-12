@@ -8,11 +8,15 @@
  * - Umpan langsung (polling sadar-visibilitas) memperlihatkan pembacaan reader; input manual/USB (UID + Enter)
  *   untuk fallback. Dedupe/idempotensi dijamin server (event_id per submit).
  * - Tag tidak dikenal → tawarkan "Daftarkan tag ini". Salah scan → "Batalkan" beralasan (koreksi, bukan hapus).
+ * - Setiap hasil menyebut dengan jelas APA yang terjadi pada batch (berpindah / sudah di tahap ini / hanya tercatat)
+ *   dan menampilkan posisi batch saat ini; mode "Catat saja" dijelaskan lengkap dengan jalan pintas ke pengaturannya.
+ * - Dari hasil atau baris riwayat, "Kelola tag" membuka Kelola Tag dengan UID terisi (lepas / reset uji sekali ketuk).
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
 import AppIcon from '@/components/app/AppIcon.vue'
 import ResultBanner from '@/components/app/ResultBanner.vue'
+import StatusBadge from '@/components/shared/StatusBadge.vue'
 import VoidScanDialog from '@/components/rfid/VoidScanDialog.vue'
 import { rfidApi, useApiText } from '@/composables/rfid/useRfidApi.js'
 import { usePolling } from '@/composables/core/usePolling.js'
@@ -25,10 +29,11 @@ const props = defineProps({
     stages:            { type: Array, default: () => [] },
     modes:             { type: Object, default: () => ({}) },
     canOperate:        { type: Boolean, default: false },
+    canManage:         { type: Boolean, default: false },
     simulationEnabled: { type: Boolean, default: false },
     field:             { type: Boolean, default: false },
 })
-const emit = defineEmits(['register-uid'])
+const emit = defineEmits(['register-uid', 'manage-uid', 'open-devices'])
 
 const { t, lang, loc } = useI18n()
 const apiText = useApiText()
@@ -55,7 +60,8 @@ watch(validReaders, list => {
 
 // ─── Mode otorisasi → kalimat dampak ──────────────────────────────────────────
 const mode = computed(() => props.modes?.[stageKey.value]?.mode ?? 'audit_only')
-const isAuto = computed(() => (isIn.value && mode.value === 'scan_to_receive') || (!isIn.value && mode.value === 'scan_to_dispatch'))
+// Otomatis = scan pada arah INI benar-benar memindahkan batch (scan_full berlaku untuk kedua arah).
+const isAuto = computed(() => mode.value === 'scan_full' || (isIn.value && mode.value === 'scan_to_receive') || (!isIn.value && mode.value === 'scan_to_dispatch'))
 const modeText = computed(() => isAuto.value ? t(isIn.value ? 'rfid.scan.mode_receive' : 'rfid.scan.mode_dispatch') : t('rfid.scan.mode_audit'))
 
 // ─── Simulasi ─────────────────────────────────────────────────────────────────
@@ -66,6 +72,25 @@ const uid = ref('')
 const inputRef = ref(null)
 const submitting = ref(false)
 const last = ref(null)          // { type, title, desc, extra, uid, code }
+
+/**
+ * Terjemahkan hasil server menjadi kalimat dampak yang bisa dipahami operator:
+ *  moved        → batch benar-benar berpindah (diterima/dikirim)
+ *  already_done → batch sudah di tahap ini; tidak ada yang berubah (bukan galat)
+ *  blocked/error→ scan tercatat tetapi tahap TIDAK berubah (alasan dari server)
+ *  (tanpa state)→ mode "Catat saja": hanya tercatat
+ */
+function describeOutcome(d) {
+    const state = d.transition_state ?? (d.transition_attempted ? (d.transition_success ? 'moved' : 'blocked') : null)
+    const stage = d.stage_label ?? stageLabel(d.scan_stage)
+
+    if (state === 'moved') return { type: 'success', extra: t(isIn.value ? 'rfid.scan.moved_in' : 'rfid.scan.moved_out', { stage }) }
+    if (state === 'already_done') return { type: 'info', extra: t('rfid.scan.already_done') }
+    if (state === 'blocked' || state === 'error') return { type: 'warning', extra: t('rfid.scan.transition_fail', { reason: d.transition_reason ?? '—' }) }
+    if (d.duplicate) return { type: 'success', extra: t('rfid.scan.duplicate_note') }
+
+    return isAuto.value ? { type: 'success', extra: null } : { type: 'warning', extra: t('rfid.scan.audit_only_note') }
+}
 
 async function submit() {
     const value = uid.value.trim()
@@ -80,17 +105,17 @@ async function submit() {
 
     if (res.ok) {
         const d = res.data
-        const failed = d.transition_attempted && !d.transition_success
+        const outcome = describeOutcome(d)
         last.value = {
-            type: failed ? 'warning' : 'success',
+            type: outcome.type,
             title: t('rfid.scan.ok_title'),
             desc: t('rfid.scan.ok_desc', { batch: d.batch_code, product: d.product ?? '—', stage: d.stage_label ?? stageLabel(d.scan_stage) }),
-            extra: failed ? t('rfid.scan.transition_fail', { reason: d.transition_reason })
-                : (d.transition_attempted ? t('rfid.scan.transition_ok', { msg: d.transition_message }) : (d.duplicate ? t('rfid.scan.duplicate_note') : null)),
+            extra: outcome.extra,
+            uid: value,
         }
-        navigator.vibrate?.(failed ? [80, 60, 80] : 60)
+        navigator.vibrate?.(outcome.type === 'warning' ? [80, 60, 80] : 60)
         uid.value = ''
-        fetchFeed(false)
+        fetchFeed(false, { announce: false })   // hasil scan ini sudah ditampilkan di atas; daftar saja yang disegarkan
     } else {
         last.value = { type: 'error', title: apiText(res), code: res.code, uid: value }
         navigator.vibrate?.([120, 60, 120])
@@ -104,7 +129,7 @@ const feed = ref([])
 const rejects = ref([])
 const lastId = ref(0)
 
-async function fetchFeed(initial = false) {
+async function fetchFeed(initial = false, { announce = true } = {}) {
     if (!stageKey.value && !reader.value) return true
     const params = { direction: props.direction, limit: initial ? 10 : 20, include_rejects: 1 }
     if (reader.value) params.reader_id = reader.value.id; else params.stage = stageKey.value
@@ -118,10 +143,20 @@ async function fetchFeed(initial = false) {
         if (fresh.length) {
             feed.value = [...fresh, ...feed.value].slice(0, 10)
             lastId.value = rows[0].id
-            if (!submitting.value) {
-                const r = fresh[0]
-                last.value = { type: 'success', title: t('rfid.scan.ok_title'), desc: t('rfid.scan.ok_desc', { batch: r.batch_code, product: r.product_code ?? '—', stage: stageLabel(r.stage) }) }
-                navigator.vibrate?.(60)
+            // Scan dari reader fisik diumumkan di sini. Scan manual/simulasi dari layar ini sudah diumumkan oleh submit()
+            // (dengan hasil transisinya) sehingga tidak boleh ditimpa pesan umum.
+            const r = fresh[0]
+            if (announce && !submitting.value && !['manual', 'simulation'].includes(r.origin)) {
+                const moved = isIn.value ? r.batch_stage === r.stage : r.batch_status === 'in_transit'
+                last.value = {
+                    type: moved ? 'success' : 'warning',
+                    title: t('rfid.scan.ok_title'),
+                    desc: t('rfid.scan.ok_desc', { batch: r.batch_code, product: r.product_code ?? '—', stage: stageLabel(r.stage) }),
+                    extra: moved ? null : t(isAuto.value ? 'rfid.scan.not_moved_auto' : 'rfid.scan.audit_only_note'),
+                    position: { stage: r.batch_stage, status: r.batch_status },
+                    uid: r.uid,
+                }
+                navigator.vibrate?.(moved ? 60 : [80, 60, 80])
             }
         }
     }
@@ -170,12 +205,19 @@ const SRC = { simulation: 'rfid.hist.src_sim', manual: 'rfid.hist.src_manual' }
             </div>
         </div>
 
-        <!-- Dampak mode otorisasi -->
-        <div class="flex items-start gap-2 rounded-lg border p-3 text-sm" :class="isAuto ? 'border-warning/40 bg-warning-soft text-warning' : 'border-border bg-card text-foreground'">
+        <!-- Dampak mode otorisasi: operator tahu SEBELUM scan apakah batch akan berpindah -->
+        <div class="flex items-start gap-2 rounded-lg border p-3 text-sm" :class="isAuto ? 'border-warning/40 bg-warning-soft text-warning' : stageKey ? 'border-info/30 bg-info-soft text-info' : 'border-border bg-card text-foreground'">
             <AppIcon :name="isAuto ? 'triangle-alert' : 'info'" :size="18" class="mt-0.5" />
-            <div>
+            <div class="min-w-0">
                 <p class="font-semibold">{{ modeText }}</p>
                 <p v-if="isAuto" class="mt-0.5">{{ t('rfid.scan.auto_warning') }}</p>
+                <template v-else-if="stageKey">
+                    <p class="mt-0.5">{{ t(isIn ? 'rfid.scan.audit_banner_in' : 'rfid.scan.audit_banner_out') }}</p>
+                    <button v-if="canManage" type="button" class="mt-2 inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-card px-3 font-semibold text-foreground hover:bg-accent" @click="emit('open-devices')">
+                        <AppIcon name="sliders-horizontal" :size="16" />{{ t('rfid.scan.audit_fix') }}
+                    </button>
+                    <p v-else class="mt-0.5">{{ t('rfid.scan.audit_fix_hint') }}</p>
+                </template>
             </div>
         </div>
 
@@ -201,6 +243,14 @@ const SRC = { simulation: 'rfid.hist.src_sim', manual: 'rfid.hist.src_manual' }
         <div aria-live="polite" class="min-h-[88px]">
             <ResultBanner v-if="last" :type="last.type" :title="last.title" :description="last.desc" :size="field ? 'xl' : 'md'">
                 <p v-if="last.extra" class="mt-1 text-sm font-medium">{{ last.extra }}</p>
+                <p v-if="last.position" class="mt-1 flex flex-wrap items-center gap-2 text-sm font-medium">
+                    <span>{{ t('rfid.scan.position', { stage: stageLabel(last.position.stage) }) }}</span><StatusBadge :status="last.position.status" size="xs" />
+                </p>
+                <button v-if="last.uid && last.code !== 'tag_unknown' && canOperate" type="button"
+                        class="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-current px-4 text-sm font-semibold hover:bg-card/60"
+                        @click="emit('manage-uid', last.uid)">
+                    <AppIcon name="unlink" :size="16" />{{ t('rfid.scan.manage_tag') }}
+                </button>
                 <button v-if="last.code === 'tag_unknown' && canOperate" type="button"
                         class="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90"
                         @click="emit('register-uid', last.uid)">
@@ -262,10 +312,18 @@ const SRC = { simulation: 'rfid.hist.src_sim', manual: 'rfid.hist.src_manual' }
                             <template v-if="SRC[f.origin]"> · {{ t(SRC[f.origin]) }}</template>
                             <template v-if="f.is_voided"> · {{ t('rfid.scan.voided') }}</template>
                         </p>
+                        <p v-if="f.batch_stage && !f.is_voided" class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>{{ t('rfid.scan.position', { stage: stageLabel(f.batch_stage) }) }}</span><StatusBadge :status="f.batch_status" size="xs" />
+                        </p>
                     </div>
-                    <button v-if="canOperate && !f.is_voided" type="button" class="min-h-[44px] rounded-lg px-3 text-sm font-medium text-danger hover:bg-danger-soft" @click="askVoid(f)">
-                        {{ t('rfid.scan.void') }}
-                    </button>
+                    <div v-if="canOperate && !f.is_voided" class="flex flex-shrink-0 flex-col items-stretch sm:flex-row">
+                        <button type="button" class="min-h-[44px] rounded-lg px-3 text-sm font-medium text-primary hover:bg-accent" @click="emit('manage-uid', f.uid)">
+                            {{ t('rfid.scan.manage_tag') }}
+                        </button>
+                        <button type="button" class="min-h-[44px] rounded-lg px-3 text-sm font-medium text-danger hover:bg-danger-soft" @click="askVoid(f)">
+                            {{ t('rfid.scan.void') }}
+                        </button>
+                    </div>
                 </li>
             </ul>
             <p v-else class="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">{{ t('rfid.scan.recent_empty') }}</p>

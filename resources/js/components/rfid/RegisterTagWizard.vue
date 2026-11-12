@@ -5,6 +5,10 @@
  * Dari halaman detail batch (initialBatchId) langkah 1 dilewati: 1 klik "Mulai" lalu tempelkan tag.
  * Tiga cara membaca tag: reader UHF desktop USB (Receiving Area, Web Serial — UhfDesktopPanel),
  * reader terdaftar (sesi menunggu, hitung mundur), atau input manual/USB (keyboard-wedge: UID + Enter). Semua teks lewat kamus i18n (rfid.reg.*).
+ *
+ * Saat menunggu tag, percobaan tap yang GAGAL (tag dipakai batch lain, beberapa tag terbaca, dst.) ditampilkan langsung
+ * beserta jalan keluarnya — mis. "Lepas dari batch itu & pakai di sini" — sehingga operator tidak menebak kenapa tag
+ * "tidak terdaftar". Reader yang offline diberi peringatan SEBELUM sesi dimulai.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useLocalStorage, useNow } from '@vueuse/core'
@@ -12,22 +16,25 @@ import { Link } from '@inertiajs/vue3'
 import AppIcon from '@/components/app/AppIcon.vue'
 import BigActionButton from '@/components/app/BigActionButton.vue'
 import ResultBanner from '@/components/app/ResultBanner.vue'
+import ConfirmDialog from '@/components/app/ConfirmDialog.vue'
 import BatchPicker from '@/components/rfid/BatchPicker.vue'
 import UhfDesktopPanel from '@/components/rfid/UhfDesktopPanel.vue'
 import { rfidApi, useApiText } from '@/composables/rfid/useRfidApi.js'
+import { pushToast } from '@/composables/core/useToast.js'
 import { usePolling } from '@/composables/core/usePolling.js'
 import { useI18n } from '@/composables/core/useI18n.js'
-import { groupUid } from '@/lib/format'
+import { groupUid, formatUidShort } from '@/lib/format'
 
 const props = defineProps({
     readers:         { type: Array, default: () => [] },
     canOperate:      { type: Boolean, default: false },
+    canManage:       { type: Boolean, default: false },
     initialBatchId:  { type: Number, default: null },
     initialUid:      { type: String, default: '' },
     field:           { type: Boolean, default: false },
     uhfBaud:         { type: Number, default: 9600 },
 })
-const emit = defineEmits(['registered'])
+const emit = defineEmits(['registered', 'manage-uid'])
 
 const { t } = useI18n()
 const apiText = useApiText()
@@ -52,6 +59,42 @@ const inlineError = ref('')
 const result = ref(null)          // { type: 'success'|'error'|'expired', title, desc, uid? }
 const resultRef = ref(null)
 const manualRef = ref(null)
+const lastAttempt = ref(null)     // percobaan tap terakhir yang GAGAL pada sesi aktif (dari server)
+
+// Reader terpilih (atau semua reader aktif bila "mana pun") tidak online → tap tidak akan terbaca: beri tahu sebelum menunggu.
+const readerWarning = computed(() => {
+    const list = readerId.value ? activeReaders.value.filter(r => String(r.id) === String(readerId.value)) : activeReaders.value
+    if (!list.length || list.some(r => r.state === 'online')) return null
+    return list.every(r => r.state === 'never') ? 'never' : 'offline'
+})
+
+// Judul percobaan gagal: sebut siapa pemilik tag bila diketahui (hanya batch milik perusahaan sendiri).
+const attemptTitle = computed(() => {
+    const a = lastAttempt.value
+    if (!a) return ''
+    if (a.code === 'tag_in_use') return a.owner ? t('rfid.reg.attempt_tag_in_use', { uid: formatUidShort(a.uid), batch: a.owner.batch_code }) : t('rfid.reg.attempt_tag_in_use_other', { uid: formatUidShort(a.uid) })
+    if (a.code === 'multiple_tags') return t('rfid.reg.attempt_multiple_tags', { n: a.count ?? '—' })
+    return t('rfid.reg.attempt_generic', { uid: formatUidShort(a.uid) })
+})
+const attemptDetail = computed(() => {
+    const a = lastAttempt.value
+    return a && !['tag_in_use', 'multiple_tags'].includes(a.code) ? apiText({ code: a.code, message: a.detail }) : null
+})
+
+// Lepas tag dari batch pemiliknya lalu pakai di batch ini (alur "ganti tag terus" tanpa meninggalkan wizard).
+const releaseOpen = ref(false)
+const releasing = ref(false)
+async function releaseAttemptTag() {
+    const a = lastAttempt.value
+    if (!a || releasing.value) return
+    releasing.value = true
+    const res = await rfidApi.releaseTagByUid({ uid: a.uid, reason: 'other' })
+    releasing.value = false
+    releaseOpen.value = false
+    if (!res.ok) { pushToast(apiText(res), 'error'); return }
+    lastAttempt.value = null
+    pushToast(t('rfid.reg.attempt_released'), 'success')
+}
 
 const now = useNow({ interval: 1000 })
 const ttl = computed(() => session.value?.ttl_seconds ?? 90)
@@ -71,12 +114,14 @@ const poll = usePolling(async () => {
     if (!res.ok) return false
     if (res.data.state === 'completed') finish({ type: 'success', uid: res.data.uid })
     else if (res.data.state === 'expired') finish({ type: 'expired' })
+    else lastAttempt.value = res.data.last_attempt ?? null
     return true
 }, { interval: 1500, immediate: false })
 
 function finish(r) {
     poll.stop()
     session.value = null
+    lastAttempt.value = null
     result.value = r.type === 'success'
         ? { type: 'success', uid: r.uid, title: t('rfid.reg.success'), desc: t('rfid.reg.success_desc', { uid: groupUid(r.uid), batch: batch.value?.batch_code }) }
         : r.type === 'expired'
@@ -96,6 +141,7 @@ async function startReader() {
     submitting.value = false
     if (!res.ok) return finish({ type: 'error', desc: apiText(res) })
     session.value = res.data
+    lastAttempt.value = null
     poll.start()
 }
 
@@ -195,6 +241,30 @@ const steps = [1, 2, 3]
                 <div class="mx-auto h-2 max-w-sm overflow-hidden rounded-full bg-muted" role="progressbar" :aria-valuenow="remaining" aria-valuemin="0" :aria-valuemax="ttl">
                     <div class="h-full bg-primary" :style="{ width: percent + '%' }" />
                 </div>
+
+                <!-- Percobaan tap yang gagal: alasan + jalan keluar langsung di layar ini -->
+                <div v-if="lastAttempt" role="alert" class="mx-auto max-w-lg space-y-3 rounded-xl border border-warning/40 bg-warning-soft p-4 text-left text-warning">
+                    <div class="flex items-start gap-2">
+                        <AppIcon name="triangle-alert" :size="22" class="mt-0.5" />
+                        <div class="min-w-0">
+                            <p class="text-base font-semibold">{{ attemptTitle }}</p>
+                            <p v-if="attemptDetail" class="mt-0.5 text-sm">{{ attemptDetail }}</p>
+                        </div>
+                    </div>
+                    <div v-if="canOperate" class="flex flex-wrap gap-2">
+                        <button v-if="lastAttempt.code === 'tag_in_use' && lastAttempt.owner" type="button" :disabled="releasing"
+                                class="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+                                @click="releaseOpen = true">
+                            <AppIcon name="unlink" :size="16" />{{ t('rfid.reg.attempt_release_use') }}
+                        </button>
+                        <button v-if="lastAttempt.uid && lastAttempt.code !== 'multiple_tags'" type="button"
+                                class="min-h-[44px] rounded-lg border border-current px-4 text-sm font-semibold hover:bg-card/60"
+                                @click="emit('manage-uid', lastAttempt.uid)">
+                            {{ t('rfid.reg.attempt_manage') }}
+                        </button>
+                    </div>
+                </div>
+                <p v-else class="mx-auto max-w-lg text-sm text-muted-foreground">{{ t('rfid.reg.waiting_hint') }}</p>
                 <button type="button" class="min-h-[48px] rounded-xl border border-input px-5 text-base font-semibold hover:bg-accent" @click="cancelSession">
                     {{ t('rfid.reg.cancel') }}
                 </button>
@@ -224,6 +294,7 @@ const steps = [1, 2, 3]
                             <option v-for="r in activeReaders" :key="r.id" :value="String(r.id)">{{ r.name }} ({{ r.code }})</option>
                         </select>
                     </div>
+                    <ResultBanner v-if="readerWarning" type="warning" :title="t(`rfid.reg.reader_${readerWarning}`)" />
                     <button type="button" :disabled="submitting || !canOperate"
                             class="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-lg font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60 sm:w-auto"
                             @click="startReader">
@@ -264,7 +335,15 @@ const steps = [1, 2, 3]
                 <Link v-if="batch" :href="`/company/batches/${batch.id}`" class="inline-flex min-h-[52px] items-center gap-2 rounded-xl border border-input px-6 text-base font-semibold hover:bg-accent">
                     <AppIcon name="external-link" :size="18" />{{ t('rfid.reg.view_batch') }}
                 </Link>
+                <button v-if="result.type === 'success' && result.uid && canOperate" type="button" class="inline-flex min-h-[52px] items-center gap-2 rounded-xl px-4 text-base font-medium text-muted-foreground hover:bg-accent hover:text-foreground" @click="emit('manage-uid', result.uid)">
+                    <AppIcon name="unlink" :size="18" />{{ t('rfid.reg.attempt_manage') }}
+                </button>
             </div>
         </div>
+
+        <ConfirmDialog v-model:open="releaseOpen" :loading="releasing"
+                       :title="t('rfid.tagmgr.release_title', { batch: lastAttempt?.owner?.batch_code ?? '' })"
+                       :description="t('rfid.tagmgr.release_desc', { uid: formatUidShort(lastAttempt?.uid) })"
+                       :confirm-label="t('rfid.reg.attempt_release_use')" tone="danger" @confirm="releaseAttemptTag" />
     </section>
 </template>

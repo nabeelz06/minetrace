@@ -45,6 +45,12 @@ const STATE = {
     never:    { tone: 'bg-warning-soft text-warning', icon: 'circle-dashed' },
     disabled: { tone: 'bg-neutral-soft text-neutral', icon: 'ban' },
 }
+// Petunjuk perbaikan disesuaikan jenis perangkat: reader USB dibaca browser, UR4 dibaca daemon gate lewat jaringan,
+// ESP32 mengirim sendiri memakai kunci perangkat. Tanpa ini, semua reader mendapat saran "pasang kunci di firmware".
+function hintKey(r) {
+    const suffix = !['offline', 'never'].includes(r.state) ? '' : r.device_type === 'uhf_desktop_r2000' ? '_desktop' : r.connection?.host ? '_net' : ''
+    return `rfid.dev.hint_${r.state}${suffix}`
+}
 const stageName = key => { const s = props.stages.find(x => x.key === key); return s ? loc(s) : t('rfid.dev.stage_none') }
 
 function openAdd() { editing.value = null; formOpen.value = true }
@@ -114,7 +120,8 @@ async function rotate() {
 
                     <p v-if="r.last_seen_at" class="text-sm text-muted-foreground">{{ t('rfid.dev.last_seen', { time: formatRelative(r.last_seen_at, lang) }) }}</p>
                     <p v-for="w in (r.last_status?.warnings ?? [])" :key="w" class="text-sm text-warning">{{ w }}</p>
-                    <p v-if="r.state !== 'online'" class="text-sm font-medium" :class="r.state === 'offline' ? 'text-danger' : 'text-warning'">{{ t(`rfid.dev.hint_${r.state}`) }}</p>
+                    <p v-if="r.state !== 'online'" class="text-sm font-medium" :class="r.state === 'offline' ? 'text-danger' : 'text-warning'">{{ t(hintKey(r)) }}</p>
+                    <p v-if="r.state !== 'online' && r.last_status?.detail" class="break-words font-mono text-xs text-muted-foreground">{{ t('rfid.dev.detail_label') }}: {{ r.last_status.detail }}</p>
 
                     <div v-if="canManage" class="flex flex-wrap gap-2 border-t border-border pt-3">
                         <button type="button" class="min-h-[44px] rounded-lg border border-input px-3 text-sm font-medium hover:bg-accent" @click="openEdit(r)">{{ t('rfid.dev.edit') }}</button>
