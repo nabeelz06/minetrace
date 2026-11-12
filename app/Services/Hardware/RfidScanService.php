@@ -4,7 +4,10 @@ namespace App\Services\Hardware;
 
 use App\Events\RfidTagScanned;
 use App\Models\Checkpoint;
+use App\Models\RfidReader;
 use App\Models\User;
+use App\Services\Hardware\Uhf\CachePresenceFilter;
+use App\Support\ProcessFlow;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -114,7 +117,7 @@ class RfidScanService
             if ($eventId && ($replay = Cache::get($this->eventKey($ctx, $eventId)))) {
                 return [$replay, true];
             }
-            $dedupeKey = "rfid:dd:{$uid}:{$direction}:".($stage ?? '-');
+            $dedupeKey = $this->dedupeKey($uid, $direction, $stage);
             if (config('rfid.dedupe_seconds') > 0 && ($previous = Cache::get($dedupeKey))) {
                 return [$previous, true];
             }
@@ -189,6 +192,39 @@ class RfidScanService
         }
 
         return $result;
+    }
+
+    private function dedupeKey(string $uid, string $direction, ?string $stage): string
+    {
+        return "rfid:dd:{$uid}:{$direction}:".($stage ?? '-');
+    }
+
+    /**
+     * Lupakan jejak SEMENTARA sebuah UID (dedupe arah+tahap, kehadiran daemon per reader, daftar penolakan UI).
+     * Dipanggil saat tag dilepas/direset agar pembacaan berikutnya diproses seperti pertama kali, tanpa menunggu
+     * jendela dedupe/kehadiran habis. Tidak menyentuh data permanen (checkpoint, log baca, riwayat tag).
+     */
+    public function forgetUid(int $companyId, string $uid): void
+    {
+        $uid = $this->rfid->sanitizeUid($uid);
+
+        foreach (['in', 'out'] as $direction) {
+            foreach ([...ProcessFlow::rfidStages(), null] as $stage) {
+                Cache::forget($this->dedupeKey($uid, $direction, $stage));
+            }
+        }
+
+        foreach (RfidReader::where('company_id', $companyId)->pluck('id') as $readerId) {
+            CachePresenceFilter::forget("{$readerId}:{$uid}");
+        }
+
+        $rejects = Cache::get($this->rejectKey($companyId), []);
+        if ($rejects) {
+            $kept = array_values(array_filter($rejects, fn ($r) => ($r['uid'] ?? null) !== $uid));
+            if (count($kept) !== count($rejects)) {
+                Cache::put($this->rejectKey($companyId), $kept, self::REJECT_TTL);
+            }
+        }
     }
 
     private function eventKey(DeviceContext $ctx, string $eventId): string

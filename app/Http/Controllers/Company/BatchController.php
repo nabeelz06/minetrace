@@ -303,8 +303,9 @@ class BatchController extends Controller
             'parentBatch.productCode',
             'parentBatch.checkpoints.location',
             'childBatches.productCode',
-            'checkpoints.location',
-            'checkpoints.recordedByUser',
+            // Checkpoint yang dibatalkan (void/reset uji) tidak ditampilkan di timeline & tab Checkpoint;
+            // barisnya tetap ada di DB (audit) dan jumlahnya dikirim sebagai `voided_checkpoints`.
+            'checkpoints' => fn ($q) => $q->active()->with(['location', 'recordedByUser']),
             'labAnalyses.analyzedByUser',
         ]);
 
@@ -377,6 +378,7 @@ class BatchController extends Controller
                     'status'     => $c->status,
                     'weight'     => $c->current_weight,
                 ])->toArray(),
+                'voided_checkpoints' => $batch->checkpoints()->whereNotNull('voided_at')->count(),
                 'checkpoints'     => $batch->checkpoints->map(fn($cp) => [
                     'id'               => $cp->id,
                     'checkpoint_stage' => $cp->checkpoint_stage,

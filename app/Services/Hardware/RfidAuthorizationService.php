@@ -6,6 +6,7 @@ use App\Contracts\ScanAuthorizationStrategy;
 use App\Models\Batch;
 use App\Models\RfidAuthorizationMode;
 use App\Services\Hardware\Strategies\AuditOnlyStrategy;
+use App\Services\Hardware\Strategies\ScanFullStrategy;
 use App\Services\Hardware\Strategies\ScanToDispatchStrategy;
 use App\Services\Hardware\Strategies\ScanToReceiveStrategy;
 use Illuminate\Support\Facades\Cache;
@@ -24,7 +25,8 @@ class RfidAuthorizationService
     private const CACHE_TTL    = 3600;
     private const CACHE_PREFIX = 'rfid_auth_mode_';
 
-    private const VALID_MODES = ['audit_only', 'scan_to_receive', 'scan_to_dispatch'];
+    /** scan_full = Scan IN menerima + Scan OUT mengirim (gate dua arah); tiga mode lain tidak berubah. */
+    public const VALID_MODES = ['audit_only', 'scan_to_receive', 'scan_to_dispatch', 'scan_full'];
 
     public function __construct(private RfidService $rfid) {}
 
@@ -37,6 +39,7 @@ class RfidAuthorizationService
         return match ($mode) {
             'scan_to_receive'  => new ScanToReceiveStrategy($this->rfid),
             'scan_to_dispatch' => new ScanToDispatchStrategy($this->rfid),
+            'scan_full'        => new ScanFullStrategy($this->rfid),
             default            => new AuditOnlyStrategy($this->rfid),
         };
     }
@@ -120,6 +123,7 @@ class RfidAuthorizationService
         return match ($mode) {
             'scan_to_receive'  => 'Scan-to-Confirm-Receive',
             'scan_to_dispatch' => 'Scan-to-Confirm-Dispatch',
+            'scan_full'        => 'Scan-to-Confirm-Full (Receive + Dispatch)',
             default            => 'Audit Only (Manual)',
         };
     }
@@ -129,6 +133,7 @@ class RfidAuthorizationService
         return match ($mode) {
             'scan_to_receive'  => 'Scan IN mengaktifkan penerimaan batch otomatis ke stage tujuan.',
             'scan_to_dispatch' => 'Scan OUT mengaktifkan pengiriman batch otomatis ke stage berikutnya.',
+            'scan_full'        => 'Scan IN menerima dan Scan OUT mengirim batch otomatis (gate dua arah).',
             default            => 'Scan RFID hanya mencatat audit trail. Perpindahan stage dilakukan manual via web panel.',
         };
     }

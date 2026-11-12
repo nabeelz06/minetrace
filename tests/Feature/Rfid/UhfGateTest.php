@@ -3,6 +3,7 @@
 namespace Tests\Feature\Rfid;
 
 use App\Models\Batch;
+use App\Models\Checkpoint;
 use App\Models\Company;
 use App\Models\ProductCode;
 use App\Models\RfidReader;
@@ -32,6 +33,8 @@ class UhfGateTest extends TestCase
     use RefreshDatabase;
 
     private const EPC = 'E20000200914016323809025';
+
+    private const EPC_2 = 'E20000200914016323809026';
 
     private Company $company;
 
@@ -175,11 +178,108 @@ class UhfGateTest extends TestCase
             $peer->send(Ur4Frames::tag(self::EPC, 1, -50.0));
             $this->step($gate, 0.1);
         }
+        $this->step($gate, 0.5);   // jendela kumpul registrasi (400 ms) berakhir → keputusan diambil
 
         $this->assertSame(self::EPC, $batch->fresh()->rfid_tag, 'tap pertama di reader sesi mengikat tag, bukan scan in/out');
         $log = RfidReadLog::where('epc', self::EPC)->firstOrFail();
         $this->assertSame(['register', 'accepted', 'real_uhf'], [$log->action, $log->result, $log->origin]);
         $this->assertSame($batch->id, $log->batch_id);
+
+        $snap = Checkpoint::where('batch_id', $batch->id)->where('rfid_scan_code', self::EPC)->firstOrFail()->checkpoint_data['batch_snapshot'];
+        $this->assertSame(['wet_process', 'in_process'], [$snap['process_stage'], $snap['status']], 'posisi awal dicatat sebagai baseline reset uji');
+        $gate->shutdown();
+    }
+
+    /** @return array{0:RfidReader,1:Batch,2:UhfGate} reader UR4 satu antena + batch tanpa tag + sesi registrasi menunggu reader itu. */
+    private function registrationSetup(): array
+    {
+        $reader = $this->reader('WET-GATE-REG', extra: ['direction' => 'in', 'connection' => [
+            'host' => '192.168.99.202', 'port' => 8888, 'antennas' => ['1' => 'in'],
+        ]]);
+        $product = ProductCode::where('company_id', $this->company->id)->firstOrFail();
+        $batch = Batch::factory()->create([
+            'company_id' => $this->company->id, 'product_code_id' => $product->id,
+            'process_stage' => 'wet_process', 'status' => 'in_process', 'rfid_tag' => null,
+        ]);
+        app(RfidRegistrationService::class)->start($this->admin, $batch, $reader);
+
+        $gate = $this->gate();
+        $this->step($gate);
+        $this->streaming($gate, $reader->id);
+
+        return [$reader, $batch, $gate];
+    }
+
+    #[Test]
+    public function registrasi_dengan_dua_tag_sama_kuat_ditolak_dan_tidak_mengikat_tag_tetangga(): void
+    {
+        [, $batch, $gate] = $this->registrationSetup();
+        $peer = $this->peers['192.168.99.202:8888'];
+
+        $peer->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+        $peer->send(Ur4Frames::tag(self::EPC_2, 1, -52.0));   // selisih 2 dB < ambang dominasi 6 dB
+        $this->step($gate, 0.1);
+        $this->step($gate, 0.6);
+
+        $this->assertNull($batch->fresh()->rfid_tag, 'tidak boleh menebak: dua tag setara → tidak ada yang diikat');
+
+        $session = collect(app(RfidRegistrationService::class)->activeForCompany($this->company->id))->firstWhere('batch_id', $batch->id);
+        $this->assertNotNull($session, 'sesi tetap hidup agar operator bisa mencoba lagi');
+        $this->assertSame('multiple_tags', $session['last_attempt']['code']);
+        $this->assertSame(2, $session['last_attempt']['count']);
+
+        $log = RfidReadLog::where('action', 'register')->firstOrFail();
+        $this->assertSame(['rejected', 'multiple_tags'], [$log->result, $log->result_code]);
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function registrasi_dengan_dua_tag_mengikat_tag_yang_jelas_terkuat(): void
+    {
+        [, $batch, $gate] = $this->registrationSetup();
+        $peer = $this->peers['192.168.99.202:8888'];
+
+        $peer->send(Ur4Frames::tag(self::EPC_2, 1, -72.0));   // tetangga jauh
+        $peer->send(Ur4Frames::tag(self::EPC, 1, -45.0));     // tag di tangan operator, unggul 27 dB
+        $this->step($gate, 0.1);
+        $this->step($gate, 0.6);
+
+        $this->assertSame(self::EPC, $batch->fresh()->rfid_tag);
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function tag_yang_baru_didaftarkan_tidak_berubah_menjadi_scan_hantu_selama_masih_di_medan_antena(): void
+    {
+        [, $batch, $gate] = $this->registrationSetup();
+        $peer = $this->peers['192.168.99.202:8888'];
+
+        for ($i = 0; $i < 4; $i++) {
+            $peer->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+            $this->step($gate, 0.2);
+        }
+        $this->assertSame(self::EPC, $batch->fresh()->rfid_tag);
+
+        for ($i = 0; $i < 5; $i++) {   // tag masih ditahan di depan reader setelah registrasi
+            $peer->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+            $this->step($gate, 0.2);
+        }
+
+        $this->assertSame(0, RfidReadLog::where('epc', self::EPC)->whereIn('action', ['in', 'out'])->count(), 'pembacaan lanjutan tidak menjadi scan IN/OUT');
+        $this->assertSame(1, RfidReadLog::where('epc', self::EPC)->where('action', 'register')->count());
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function jendela_registrasi_nol_mengikat_tag_pertama_seketika_perilaku_lama(): void
+    {
+        config(['rfid.uhf.registration_window_ms' => 0]);
+        [, $batch, $gate] = $this->registrationSetup();
+
+        $this->peers['192.168.99.202:8888']->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+        $this->step($gate, 0.1);
+
+        $this->assertSame(self::EPC, $batch->fresh()->rfid_tag);
         $gate->shutdown();
     }
 

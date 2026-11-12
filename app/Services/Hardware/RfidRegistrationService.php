@@ -213,6 +213,49 @@ class RfidRegistrationService
      */
     public function commit(array $session, string $uid, string $origin = 'real_esp32', ?RfidReader $reader = null, ?int $userId = null): array
     {
+        $result = $this->commitInternal($session, $uid, $origin, $reader, $userId);
+
+        // Percobaan GAGAL pada sesi yang masih hidup (mis. tag sudah dipakai) dicatat agar UI bisa menjelaskan
+        // kenapa tap tidak berhasil, tanpa operator menebak-nebak di depan reader.
+        if ($result['status'] !== 'success') {
+            $this->noteAttempt($session, $uid, $result);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Catat percobaan registrasi gagal pada sesi (hanya bila sesi masih ada). TTL sesi tidak diperpanjang.
+     * Pemilik tag hanya diungkap bila satu perusahaan (isolasi tenant), sama seperti pesan LCD.
+     */
+    public function noteAttempt(array $session, string $uid, array $result, ?string $codeOverride = null): void
+    {
+        $key = $this->sessionKey($session['id']);
+        $current = Cache::get($key);
+        if (! $current) {
+            return;   // sesi sudah dikonsumsi/dibatalkan (mis. batch_already_tagged)
+        }
+
+        $owner = null;
+        if (($result['_code'] ?? $codeOverride) === 'tag_in_use' && ($b = $this->findTagOwner($uid)) && $b->company_id === $session['company_id']) {
+            $owner = ['batch_id' => $b->id, 'batch_code' => $b->batch_code, 'archived' => $b->trashed()];
+        }
+
+        $current['last_attempt'] = [
+            'uid'    => $uid,
+            'code'   => $codeOverride ?? ($result['_code'] ?? 'error'),
+            'detail' => $result['detail'] ?? null,
+            'owner'  => $owner,
+            'count'  => $result['_count'] ?? null,   // jumlah tag terbaca bersamaan (multiple_tags)
+            'at'     => now()->toIso8601String(),
+        ];
+
+        $remaining = max(1, (int) now()->diffInSeconds(Carbon::parse($current['expires_at']), false));
+        Cache::put($key, $current, $remaining);
+    }
+
+    private function commitInternal(array $session, string $uid, string $origin, ?RfidReader $reader, ?int $userId): array
+    {
         try {
             return DB::transaction(function () use ($session, $uid, $origin, $reader, $userId) {
                 $batch = Batch::where('company_id', $session['company_id'])
@@ -263,6 +306,13 @@ class RfidRegistrationService
                         'rfid_uid'      => $uid,
                         'initiated_by'  => $session['initiated_by'] ?? 'System',
                         'timestamp_wib' => $tz,
+                        // Posisi batch saat tag dipasang — baseline bagi reset uji (RfidTagService::resetPlan).
+                        'batch_snapshot' => [
+                            'process_stage'       => $batch->process_stage,
+                            'status'              => $batch->status,
+                            'current_location_id' => $batch->current_location_id,
+                            'current_weight'      => $batch->current_weight,
+                        ],
                     ],
                     'rfid_scan_code' => $uid,
                     'rfid_origin'    => $origin,

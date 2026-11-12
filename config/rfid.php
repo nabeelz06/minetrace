@@ -22,6 +22,11 @@ return [
     // tidak tercampur data nyata. Data simulasi selalu bertanda rfid_origin=simulation.
     'simulation_enabled' => (bool) env('RFID_SIMULATION_ENABLED', true),
 
+    // "Reset uji" (Kelola Tag): menyembunyikan scan sebuah tag dan mengembalikan batch ke posisi saat registrasi
+    // agar pengujian bisa diulang dengan tag yang sama. Untuk masa uji/pelatihan — MATIKAN (false) di produksi
+    // setelah go-live. Hanya administrator perusahaan; jejak audit tidak dihapus (scan di-void, ada rfid_tag_events).
+    'test_reset_enabled' => (bool) env('RFID_TEST_RESET_ENABLED', true),
+
     // Retensi hasil idempotensi event_id (detik).
     'event_ttl' => 86400,
 
@@ -87,6 +92,12 @@ return [
         'contested_backoff' => (int) env('RFID_UHF_CONTESTED_BACKOFF', 60),
         'lock_ttl' => (int) env('RFID_UHF_LOCK_TTL', 30),
         'arbitration_ms' => (int) env('RFID_UHF_ARBITRATION_MS', 1200),
+
+        // Registrasi tag lewat reader UR4: pembacaan dikumpulkan selama registration_window_ms (0 = langsung ikat
+        // tag pertama, perilaku lama). Bila >1 tag terbaca, tag terkuat dipakai HANYA bila unggul minimal
+        // registration_dominance_db dari yang kedua; selain itu registrasi ditolak (multiple_tags).
+        'registration_window_ms' => (int) env('RFID_UHF_REGISTRATION_WINDOW_MS', 400),
+        'registration_dominance_db' => (int) env('RFID_UHF_REGISTRATION_DOMINANCE_DB', 6),
 
         // ─── Keselamatan RF ──────────────────────────────────────────────────
         // max_power_dbm terisi: bila daya yang TERBACA dari reader (terbesar antara baca dan tulis, pada antena
