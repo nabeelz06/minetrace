@@ -12,6 +12,11 @@ return [
     // TTL sesi registrasi tag (detik) — sama dengan perilaku lama (90 dtk).
     'registration_ttl' => (int) env('RFID_REGISTRATION_TTL', 90),
 
+    // Lama (detik) mode otorisasi per tahap disimpan di cache oleh web/gate/worker. Mengubah mode di UI langsung
+    // menghapus cache-nya; TTL pendek menjadi jaring pengaman bila proses lain (mis. daemon gate) memakai penyimpanan
+    // cache yang berbeda, sehingga mode lama tidak bertahan berjam-jam. 0 = tanpa cache (baca DB tiap scan).
+    'mode_cache_seconds' => max(0, (int) env('RFID_MODE_CACHE_SECONDS', 60)),
+
     // Reader dianggap offline bila tidak ada heartbeat/scan selama N detik.
     'offline_after_seconds' => (int) env('RFID_OFFLINE_AFTER', 120),
 
@@ -21,6 +26,11 @@ return [
     // Tombol/endpoint Simulasi (demo & pelatihan). Matikan di produksi setelah pelatihan agar data uji
     // tidak tercampur data nyata. Data simulasi selalu bertanda rfid_origin=simulation.
     'simulation_enabled' => (bool) env('RFID_SIMULATION_ENABLED', true),
+
+    // "Reset uji" (Kelola Tag): menyembunyikan scan sebuah tag dan mengembalikan batch ke posisi saat registrasi
+    // agar pengujian bisa diulang dengan tag yang sama. Untuk masa uji/pelatihan — MATIKAN (false) di produksi
+    // setelah go-live. Hanya administrator perusahaan; jejak audit tidak dihapus (scan di-void, ada rfid_tag_events).
+    'test_reset_enabled' => (bool) env('RFID_TEST_RESET_ENABLED', true),
 
     // Retensi hasil idempotensi event_id (detik).
     'event_ttl' => 86400,
@@ -87,6 +97,12 @@ return [
         'contested_backoff' => (int) env('RFID_UHF_CONTESTED_BACKOFF', 60),
         'lock_ttl' => (int) env('RFID_UHF_LOCK_TTL', 30),
         'arbitration_ms' => (int) env('RFID_UHF_ARBITRATION_MS', 1200),
+
+        // Registrasi tag lewat reader UR4: pembacaan dikumpulkan selama registration_window_ms (0 = langsung ikat
+        // tag pertama, perilaku lama). Bila >1 tag terbaca, tag terkuat dipakai HANYA bila unggul minimal
+        // registration_dominance_db dari yang kedua; selain itu registrasi ditolak (multiple_tags).
+        'registration_window_ms' => (int) env('RFID_UHF_REGISTRATION_WINDOW_MS', 400),
+        'registration_dominance_db' => (int) env('RFID_UHF_REGISTRATION_DOMINANCE_DB', 6),
 
         // ─── Keselamatan RF ──────────────────────────────────────────────────
         // max_power_dbm terisi: bila daya yang TERBACA dari reader (terbesar antara baca dan tulis, pada antena

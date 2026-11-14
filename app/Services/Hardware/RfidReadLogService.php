@@ -155,6 +155,10 @@ class RfidReadLogService
             'batch_id' => $l->batch_id,
             'batch_code' => $l->batch?->batch_code,
             'checkpoint_id' => $l->checkpoint_id,
+            // Apa yang dilakukan gate pada batch (lihat RfidScanService::handoffMeta): mode yang dipakai + hasil transisi.
+            'mode' => $l->meta['mode'] ?? null,
+            'transition' => $l->meta['transition'] ?? null,
+            'transition_reason' => $l->meta['reason'] ?? null,
             'reader' => $l->reader ? ['id' => $l->reader->id, 'code' => $l->reader->code, 'name' => $l->reader->name] : null,
             'snapshot_status' => $l->snapshot_status,
             'snapshot_url' => $l->snapshot?->url,

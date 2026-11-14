@@ -17,6 +17,7 @@ use App\Services\Hardware\RfidTagService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 
@@ -425,23 +426,28 @@ class ApiRfidController extends Controller
     {
         Gate::authorize('rfid.manage');
 
+        // `stage` (satu tahap, kontrak lama) ATAU `stages[]` (preset beberapa tahap sekaligus, mis. "otomatis di semua pos").
+        $rfidStages = implode(',', ProcessFlow::rfidStages());
         $validated = $request->validate([
-            'stage' => 'required|string|in:' . implode(',', ProcessFlow::rfidStages()),
-            'mode'  => 'required|string|in:audit_only,scan_to_receive,scan_to_dispatch',
+            'stage'    => 'required_without:stages|string|in:' . $rfidStages,
+            'stages'   => 'required_without:stage|array|min:1',
+            'stages.*' => 'string|distinct|in:' . $rfidStages,
+            'mode'     => 'required|string|in:' . implode(',', RfidAuthorizationService::VALID_MODES),
         ]);
 
         $companyId = $this->companyId();
+        $targets   = isset($validated['stages']) ? array_values($validated['stages']) : [$validated['stage']];
 
-        $this->authorization->setMode(
-            $companyId,
-            $validated['stage'],
-            $validated['mode'],
-            Auth::id()
-        );
+        // Semua tahap ditulis dalam satu transaksi: preset tidak boleh berhenti di tengah dan menyisakan campuran mode.
+        DB::transaction(function () use ($companyId, $targets, $validated) {
+            foreach ($targets as $stage) {
+                $this->authorization->setMode($companyId, $stage, $validated['mode'], Auth::id());
+            }
+        });
 
         return response()->json([
             'success' => true,
-            'message' => "Mode RFID untuk stage {$validated['stage']} diubah ke {$validated['mode']}.",
+            'message' => 'Mode RFID untuk stage ' . implode(', ', $targets) . " diubah ke {$validated['mode']}.",
             'data'    => $this->authorization->getAllModes($companyId),
         ]);
     }

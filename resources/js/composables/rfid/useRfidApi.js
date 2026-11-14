@@ -22,6 +22,11 @@ export const rfidApi = {
     voidScan:          (id, reason) => http.post(`${BASE}/scans/${id}/void`, { reason }),
     readLogs:          (params, o) => http.get(`${BASE}/read-logs`, { params, ...o }),
     releaseTag:        (batchId, body) => http.post(`${BASE}/batches/${batchId}/release-tag`, body),
+    // "Kelola Tag" berbasis UID: operator tidak perlu tahu batch pemilik tag untuk memeriksa/melepasnya.
+    tagLookup:         (uid, o)    => http.get(`${BASE}/tags/lookup`, { params: { uid }, ...o }),
+    tagsRecent:        (limit, o)  => http.get(`${BASE}/tags/recent`, { params: { limit }, ...o }),
+    releaseTagByUid:   body        => http.post(`${BASE}/tags/release`, body),
+    resetTag:          body        => http.post(`${BASE}/tags/reset`, body),
     authModes:         ()          => http.get(`${BASE}/authorization-modes`),
     setAuthMode:       body        => http.post(`${BASE}/authorization-modes`, body),
     saveDeviceIp:      ip          => http.post(`${BASE}/device`, { esp32_ip: ip }),

@@ -26,7 +26,10 @@ use Illuminate\Support\Str;
  *     jalur yang SAMA dengan ESP32/UI, sehingga checkpoint, mode otorisasi, dedupe, isolasi tenant, rfid_read_logs
  *     dan capture CCTV tetap berlaku;
  *   - "Pakai reader" di UI Daftarkan Tag: operator start sesi menunggu untuk reader UR4 tertentu →
- *     tap pertama di reader itu mengikat tag ke batch (findForDevice + commit), BUKAN scan in/out;
+ *     tap di reader itu mengikat tag ke batch (findForDevice + commit), BUKAN scan in/out. Pembacaan dikumpulkan
+ *     dalam jendela singkat (rfid.uhf.registration_window_ms): bila lebih dari satu tag terbaca dan tidak ada yang
+ *     jelas terkuat (rfid.uhf.registration_dominance_db), registrasi DITOLAK ('multiple_tags') — tidak mengikat
+ *     tag tetangga secara diam-diam;
  *   - status jujur di rfid_readers.last_status: "online" (last_seen_at) hanya diperbarui saat tautan SEHAT.
  *
  * Tidak memiliki loop: command memanggil reloadIfNeeded(), tick(), poll(), heartbeat(), refreshLocks().
@@ -46,6 +49,9 @@ final class UhfGate
 
     /** @var array<int,string> alasan reader dilewati (agar log tidak berulang) */
     private array $skipped = [];
+
+    /** @var array<int,array{opened:float,tags:array<string,array{rssi:?int,antenna:int,tid:?string,reads:int}>}> jendela kumpul registrasi per reader */
+    private array $regWindows = [];
 
     private string $owner;
 
@@ -179,6 +185,9 @@ final class UhfGate
                     $this->process($id, $d['epc'], $d['antenna'], $d['rssi'], $d['tid']);
                 }
             }
+            if (isset($this->regWindows[$id]) && $now - $this->regWindows[$id]['opened'] >= $this->registrationWindow()) {
+                $this->finishRegistration($id);
+            }
             $gate['presence']->prune($now);
         }
     }
@@ -196,6 +205,9 @@ final class UhfGate
                 $write[$id] = $s;
             }
             $wait = min($wait, $gate['link']->nextWake());
+            if (isset($this->regWindows[$id])) {
+                $wait = min($wait, $this->regWindows[$id]['opened'] + $this->registrationWindow() - ($this->now)());
+            }
         }
         $wait = max(0.01, $wait);
 
@@ -322,7 +334,7 @@ final class UhfGate
         }
         $g['link']->stop();
         Ur4ExclusiveLock::release($g['host'], $g['port'], $this->owner);
-        unset($this->gates[$id]);
+        unset($this->gates[$id], $this->regWindows[$id]);
         ($this->out)('warning', "Reader {$g['reader']->code}: ditutup ({$why})");
     }
 
@@ -433,38 +445,119 @@ final class UhfGate
 
     /**
      * "Pakai reader" (Daftarkan Tag di UI): bila ADA sesi registrasi menunggu reader ini (atau sesi
-     * "any" perusahaan), tap ini mengikat tag ke batch — bukan scan in/out. Sesi dikonsumsi sekali oleh
-     * commit() sendiri (DB lockForUpdate), jadi tap berulang dari tag yang sama hanya sukses sekali;
-     * tap berikutnya (sesi sudah tak ada) jatuh ke jalur scan normal seperti biasa.
+     * "any" perusahaan), pembacaan di reader ini adalah NIAT registrasi — bukan scan in/out.
+     * Pembacaan dikumpulkan dalam jendela singkat lalu diputuskan oleh finishRegistration(); selama jendela
+     * terbuka, pembacaan berikutnya hanya menambah data (RSSI terkuat per EPC).
      *
-     * @return bool true bila tap ini DITANGANI sebagai registrasi (proses scan normal dilewati)
+     * @return bool true bila pembacaan ini DITANGANI sebagai registrasi (proses scan normal dilewati)
      */
     private function tryRegister(int $id, RfidReader $reader, array $gate, string $epc, int $antenna, ?int $rssi, ?string $tid): bool
     {
-        $ctx = new DeviceContext($reader->company_id, $reader, 'device_key');
-        $session = $this->registrations->findForDevice($ctx);
-        if (! $session) {
-            return false;
+        if (! isset($this->regWindows[$id])) {
+            if (! $this->registrations->findForDevice(new DeviceContext($reader->company_id, $reader, 'device_key'))) {
+                return false;
+            }
+            $this->regWindows[$id] = ['opened' => ($this->now)(), 'tags' => []];
         }
 
-        $result = $this->registrations->commit($session, $epc, 'real_uhf', $reader);
+        $t = $this->regWindows[$id]['tags'][$epc] ?? ['rssi' => null, 'antenna' => $antenna, 'tid' => $tid, 'reads' => 0];
+        $t['reads']++;
+        if ($rssi !== null && ($t['rssi'] === null || $rssi > $t['rssi'])) {
+            $t['rssi'] = $rssi;
+            $t['antenna'] = $antenna;
+        }
+        $t['tid'] ??= $tid;
+        $this->regWindows[$id]['tags'][$epc] = $t;
+
+        if ($this->registrationWindow() <= 0.0) {
+            $this->finishRegistration($id);   // tanpa jendela: putuskan seketika (perilaku lama)
+        }
+
+        return true;
+    }
+
+    /**
+     * Putuskan registrasi dari tag yang terkumpul:
+     *  - satu tag → ikat ke batch pada sesi (commit() sendiri atomik: tap berulang hanya sukses sekali);
+     *  - beberapa tag → ikat yang terkuat HANYA bila unggul >= registration_dominance_db dari yang kedua;
+     *    selain itu tolak ('multiple_tags') dan beri tahu UI lewat last_attempt agar operator menyisakan satu tag.
+     * Semua tag yang terkumpul ditandai "hadir" supaya pembacaan lanjutan selama masih di medan antena tidak
+     * berubah menjadi scan hantu di reader Receiving.
+     */
+    private function finishRegistration(int $id): void
+    {
+        $window = $this->regWindows[$id] ?? null;
+        unset($this->regWindows[$id]);
+        $gate = $this->gates[$id] ?? null;
+        if (! $window || ! $gate || ! $window['tags']) {
+            return;
+        }
+
+        $reader = $gate['reader'];
+        $session = $this->registrations->findForDevice(new DeviceContext($reader->company_id, $reader, 'device_key'));
+        if (! $session) {
+            return;   // sesi dibatalkan/kedaluwarsa selama jendela
+        }
+
+        foreach (array_keys($window['tags']) as $seen) {
+            $gate['presence']->shouldProcess("{$reader->id}:{$seen}");
+        }
+
+        [$epc, $info, $ambiguous] = $this->pickRegistrationTag($window['tags']);
+
+        if ($ambiguous) {
+            $count = count($window['tags']);
+            $result = [
+                'status' => 'failed', '_code' => 'multiple_tags', '_count' => $count,
+                'name' => 'Banyak Tag', 'message' => 'Beberapa tag terbaca',
+                'detail' => "{$count} tag terbaca bersamaan di {$reader->code}. Sisakan satu tag di dekat reader lalu coba lagi.",
+            ];
+            $this->registrations->noteAttempt($session, $epc, $result);
+        } else {
+            $result = $this->registrations->commit($session, $epc, 'real_uhf', $reader);
+        }
         $this->gates[$id]['events']++;
 
         $this->readLogs?->registration($session['company_id'] ?? $reader->company_id, $reader, $epc, $result + ['batch_id' => $session['batch_id'] ?? null], [
             'origin' => 'real_uhf',
-            'antenna' => $antenna,
-            'rssi' => $rssi,
-            'tid' => $tid,
+            'antenna' => $info['antenna'],
+            'rssi' => $info['rssi'],
+            'tid' => $info['tid'],
             'meta' => ['ip' => $gate['host']],
         ]);
 
         ($this->out)('line', sprintf(
             '[%s] %s REGISTER %s ant:%s rssi:%s → %s %s',
             now('Asia/Jakarta')->format('H:i:s'), $reader->code, $epc,
-            $antenna, $rssi ?? '-', strtoupper($result['status']), $result['detail'] ?? $result['message'] ?? '',
+            $info['antenna'], $info['rssi'] ?? '-', strtoupper($result['status']), $result['detail'] ?? $result['message'] ?? '',
         ));
+    }
 
-        return true;
+    /**
+     * @param  array<string,array{rssi:?int,antenna:int,tid:?string,reads:int}>  $tags
+     * @return array{0:string,1:array,2:bool} [EPC terkuat, datanya, ambigu?]
+     */
+    private function pickRegistrationTag(array $tags): array
+    {
+        uasort($tags, fn (array $a, array $b) => ($b['rssi'] ?? -999) <=> ($a['rssi'] ?? -999));
+        $epcs = array_keys($tags);
+        $best = $epcs[0];
+
+        if (count($tags) === 1) {
+            return [$best, $tags[$best], false];
+        }
+
+        $second = $tags[$epcs[1]];
+        $margin = (int) config('rfid.uhf.registration_dominance_db', 6);
+        $dominant = $tags[$best]['rssi'] !== null && $second['rssi'] !== null
+            && ($tags[$best]['rssi'] - $second['rssi']) >= $margin;
+
+        return [$best, $tags[$best], ! $dominant];
+    }
+
+    private function registrationWindow(): float
+    {
+        return max(0.0, (float) config('rfid.uhf.registration_window_ms', 400) / 1000);
     }
 
     private function reject(int $id, string $reason): void

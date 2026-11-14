@@ -152,6 +152,8 @@ class RfidRegistrationController extends Controller
             'started_at'   => $s['started_at'],
             'expires_at'   => $s['expires_at'],
             'ttl_seconds'  => (int) config('rfid.registration_ttl'),
+            // Percobaan tap terakhir yang GAGAL (tag dipakai batch lain, beberapa tag terbaca, …) — null bila belum ada.
+            'last_attempt' => $s['last_attempt'] ?? null,
         ];
     }
 }

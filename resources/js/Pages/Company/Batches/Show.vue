@@ -6,6 +6,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import SnapshotGalleryCard from '@/components/shared/SnapshotGalleryCard.vue'
 
 import BatchTagCard from '@/components/rfid/BatchTagCard.vue'
+import { useI18n } from '@/composables/core/useI18n.js'
 
 const props = defineProps({
     batch:    Object,
@@ -14,6 +15,7 @@ const props = defineProps({
 
 const page = usePage()
 const can  = computed(() => page.props.can ?? {})
+const { lang } = useI18n()
 
 // ─── CCTV Photo modal ─────────────────────────────────────────────────────────
 const photoModal = ref(null)
@@ -442,6 +444,12 @@ const weightRetentionPct = computed(() => {
                                 {{ batch.checkpoints?.length ?? 0 }}
                             </span>
                         </h3>
+                        <!-- Catatan dibatalkan (void/reset uji) disembunyikan; barisnya tetap tersimpan sebagai audit. -->
+                        <p v-if="batch.voided_checkpoints > 0" class="mt-1 text-xs text-muted-foreground">
+                            {{ lang === 'en'
+                                ? `${batch.voided_checkpoints} voided record(s) hidden (kept in the audit trail).`
+                                : `${batch.voided_checkpoints} catatan dibatalkan disembunyikan (tetap tersimpan sebagai audit).` }}
+                        </p>
                     </div>
 
                     <div v-if="!batch.checkpoints?.length" class="py-12 text-center text-muted-foreground text-sm">

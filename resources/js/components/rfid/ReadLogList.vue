@@ -2,6 +2,10 @@
 /**
  * ReadLogList — log SETIAP pembacaan RFID (rfid_read_logs): diterima, ditolak (mis. tag asing di gate),
  * dan duplikat, beserta foto CCTV yang diambil untuk tiap log. Kursor + pembaruan otomatis seperti ScanHistory.
+ *
+ * "Diterima" hanya berarti pembacaan tercatat — belum tentu batch berpindah. Karena itu tiap baris menyebut MODE yang
+ * dipakai gate dan APA yang terjadi pada batch (berpindah / sudah di tahap itu / ditolak guard / hanya tercatat).
+ * Bila mode di sini berbeda dari yang diatur di Perangkat & Pengaturan, gate memakai konfigurasi lama.
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/app/AppIcon.vue'
@@ -91,6 +95,15 @@ const ACTION = {
     out:      { key: 'rfid.hist.dir_out', icon: 'arrow-up-from-line', cls: 'text-warning' },
     register: { key: 'rfid.hist.dir_reg', icon: 'tag',                cls: 'text-primary' },
 }
+// Hasil serah-terima batch dari gate (meta log baca): state → teks + ikon + warna. 'error' diperlakukan seperti 'blocked'.
+const HANDOFF = {
+    moved:        { key: 'rfid.logs.handoff_moved',   icon: 'circle-check',   cls: 'text-success' },
+    already_done: { key: 'rfid.logs.handoff_already', icon: 'info',           cls: 'text-info' },
+    blocked:      { key: 'rfid.logs.handoff_blocked', icon: 'triangle-alert', cls: 'text-warning' },
+    error:        { key: 'rfid.logs.handoff_blocked', icon: 'triangle-alert', cls: 'text-warning' },
+    audit:        { key: 'rfid.logs.handoff_audit',   icon: 'triangle-alert', cls: 'text-warning' },
+}
+const MODES = ['audit_only', 'scan_to_receive', 'scan_to_dispatch', 'scan_full']
 const CCTV = {
     pending:  { key: 'rfid.hist.cctv_pending',  icon: 'clock',      cls: 'text-info' },
     captured: { key: 'rfid.hist.cctv_captured', icon: 'camera',     cls: 'text-success' },
@@ -147,6 +160,13 @@ const rejectText = row => {
             <template #cell-result="{ row }">
                 <span class="rounded-md px-2 py-0.5 text-xs font-semibold" :class="RESULT[row.result]?.cls">{{ t(RESULT[row.result]?.key ?? 'rfid.logs.rejected') }}</span>
                 <p v-if="row.result === 'rejected'" class="mt-1 max-w-[16rem] text-xs text-muted-foreground">{{ rejectText(row) }}</p>
+                <template v-else-if="row.result === 'accepted' && HANDOFF[row.transition]">
+                    <p class="mt-1 flex max-w-[16rem] items-start gap-1 text-xs font-medium" :class="HANDOFF[row.transition].cls">
+                        <AppIcon :name="HANDOFF[row.transition].icon" :size="14" class="mt-0.5 flex-shrink-0" />{{ t(HANDOFF[row.transition].key) }}
+                    </p>
+                    <p v-if="row.transition_reason" class="max-w-[16rem] text-xs text-muted-foreground">{{ row.transition_reason }}</p>
+                </template>
+                <p v-if="MODES.includes(row.mode)" class="mt-0.5 max-w-[16rem] text-xs text-muted-foreground">{{ t('rfid.logs.mode_used', { mode: t(`rfid.modes.${row.mode}`) }) }}</p>
             </template>
             <template #cell-action="{ row }">
                 <span class="inline-flex items-center gap-1 text-sm font-medium" :class="ACTION[row.action]?.cls">

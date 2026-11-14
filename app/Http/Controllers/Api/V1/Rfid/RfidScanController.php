@@ -40,7 +40,7 @@ class RfidScanController extends Controller
         $query = Checkpoint::query()
             ->where('company_id', $request->user()->company_id)
             ->whereNotNull('rfid_scan_code')
-            ->with(['batch:id,batch_code,product_code_id', 'batch.productCode:id,code', 'reader:id,code,name'])
+            ->with(['batch:id,batch_code,product_code_id,process_stage,status', 'batch.productCode:id,code', 'reader:id,code,name'])
             ->when($request->filled('stage'),    fn ($q) => $q->where('scan_stage', $request->string('stage')))
             ->when($request->filled('reader_id'), fn ($q) => $q->where('reader_id', $request->integer('reader_id')))
             ->when(in_array($request->query('direction'), ['in', 'out'], true), fn ($q) => $q->where('scan_direction', $request->query('direction')))
@@ -164,6 +164,9 @@ class RfidScanController extends Controller
             'batch_id'        => $c->batch_id,
             'batch_code'      => $c->batch?->batch_code,
             'product_code'    => $c->batch?->productCode?->code,
+            // Posisi batch SAAT INI (bukan saat scan): operator langsung melihat apakah scan memindahkan batch.
+            'batch_stage'     => $c->batch?->process_stage,
+            'batch_status'    => $c->batch?->status,
             'uid'             => $c->rfid_scan_code,
             'direction'       => $c->scan_direction,                // in | out | null (registrasi)
             'stage'           => $c->scan_stage,

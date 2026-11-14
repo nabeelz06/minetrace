@@ -1,6 +1,6 @@
 <script setup>
 /**
- * DevicesPanel — Perangkat & Pengaturan Lanjutan: reader terdaftar, mode otorisasi, ESP32 lama.
+ * DevicesPanel — Perangkat & Pengaturan Lanjutan: kesiapan alur, reader terdaftar, mode otorisasi, ESP32 lama.
  * Administrator mengelola; peran lain hanya melihat (tanpa kunci).
  */
 import { computed, ref, watch } from 'vue'
@@ -11,6 +11,7 @@ import ConfirmDialog from '@/components/app/ConfirmDialog.vue'
 import ReaderFormDialog from '@/components/rfid/ReaderFormDialog.vue'
 import ReaderKeyDialog from '@/components/rfid/ReaderKeyDialog.vue'
 import AuthModesCard from '@/components/rfid/AuthModesCard.vue'
+import FlowReadiness from '@/components/rfid/FlowReadiness.vue'
 import LegacyEsp32Card from '@/components/rfid/LegacyEsp32Card.vue'
 import { rfidApi, useApiText } from '@/composables/rfid/useRfidApi.js'
 import { pushToast } from '@/composables/core/useToast.js'
@@ -45,10 +46,22 @@ const STATE = {
     never:    { tone: 'bg-warning-soft text-warning', icon: 'circle-dashed' },
     disabled: { tone: 'bg-neutral-soft text-neutral', icon: 'ban' },
 }
+// Petunjuk perbaikan disesuaikan jenis perangkat: reader USB dibaca browser, UR4 dibaca daemon gate lewat jaringan,
+// ESP32 mengirim sendiri memakai kunci perangkat. Tanpa ini, semua reader mendapat saran "pasang kunci di firmware".
+function hintKey(r) {
+    const suffix = !['offline', 'never'].includes(r.state) ? '' : r.device_type === 'uhf_desktop_r2000' ? '_desktop' : r.connection?.host ? '_net' : ''
+    return `rfid.dev.hint_${r.state}${suffix}`
+}
 const stageName = key => { const s = props.stages.find(x => x.key === key); return s ? loc(s) : t('rfid.dev.stage_none') }
 
 function openAdd() { editing.value = null; formOpen.value = true }
 function openEdit(r) { editing.value = r; formOpen.value = true }
+
+// "Atur mode otorisasi" dari panel kesiapan → gulir ke kartu mode di halaman yang sama.
+function scrollToModes() {
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    document.getElementById('rfid-auth-modes')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
+}
 
 function onSaved(data) {
     emit('readers-changed')
@@ -72,6 +85,9 @@ async function rotate() {
 
 <template>
     <div class="space-y-6">
+        <FlowReadiness v-if="readers.length" :readers="readers" :stages="stages" :modes="modes" :can-manage="canManage"
+                       @fix-modes="scrollToModes" @edit-reader="openEdit" />
+
         <section class="space-y-3" :aria-label="t('rfid.dev.title')">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h3 class="text-lg font-semibold">{{ t('rfid.dev.title') }}</h3>
@@ -114,7 +130,8 @@ async function rotate() {
 
                     <p v-if="r.last_seen_at" class="text-sm text-muted-foreground">{{ t('rfid.dev.last_seen', { time: formatRelative(r.last_seen_at, lang) }) }}</p>
                     <p v-for="w in (r.last_status?.warnings ?? [])" :key="w" class="text-sm text-warning">{{ w }}</p>
-                    <p v-if="r.state !== 'online'" class="text-sm font-medium" :class="r.state === 'offline' ? 'text-danger' : 'text-warning'">{{ t(`rfid.dev.hint_${r.state}`) }}</p>
+                    <p v-if="r.state !== 'online'" class="text-sm font-medium" :class="r.state === 'offline' ? 'text-danger' : 'text-warning'">{{ t(hintKey(r)) }}</p>
+                    <p v-if="r.state !== 'online' && r.last_status?.detail" class="break-words font-mono text-xs text-muted-foreground">{{ t('rfid.dev.detail_label') }}: {{ r.last_status.detail }}</p>
 
                     <div v-if="canManage" class="flex flex-wrap gap-2 border-t border-border pt-3">
                         <button type="button" class="min-h-[44px] rounded-lg border border-input px-3 text-sm font-medium hover:bg-accent" @click="openEdit(r)">{{ t('rfid.dev.edit') }}</button>
