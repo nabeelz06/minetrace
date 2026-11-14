@@ -16,14 +16,18 @@ use Illuminate\Support\Facades\Log;
  * RfidAuthorizationService — Progressive Authorization Model facade.
  *
  * Reads authorization mode from DB (cached) → returns correct Strategy instance.
- * Cache key: rfid_auth_mode_{companyId}_{stage}  TTL: 1 hour
+ * Cache key: rfid_auth_mode_{companyId}_{stage}  TTL: config('rfid.mode_cache_seconds') (default 60 dtk)
+ *
+ * setMode()/resetMode() menghapus cache-nya. TTL sengaja pendek: daemon gate (rfid_gate) berjalan sebagai proses
+ * terpisah dari web — bila penyimpanan cache keduanya tidak sama, perubahan mode tetap berlaku dalam hitungan detik,
+ * bukan menunggu cache lama kedaluwarsa.
  *
  * Design: Facade + Strategy + Factory
  */
 class RfidAuthorizationService
 {
-    private const CACHE_TTL    = 3600;
-    private const CACHE_PREFIX = 'rfid_auth_mode_';
+    private const DEFAULT_CACHE_TTL = 60;
+    private const CACHE_PREFIX      = 'rfid_auth_mode_';
 
     /** scan_full = Scan IN menerima + Scan OUT mengirim (gate dua arah); tiga mode lain tidak berubah. */
     public const VALID_MODES = ['audit_only', 'scan_to_receive', 'scan_to_dispatch', 'scan_full'];
@@ -50,7 +54,7 @@ class RfidAuthorizationService
     {
         $cacheKey = self::CACHE_PREFIX . $companyId . '_' . $stage;
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($companyId, $stage) {
+        return Cache::remember($cacheKey, (int) config('rfid.mode_cache_seconds', self::DEFAULT_CACHE_TTL), function () use ($companyId, $stage) {
             return RfidAuthorizationMode::where('company_id', $companyId)
                 ->where('stage', $stage)
                 ->value('mode') ?? 'audit_only';

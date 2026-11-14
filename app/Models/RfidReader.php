@@ -89,6 +89,36 @@ class RfidReader extends Model
     }
 
     /**
+     * Arah scan yang BISA dihasilkan reader ini — dasar panel "Kesiapan alur" (UI) agar tidak menebak aturan server.
+     *
+     *  - Reader jaringan (gate UR4): arah ditentukan SERVER dari antena (lihat directionForAntenna): pemetaan antena
+     *    menang, lalu arah tetap reader; reader "Dua arah" tanpa pemetaan hanya menghasilkan Scan Masuk. Pada "Dua arah"
+     *    yang sudah dipetakan, antena tanpa pemetaan dianggap tidak dipakai.
+     *  - Perangkat lain (ESP32, USB, desktop): arah dikirim perangkat/operator, dibatasi arah tetap reader
+     *    (RfidScanService::scanOnce menolak arah yang berbeda).
+     *
+     * @return list<'in'|'out'>
+     */
+    public function supportedDirections(): array
+    {
+        $allowed = in_array($this->direction, ['in', 'out'], true) ? [$this->direction] : ['in', 'out'];
+
+        if (! in_array($this->device_type, self::NETWORK_TYPES, true)) {
+            return $allowed;
+        }
+
+        $mapped = array_values(array_unique(array_filter(
+            (array) ($this->connectionConfig()['antennas'] ?? []),
+            fn ($d) => in_array($d, ['in', 'out'], true),
+        )));
+        $produced = $this->direction === 'any' && $mapped !== []
+            ? $mapped
+            : array_values(array_unique([...$mapped, $this->direction === 'out' ? 'out' : 'in']));
+
+        return array_values(array_intersect(['in', 'out'], $produced, $allowed));
+    }
+
+    /**
      * Atribut JSON `connection` (host, port, antennas, ...).
      *
      * WAJIB lewat getAttribute: di dalam kelas, `$this->connection` membaca properti internal Eloquent

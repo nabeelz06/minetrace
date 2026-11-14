@@ -6,8 +6,9 @@ use App\Models\Batch;
 use App\Models\Checkpoint;
 use App\Models\Company;
 use App\Models\ProductCode;
-use App\Models\RfidReader;
+use App\Models\RfidAuthorizationMode;
 use App\Models\RfidReadLog;
+use App\Models\RfidReader;
 use App\Models\User;
 use App\Services\Hardware\HardwareEventService;
 use App\Services\Hardware\RfidAuthorizationService;
@@ -410,6 +411,7 @@ class UhfGateTest extends TestCase
 
         $log = RfidReadLog::where('epc', self::EPC)->firstOrFail();
         $this->assertSame(['in', 'accepted', 'real_uhf'], [$log->action, $log->result, $log->origin], 'pembacaan DITERIMA sebagai audit');
+        $this->assertSame(['audit_only', 'audit'], [$log->meta['mode'] ?? null, $log->meta['transition'] ?? null], 'log baca menyebut mode yang dipakai gate + "hanya tercatat"');
         $fresh = $batch->fresh();
         $this->assertSame(['receiving', 'in_process'], [$fresh->process_stage, $fresh->status], 'mode bawaan "Catat saja": posisi batch tidak berubah');
         $this->assertSame(0, Checkpoint::where('batch_id', $batch->id)->where('checkpoint_data->action', 'rfid_auto_receive')->count());
@@ -438,6 +440,8 @@ class UhfGateTest extends TestCase
         $fresh = $batch->fresh();
         $this->assertSame(['wet_process', 'in_process'], [$fresh->process_stage, $fresh->status], 'tap berikutnya MEMINDAHKAN batch ke tahap reader');
         $this->assertSame(1, Checkpoint::where('batch_id', $batch->id)->where('checkpoint_data->action', 'rfid_auto_receive')->count());
+        $latest = RfidReadLog::where('epc', self::EPC)->orderByDesc('id')->firstOrFail();
+        $this->assertSame(['scan_to_receive', 'moved'], [$latest->meta['mode'] ?? null, $latest->meta['transition'] ?? null], 'log tap kedua menyebut mode baru yang dipakai gate');
         $gate->shutdown();
     }
 
@@ -476,8 +480,70 @@ class UhfGateTest extends TestCase
 
         $log = RfidReadLog::where('epc', self::EPC)->firstOrFail();
         $this->assertSame(['out', 'accepted', 2], [$log->action, $log->result, $log->antenna]);
+        $this->assertSame(['scan_to_dispatch', 'moved'], [$log->meta['mode'] ?? null, $log->meta['transition'] ?? null]);
         $fresh = $batch->fresh();
         $this->assertSame(['wet_process', 'in_transit'], [$fresh->process_stage, $fresh->status], 'Scan Keluar mengirim batch (tetap di tahap asal, status dalam pengiriman)');
         $gate->shutdown();
+    }
+
+    #[Test]
+    public function transisi_yang_ditolak_guard_tercatat_di_log_beserta_alasannya_dan_batch_tidak_berubah(): void
+    {
+        // Batch masih di Gudang, tetapi reader Wet Process (mode terima otomatis) membacanya: guard serah-terima menolak.
+        $batch = $this->taggedBatch('warehouse');
+        app(RfidAuthorizationService::class)->setMode($this->company->id, 'wet_process', 'scan_to_receive', $this->admin->id);
+        [, $gate] = $this->wetEntryGate();
+
+        $this->peers['192.168.99.202:8888']->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+        $this->step($gate, 0.1);
+
+        $log = RfidReadLog::where('epc', self::EPC)->firstOrFail();
+        $this->assertSame('accepted', $log->result, 'pembacaan tetap tercatat');
+        $this->assertSame(['scan_to_receive', 'blocked'], [$log->meta['mode'] ?? null, $log->meta['transition'] ?? null]);
+        $this->assertNotEmpty($log->meta['reason'] ?? null, 'alasan guard disimpan agar UI dapat menjelaskannya');
+        $fresh = $batch->fresh();
+        $this->assertSame(['warehouse', 'in_process'], [$fresh->process_stage, $fresh->status], 'batch tidak berpindah');
+
+        $presented = app(RfidReadLogService::class)->present($log);
+        $this->assertSame(['scan_to_receive', 'blocked', $log->meta['reason']], [$presented['mode'], $presented['transition'], $presented['transition_reason']]);
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function batch_yang_sudah_di_tahap_reader_dicatat_sebagai_sudah_selesai_bukan_galat(): void
+    {
+        $this->taggedBatch('wet_process');
+        app(RfidAuthorizationService::class)->setMode($this->company->id, 'wet_process', 'scan_to_receive', $this->admin->id);
+        [, $gate] = $this->wetEntryGate();
+
+        $this->peers['192.168.99.202:8888']->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+        $this->step($gate, 0.1);
+
+        $log = RfidReadLog::where('epc', self::EPC)->firstOrFail();
+        $this->assertSame(['scan_to_receive', 'already_done'], [$log->meta['mode'] ?? null, $log->meta['transition'] ?? null]);
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function mode_cache_mengikuti_ttl_yang_dikonfigurasi_dan_nol_berarti_tanpa_cache(): void
+    {
+        $svc = app(RfidAuthorizationService::class);
+        $cid = $this->company->id;
+
+        config(['rfid.mode_cache_seconds' => 60]);
+        $this->assertSame('audit_only', $svc->getMode($cid, 'wet_process'));
+        // Perubahan LANGSUNG di DB (proses lain / cache tak terhapus) tidak terlihat selama TTL, tetapi terlihat setelahnya —
+        // batas keterlambatan mode di gate adalah TTL, bukan 1 jam.
+        RfidAuthorizationMode::create(['company_id' => $cid, 'stage' => 'wet_process', 'mode' => 'scan_full', 'updated_by' => $this->admin->id]);
+        $this->assertSame('audit_only', $svc->getMode($cid, 'wet_process'));
+        $this->travel(61)->seconds();
+        $this->assertSame('scan_full', $svc->getMode($cid, 'wet_process'));
+
+        // 0 = tanpa cache: perubahan di DB langsung terlihat.
+        config(['rfid.mode_cache_seconds' => 0]);
+        Cache::forget('rfid_auth_mode_'.$cid.'_wet_process');
+        $this->assertSame('scan_full', $svc->getMode($cid, 'wet_process'));
+        RfidAuthorizationMode::where('company_id', $cid)->where('stage', 'wet_process')->update(['mode' => 'scan_to_receive']);
+        $this->assertSame('scan_to_receive', $svc->getMode($cid, 'wet_process'));
     }
 }

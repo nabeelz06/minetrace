@@ -12,6 +12,11 @@ return [
     // TTL sesi registrasi tag (detik) — sama dengan perilaku lama (90 dtk).
     'registration_ttl' => (int) env('RFID_REGISTRATION_TTL', 90),
 
+    // Lama (detik) mode otorisasi per tahap disimpan di cache oleh web/gate/worker. Mengubah mode di UI langsung
+    // menghapus cache-nya; TTL pendek menjadi jaring pengaman bila proses lain (mis. daemon gate) memakai penyimpanan
+    // cache yang berbeda, sehingga mode lama tidak bertahan berjam-jam. 0 = tanpa cache (baca DB tiap scan).
+    'mode_cache_seconds' => max(0, (int) env('RFID_MODE_CACHE_SECONDS', 60)),
+
     // Reader dianggap offline bila tidak ada heartbeat/scan selama N detik.
     'offline_after_seconds' => (int) env('RFID_OFFLINE_AFTER', 120),
 

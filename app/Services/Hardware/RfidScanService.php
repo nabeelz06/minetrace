@@ -60,7 +60,10 @@ class RfidScanService
                 'antenna' => $opts['antenna'] ?? null,
                 'rssi' => $opts['rssi'] ?? null,
                 'tid' => $opts['tid'] ?? null,
-                'meta' => array_filter(['event_id' => $opts['event_id'] ?? null, 'ip' => $opts['ip'] ?? null]) ?: null,
+                'meta' => array_filter(
+                    ['event_id' => $opts['event_id'] ?? null, 'ip' => $opts['ip'] ?? null]
+                    + ($duplicate ? [] : $this->handoffMeta($result))
+                ) ?: null,
             ]
         );
 
@@ -71,6 +74,34 @@ class RfidScanService
         }
 
         return [$result, $duplicate];
+    }
+
+    /**
+     * Apa yang sebenarnya dilakukan gate pada batch — disimpan di meta log baca agar "diterima" tidak menyesatkan.
+     *
+     * Pembacaan yang DITERIMA belum tentu memindahkan batch: mode otorisasi bawaan "Catat saja" hanya mencatat. Dengan
+     * mode yang dipakai gate + hasil transisi di log, operator melihat sebabnya di UI (dan ketidakcocokan antara mode di
+     * UI dan mode yang dipakai gate langsung terlihat). Tolakan sebelum strategi (tag asing, arah salah) tidak punya mode.
+     * Duplikat tidak dicatat ulang: hasilnya milik pembacaan sebelumnya.
+     *
+     * @return array{mode?:string, transition?:string, reason?:string}
+     */
+    private function handoffMeta(array $result): array
+    {
+        if (empty($result['_mode'])) {
+            return [];
+        }
+
+        // Hasil transisi hanya bermakna untuk pembacaan yang diterima; yang ditolak strategi cukup mencatat mode-nya.
+        $state = ($result['status'] ?? null) !== 'success' ? null
+            : ($result['transition_state']
+                ?? (empty($result['transition_attempted']) ? 'audit' : (empty($result['transition_success']) ? 'blocked' : 'moved')));
+
+        return array_filter([
+            'mode' => (string) $result['_mode'],
+            'transition' => $state,
+            'reason' => isset($result['transition_reason']) ? mb_substr((string) $result['transition_reason'], 0, 240) : null,
+        ]);
     }
 
     /** @return array{0:array,1:bool} */
@@ -183,9 +214,10 @@ class RfidScanService
         ));
 
         // Kunci internal (awalan '_') dibuang pemanggil sebelum respons — bentuk respons perangkat tidak berubah.
-        // _checkpoint_id dipakai scan() untuk log + capture CCTV setelah log tercatat.
+        // _checkpoint_id dipakai scan() untuk log + capture CCTV setelah log tercatat; _mode untuk meta log (handoffMeta).
         $result['_company_id'] = (int) ($result['company_id'] ?? $batch->company_id);
         $result['_batch_id'] = $batch->id;
+        $result['_mode'] = $strategy->getMode();
 
         if ($ctx->reader) {
             $this->devices->touch($ctx->reader, $opts['ip'] ?? null);
