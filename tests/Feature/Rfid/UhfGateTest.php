@@ -10,10 +10,12 @@ use App\Models\RfidReader;
 use App\Models\RfidReadLog;
 use App\Models\User;
 use App\Services\Hardware\HardwareEventService;
+use App\Services\Hardware\RfidAuthorizationService;
 use App\Services\Hardware\RfidDeviceService;
 use App\Services\Hardware\RfidReadLogService;
 use App\Services\Hardware\RfidRegistrationService;
 use App\Services\Hardware\RfidScanService;
+use App\Services\Hardware\Uhf\CachePresenceFilter;
 use App\Services\Hardware\Uhf\UhfGate;
 use App\Services\Hardware\Uhf\Ur4ExclusiveLock;
 use Database\Seeders\Core\DatabaseSeeder;
@@ -361,6 +363,121 @@ class UhfGateTest extends TestCase
         $gate->reloadIfNeeded();
 
         $this->assertSame([$reader->id], $gate->readerIds(), 'reader baru terpakai tanpa menunggu 60 dtk');
+        $gate->shutdown();
+    }
+
+    // ─── Serah-terima lewat reader: tap → mode otorisasi → posisi batch (skenario uji lab) ───
+
+    /** Batch yang tagnya sudah terdaftar di $stage (status $status), siap dibaca reader. */
+    private function taggedBatch(string $stage, string $status = 'in_process'): Batch
+    {
+        $product = ProductCode::where('company_id', $this->company->id)->firstOrFail();
+
+        return Batch::factory()->create([
+            'company_id' => $this->company->id, 'product_code_id' => $product->id,
+            'process_stage' => $stage, 'status' => $status, 'rfid_tag' => self::EPC,
+        ]);
+    }
+
+    /** Tag meninggalkan medan antena lalu datang lagi: kehadiran + dedupe 3 dtk dilupakan (di produksi: jeda ≥ presence_seconds). */
+    private function tagLeavesAndReturns(RfidReader $reader, string $direction, string $stage): void
+    {
+        CachePresenceFilter::forget("{$reader->id}:".self::EPC);
+        Cache::forget('rfid:dd:'.self::EPC.":{$direction}:{$stage}");
+    }
+
+    /** @return array{0:RfidReader,1:UhfGate} reader UR4 satu antena "Scan Masuk saja" di Wet Process, sudah streaming. */
+    private function wetEntryGate(): array
+    {
+        $reader = $this->reader('WET-GATE-IN', extra: ['direction' => 'in', 'connection' => [
+            'host' => '192.168.99.202', 'port' => 8888, 'antennas' => ['1' => 'in'],
+        ]]);
+        $gate = $this->gate();
+        $this->step($gate);
+        $this->streaming($gate, $reader->id);
+
+        return [$reader, $gate];
+    }
+
+    #[Test]
+    public function tap_di_reader_tanpa_mode_otorisasi_hanya_tercatat_dan_batch_tetap_di_receiving(): void
+    {
+        $batch = $this->taggedBatch('receiving');
+        [, $gate] = $this->wetEntryGate();
+
+        $this->peers['192.168.99.202:8888']->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+        $this->step($gate, 0.1);
+
+        $log = RfidReadLog::where('epc', self::EPC)->firstOrFail();
+        $this->assertSame(['in', 'accepted', 'real_uhf'], [$log->action, $log->result, $log->origin], 'pembacaan DITERIMA sebagai audit');
+        $fresh = $batch->fresh();
+        $this->assertSame(['receiving', 'in_process'], [$fresh->process_stage, $fresh->status], 'mode bawaan "Catat saja": posisi batch tidak berubah');
+        $this->assertSame(0, Checkpoint::where('batch_id', $batch->id)->where('checkpoint_data->action', 'rfid_auto_receive')->count());
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function mode_diubah_dari_ui_saat_gate_sudah_berjalan_berlaku_pada_tap_berikutnya_tanpa_restart(): void
+    {
+        $batch = $this->taggedBatch('receiving');
+        [$reader, $gate] = $this->wetEntryGate();
+        $peer = $this->peers['192.168.99.202:8888'];
+
+        // Tap pertama (mode bawaan) — gate menyimpan "audit_only" di cache mode.
+        $peer->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+        $this->step($gate, 0.1);
+        $this->assertSame('receiving', $batch->fresh()->process_stage);
+
+        // Administrator memilih "Scan Masuk = terima otomatis" untuk Wet Process (jalur yang sama dengan UI).
+        app(RfidAuthorizationService::class)->setMode($this->company->id, 'wet_process', 'scan_to_receive', $this->admin->id);
+
+        $this->tagLeavesAndReturns($reader, 'in', 'wet_process');
+        $peer->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+        $this->step($gate, 0.1);
+
+        $fresh = $batch->fresh();
+        $this->assertSame(['wet_process', 'in_process'], [$fresh->process_stage, $fresh->status], 'tap berikutnya MEMINDAHKAN batch ke tahap reader');
+        $this->assertSame(1, Checkpoint::where('batch_id', $batch->id)->where('checkpoint_data->action', 'rfid_auto_receive')->count());
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function reader_arah_masuk_tidak_pernah_menghasilkan_scan_keluar_dan_batch_tidak_terkirim(): void
+    {
+        $batch = $this->taggedBatch('wet_process');
+        app(RfidAuthorizationService::class)->setMode($this->company->id, 'wet_process', 'scan_to_dispatch', $this->admin->id);
+        [$reader, $gate] = $this->wetEntryGate();
+        $peer = $this->peers['192.168.99.202:8888'];
+
+        for ($i = 0; $i < 2; $i++) {
+            $peer->send(Ur4Frames::tag(self::EPC, 1, -50.0));
+            $this->step($gate, 0.1);
+            $this->tagLeavesAndReturns($reader, 'in', 'wet_process');
+        }
+
+        $this->assertSame(['in'], RfidReadLog::where('epc', self::EPC)->pluck('action')->unique()->values()->all(), 'reader "Scan Masuk saja": semua pembacaan berarah Masuk');
+        $this->assertSame('in_process', $batch->fresh()->status, 'tanpa Scan Keluar tidak ada pengiriman (mode dispatch hanya bereaksi pada Scan Keluar)');
+        $gate->shutdown();
+    }
+
+    #[Test]
+    public function reader_dua_arah_dengan_pemetaan_antena_membaca_scan_keluar_dan_mengirim_batch(): void
+    {
+        $batch = $this->taggedBatch('wet_process');
+        app(RfidAuthorizationService::class)->setMode($this->company->id, 'wet_process', 'scan_to_dispatch', $this->admin->id);
+        $reader = $this->reader('WET-GATE-2WAY');   // arah "Dua arah": antena 1 = Masuk, antena 2 = Keluar
+        $gate = $this->gate();
+        $this->step($gate);
+        $this->streaming($gate, $reader->id);
+
+        $this->peers['192.168.99.202:8888']->send(Ur4Frames::tag(self::EPC, 2, -48.0));   // tag melewati sisi antena KELUAR
+        $this->step($gate, 0.1);
+        $this->step($gate, 1.5);                                                          // jendela arbitrasi antena (1,2 dtk) berakhir
+
+        $log = RfidReadLog::where('epc', self::EPC)->firstOrFail();
+        $this->assertSame(['out', 'accepted', 2], [$log->action, $log->result, $log->antenna]);
+        $fresh = $batch->fresh();
+        $this->assertSame(['wet_process', 'in_transit'], [$fresh->process_stage, $fresh->status], 'Scan Keluar mengirim batch (tetap di tahap asal, status dalam pengiriman)');
         $gate->shutdown();
     }
 }
