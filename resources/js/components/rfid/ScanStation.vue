@@ -10,6 +10,8 @@
  * - Tag tidak dikenal → tawarkan "Daftarkan tag ini". Salah scan → "Batalkan" beralasan (koreksi, bukan hapus).
  * - Setiap hasil menyebut dengan jelas APA yang terjadi pada batch (berpindah / sudah di tahap ini / hanya tercatat)
  *   dan menampilkan posisi batch saat ini; mode "Catat saja" dijelaskan lengkap dengan jalan pintas ke pengaturannya.
+ * - Bila tahap ini punya reader tetapi tidak satu pun yang membaca arah INI (mis. semua "Scan Masuk saja" saat membuka
+ *   Scan Keluar), UI menyebutnya terang-terangan: pembacaan fisik arah ini tidak akan pernah muncul — hanya input manual.
  * - Dari hasil atau baris riwayat, "Kelola tag" membuka Kelola Tag dengan UID terisi (lepas / reset uji sekali ketuk).
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
@@ -22,6 +24,7 @@ import { rfidApi, useApiText } from '@/composables/rfid/useRfidApi.js'
 import { usePolling } from '@/composables/core/usePolling.js'
 import { useI18n } from '@/composables/core/useI18n.js'
 import { formatTime, groupUid, newEventId } from '@/lib/format'
+import { activeReadersAt, modeMoves, readerDirections } from '@/lib/rfidFlow.js'
 
 const props = defineProps({
     direction:         { type: String, required: true },    // 'in' | 'out'
@@ -33,7 +36,7 @@ const props = defineProps({
     simulationEnabled: { type: Boolean, default: false },
     field:             { type: Boolean, default: false },
 })
-const emit = defineEmits(['register-uid', 'manage-uid', 'open-devices'])
+const emit = defineEmits(['register-uid', 'manage-uid', 'open-devices', 'open-readiness'])
 
 const { t, lang, loc } = useI18n()
 const apiText = useApiText()
@@ -52,16 +55,29 @@ const needsStage = computed(() => !reader.value?.stage)
 const stageObj = computed(() => props.stages.find(s => s.key === stageKey.value))
 const stageLabel = key => { const s = props.stages.find(x => x.key === key); return s ? loc(s) : (key ?? '—') }
 
-// Pilihan awal: reader terakhir yang valid, kalau tidak ada → reader pertama → manual
+// Pilihan awal (belum pernah memilih = kosong): reader terakhir yang valid, kalau tidak ada → reader pertama → manual.
+// Pilihan eksplisit "Tanpa reader (pilih tahap)" disimpan sebagai MANUAL_STATION, BUKAN string kosong: daftar reader
+// disegarkan tiap 15 dtk, dan nilai kosong berarti "belum memilih" sehingga pilihan manual operator akan terus ditimpa
+// kembali ke reader pertama — scan manual lalu tercatat di tahap reader itu, bukan di tahap yang dipilih operator.
+const MANUAL_STATION = 'manual'
+const stationModel = computed({
+    get: () => stationKey.value || MANUAL_STATION,
+    set: v => { stationKey.value = v },
+})
 watch(validReaders, list => {
-    if (stationKey.value && !/^r:\d+$/.test(stationKey.value)) return
+    if (stationKey.value && !/^r:\d+$/.test(stationKey.value)) return   // pilihan manual eksplisit
     if (!reader.value) stationKey.value = list[0] ? `r:${list[0].id}` : ''
 }, { immediate: true })
 
 // ─── Mode otorisasi → kalimat dampak ──────────────────────────────────────────
 const mode = computed(() => props.modes?.[stageKey.value]?.mode ?? 'audit_only')
 // Otomatis = scan pada arah INI benar-benar memindahkan batch (scan_full berlaku untuk kedua arah).
-const isAuto = computed(() => mode.value === 'scan_full' || (isIn.value && mode.value === 'scan_to_receive') || (!isIn.value && mode.value === 'scan_to_dispatch'))
+const isAuto = computed(() => modeMoves(mode.value, props.direction))
+// Tahap ini punya reader aktif, tetapi tidak satu pun yang bisa menghasilkan arah INI (arah tetap / pemetaan antena).
+const noReaderForDirection = computed(() => {
+    const here = activeReadersAt(props.readers, stageKey.value)
+    return here.length > 0 && !here.some(r => readerDirections(r).includes(props.direction))
+})
 const modeText = computed(() => isAuto.value ? t(isIn.value ? 'rfid.scan.mode_receive' : 'rfid.scan.mode_dispatch') : t('rfid.scan.mode_audit'))
 
 // ─── Simulasi ─────────────────────────────────────────────────────────────────
@@ -221,13 +237,25 @@ const SRC = { simulation: 'rfid.hist.src_sim', manual: 'rfid.hist.src_manual' }
             </div>
         </div>
 
+        <!-- Tidak ada reader fisik untuk arah ini di tahap ini: pembacaan reader tidak akan muncul, hanya input manual -->
+        <div v-if="noReaderForDirection" class="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-soft p-3 text-sm text-warning" role="status" data-testid="no-reader-notice">
+            <AppIcon name="triangle-alert" :size="18" class="mt-0.5 flex-shrink-0" />
+            <div class="min-w-0">
+                <p class="font-semibold">{{ t(isIn ? 'rfid.scan.no_reader_in' : 'rfid.scan.no_reader_out', { stage: stageLabel(stageKey) }) }}</p>
+                <p class="mt-0.5 text-foreground">{{ t('rfid.scan.no_reader_hint') }}</p>
+                <button type="button" class="mt-2 inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-card px-3 font-semibold text-foreground hover:bg-accent" @click="emit('open-readiness')">
+                    <AppIcon name="sliders-horizontal" :size="16" />{{ t('rfid.scan.no_reader_fix') }}
+                </button>
+            </div>
+        </div>
+
         <!-- Stasiun -->
         <div class="grid gap-3 sm:grid-cols-2">
             <div class="space-y-1.5">
                 <label for="station" class="block text-sm font-medium">{{ t('rfid.scan.station') }}</label>
-                <select id="station" v-model="stationKey" class="min-h-[48px] w-full rounded-lg border border-input bg-background px-3 text-base">
+                <select id="station" v-model="stationModel" class="min-h-[48px] w-full rounded-lg border border-input bg-background px-3 text-base">
                     <option v-for="r in validReaders" :key="r.id" :value="`r:${r.id}`">{{ r.name }}{{ r.stage ? ' · ' + stageLabel(r.stage) : '' }}</option>
-                    <option value="">{{ t('rfid.scan.station_none') }}</option>
+                    <option :value="MANUAL_STATION">{{ t('rfid.scan.station_none') }}</option>
                 </select>
             </div>
             <div v-if="needsStage" class="space-y-1.5">

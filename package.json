@@ -5,6 +5,7 @@
         "build": "vite build",
         "dev": "vite",
         "test:uhf": "node --test resources/js/lib/uhf/__tests__/",
+        "test:rfid-flow": "node --test resources/js/lib/__tests__/rfidFlow.test.js",
         "i18n:check": "node scripts/check-i18n.mjs"
     },
     "devDependencies": {

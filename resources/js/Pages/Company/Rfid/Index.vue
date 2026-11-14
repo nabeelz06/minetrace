@@ -67,13 +67,16 @@ function registerUid(uid) {
     go('register')
 }
 
-// Dari peringatan "Catat saja" di Scan Masuk/Keluar langsung ke kartu Mode otorisasi (administrator).
-async function openModes() {
+// Pintasan dari Scan Masuk/Keluar ke bagian tertentu di Perangkat & Pengaturan: kartu Mode otorisasi (peringatan
+// "Catat saja") atau panel Kesiapan alur (tidak ada reader untuk arah ini).
+async function openDevicesAt(anchorId) {
     go('devices')
     await nextTick()
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    document.getElementById('rfid-auth-modes')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
+    document.getElementById(anchorId)?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
 }
+const openModes = () => openDevicesAt('rfid-auth-modes')
+const openReadiness = () => openDevicesAt('rfid-flow-readiness')
 
 // Buka Kelola Tag untuk satu UID (dari Scan Masuk/Keluar atau wizard registrasi)
 function manageTag(uid) {
@@ -96,7 +99,14 @@ async function refresh() {
 const poll = usePolling(refresh, { interval: 15000, immediate: true })
 onMounted(() => poll.start())
 
-const stats = computed(() => overview.value ?? { scans_today: 0, scans_today_sim: 0, readers_total: readers.value.length, readers_online: 0, batches_untagged: 0 })
+// Sebelum ringkasan pertama tiba, jumlah reader online dihitung dari daftar reader yang sudah ada — bukan 0, yang akan
+// berkedip merah "0/N" (seolah semua reader mati) pada setiap pemuatan halaman.
+const stats = computed(() => overview.value ?? {
+    scans_today: 0, scans_today_sim: 0,
+    readers_total: readers.value.length,
+    readers_online: readers.value.filter(r => r.state === 'online').length,
+    batches_untagged: 0,
+})
 const can = computed(() => props.rfid.can)
 
 const CARDS = [
@@ -147,7 +157,7 @@ const CARDS = [
 
                 <ScanStation v-else-if="view === 'in' || view === 'out'" :key="view" :direction="view" :readers="readers" :stages="rfid.stages" :modes="modes"
                              :can-operate="can.operate" :can-manage="can.manage" :simulation-enabled="rfid.simulation_enabled" :field="field"
-                             @register-uid="registerUid" @manage-uid="manageTag" @open-devices="openModes" />
+                             @register-uid="registerUid" @manage-uid="manageTag" @open-devices="openModes" @open-readiness="openReadiness" />
 
                 <TagManager v-else-if="view === 'tags'" :key="tagsKey" :stages="rfid.stages" :can-operate="can.operate" :can-manage="can.manage"
                             :reset-enabled="rfid.test_reset_enabled ?? true" :initial-uid="manageUid" :field="field" @register-uid="registerUid" />

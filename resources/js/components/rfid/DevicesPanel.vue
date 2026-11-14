@@ -1,6 +1,6 @@
 <script setup>
 /**
- * DevicesPanel — Perangkat & Pengaturan Lanjutan: reader terdaftar, mode otorisasi, ESP32 lama.
+ * DevicesPanel — Perangkat & Pengaturan Lanjutan: kesiapan alur, reader terdaftar, mode otorisasi, ESP32 lama.
  * Administrator mengelola; peran lain hanya melihat (tanpa kunci).
  */
 import { computed, ref, watch } from 'vue'
@@ -11,6 +11,7 @@ import ConfirmDialog from '@/components/app/ConfirmDialog.vue'
 import ReaderFormDialog from '@/components/rfid/ReaderFormDialog.vue'
 import ReaderKeyDialog from '@/components/rfid/ReaderKeyDialog.vue'
 import AuthModesCard from '@/components/rfid/AuthModesCard.vue'
+import FlowReadiness from '@/components/rfid/FlowReadiness.vue'
 import LegacyEsp32Card from '@/components/rfid/LegacyEsp32Card.vue'
 import { rfidApi, useApiText } from '@/composables/rfid/useRfidApi.js'
 import { pushToast } from '@/composables/core/useToast.js'
@@ -56,6 +57,12 @@ const stageName = key => { const s = props.stages.find(x => x.key === key); retu
 function openAdd() { editing.value = null; formOpen.value = true }
 function openEdit(r) { editing.value = r; formOpen.value = true }
 
+// "Atur mode otorisasi" dari panel kesiapan → gulir ke kartu mode di halaman yang sama.
+function scrollToModes() {
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    document.getElementById('rfid-auth-modes')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
+}
+
 function onSaved(data) {
     emit('readers-changed')
     if (data?.device_key) { keyReader.value = data.reader; keyValue.value = data.device_key; keyOpen.value = true }
@@ -78,6 +85,9 @@ async function rotate() {
 
 <template>
     <div class="space-y-6">
+        <FlowReadiness v-if="readers.length" :readers="readers" :stages="stages" :modes="modes" :can-manage="canManage"
+                       @fix-modes="scrollToModes" @edit-reader="openEdit" />
+
         <section class="space-y-3" :aria-label="t('rfid.dev.title')">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h3 class="text-lg font-semibold">{{ t('rfid.dev.title') }}</h3>
