@@ -30,10 +30,13 @@ test('activeReadersAt: hanya reader aktif di tahap itu', () => {
     assert.deepEqual(activeReadersAt(undefined, 'wet_process'), [])
 })
 
-test('laneStatus: none → audit → offline → ready', () => {
+test('laneStatus: unused / none → audit → offline → ready', () => {
     const here = [reader()]
-    // reader "Scan Masuk saja": Scan Keluar tidak pernah terbaca, apa pun modenya
+    // reader "Scan Masuk saja": Scan Keluar tidak pernah terbaca. Perlu tindakan HANYA bila mode memproses Scan Keluar.
     assert.equal(laneStatus(here, 'scan_full', 'out').status, 'none')
+    assert.equal(laneStatus(here, 'scan_to_dispatch', 'out').status, 'none')
+    assert.equal(laneStatus(here, 'scan_to_receive', 'out').status, 'unused', 'rantai terima-saja: Keluar tidak dipakai')
+    assert.equal(laneStatus(here, 'audit_only', 'out').status, 'unused')
     // mode bawaan: terbaca tetapi hanya dicatat
     assert.equal(laneStatus(here, 'audit_only', 'in').status, 'audit')
     // mode terima otomatis tetapi reader belum online
@@ -56,4 +59,12 @@ test('laneStatus: reader dua arah berantena memberi dua jalur siap; satu reader 
 test('laneStatus: tanpa reader sama sekali', () => {
     assert.equal(laneStatus([], 'scan_full', 'in').status, 'none')
     assert.equal(laneStatus(undefined, 'scan_full', 'in').status, 'none')
+    assert.equal(laneStatus([], 'audit_only', 'in').status, 'unused', 'mode "Catat saja": tak ada yang perlu dibaca untuk memindahkan batch')
+})
+
+test('laneStatus: reader "Dua arah" tanpa pemetaan antena (data VPS) = hanya Masuk', () => {
+    const vps = reader({ code: 'UR4-2', direction: 'any', directions: ['in'] })
+    assert.equal(laneStatus([vps], 'audit_only', 'in').status, 'audit', 'mode bawaan: batch tidak berpindah')
+    assert.equal(laneStatus([vps], 'scan_to_receive', 'in').status, 'ready')
+    assert.equal(laneStatus([vps], 'scan_to_receive', 'out').status, 'unused', 'tidak perlu Scan Keluar bila hanya menerima')
 })

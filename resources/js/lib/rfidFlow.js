@@ -27,18 +27,20 @@ export function activeReadersAt(readers, stage) {
 
 /**
  * Status satu jalur (tahap × arah), berurutan dari yang paling mendasar:
- *   none    → tidak ada reader aktif yang bisa membaca arah ini
+ *   unused  → tidak ada reader untuk arah ini, dan mode tahap ini memang tidak memproses arah ini (tidak perlu tindakan)
+ *   none    → mode memproses arah ini, tetapi tidak ada reader aktif yang bisa membacanya (perlu tindakan)
  *   audit   → terbaca, tetapi mode tidak memindahkan batch (hanya dicatat)
  *   offline → mode memindahkan batch, namun tidak ada reader online
  *   ready   → ada reader online dan mode memindahkan batch
  *
  * @param {object[]} readersHere reader aktif di tahap itu (activeReadersAt)
- * @returns {{direction: string, readers: object[], status: 'none'|'audit'|'offline'|'ready'}}
+ * @returns {{direction: string, readers: object[], status: 'unused'|'none'|'audit'|'offline'|'ready'}}
  */
 export function laneStatus(readersHere, mode, direction) {
     const readers = (readersHere ?? []).filter(r => readerDirections(r).includes(direction))
-    const status = !readers.length ? 'none'
-        : !modeMoves(mode, direction) ? 'audit'
+    const moves = modeMoves(mode, direction)
+    const status = !readers.length ? (moves ? 'none' : 'unused')
+        : !moves ? 'audit'
         : readers.some(r => r.state === 'online') ? 'ready'
         : 'offline'
 

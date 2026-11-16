@@ -4,7 +4,9 @@
  *
  * Membuat dua penyebab paling umum "tag terbaca tetapi batch tidak berpindah" kasatmata, tanpa membuka log server:
  *  1. Mode otorisasi tahap itu masih "Catat saja" (atau tidak mencakup arah itu) → scan hanya dicatat.
- *  2. Tidak ada reader yang membaca satu arah (mis. semua reader "Scan Masuk saja" → Scan Keluar tak pernah terbaca).
+ *  2. Mode tahap itu memproses satu arah, tetapi tidak ada reader yang membaca arah itu (mis. reader "Scan Masuk saja" +
+ *     mode yang mengirim saat Scan Keluar). Arah yang tidak diproses mode dan tidak punya reader = "tidak dipakai" (bukan masalah:
+ *     rantai terima-saja memang hanya butuh Scan Masuk).
  *
  * Arah yang bisa dihasilkan sebuah reader dihitung SERVER (`directions`: arah tetap + pemetaan antena), UI hanya
  * menyusunnya — aturan tidak bercabang antara server dan layar. Scan manual dari halaman Scan Masuk/Keluar tidak
@@ -34,18 +36,19 @@ const rows = computed(() => props.stages.map(stage => {
 const covered = computed(() => rows.value.filter(r => r.here.length))
 const uncovered = computed(() => rows.value.filter(r => !r.here.length))
 const allLanes = computed(() => covered.value.flatMap(r => r.lanes))
-const issues = computed(() => allLanes.value.filter(l => l.status === 'audit' || l.status === 'offline').length)
-const missing = computed(() => allLanes.value.filter(l => l.status === 'none').length)
+// Perlu tindakan: terbaca tetapi tidak memindahkan (audit), reader offline, atau mode memproses arah yang tak punya reader (none).
+const issues = computed(() => allLanes.value.filter(l => ['audit', 'offline', 'none'].includes(l.status)).length)
 
 const TONE = {
     ready:   { box: 'border-success/30 bg-success-soft', text: 'text-success', icon: 'circle-check' },
     audit:   { box: 'border-warning/40 bg-warning-soft', text: 'text-warning', icon: 'triangle-alert' },
     offline: { box: 'border-danger/30 bg-danger-soft',   text: 'text-danger',  icon: 'wifi-off' },
-    none:    { box: 'border-border bg-muted/40',         text: 'text-muted-foreground', icon: 'circle-dashed' },
+    none:    { box: 'border-warning/40 bg-warning-soft', text: 'text-warning', icon: 'triangle-alert' },
+    unused:  { box: 'border-border bg-muted/40',         text: 'text-muted-foreground', icon: 'circle-dashed' },
 }
 
 function headline(l) {
-    if (l.status === 'ready' || l.status === 'none') return t(`rfid.ready.${l.status}_${l.direction}`)
+    if (['ready', 'none', 'unused'].includes(l.status)) return t(`rfid.ready.${l.status}_${l.direction}`)
     return t(`rfid.ready.${l.status}`)
 }
 // "KODE (arah yang dikonfigurasi)" — operator melihat reader mana yang dimaksud dan mengapa arah tertentu tidak terbaca.
@@ -71,9 +74,6 @@ const describeReaders = list => list.map(r => `${r.code} (${t(`rfid.dev.dir_${r.
                 </p>
                 <p v-else class="flex items-start gap-2 text-sm font-semibold text-success">
                     <AppIcon name="circle-check" :size="18" class="mt-0.5 flex-shrink-0" />{{ t('rfid.ready.summary_ok') }}
-                </p>
-                <p v-if="missing" class="flex items-start gap-2 text-sm text-muted-foreground">
-                    <AppIcon name="info" :size="18" class="mt-0.5 flex-shrink-0" />{{ t('rfid.ready.summary_none', { n: missing }) }}
                 </p>
             </div>
 
