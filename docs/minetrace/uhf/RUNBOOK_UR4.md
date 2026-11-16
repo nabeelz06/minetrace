@@ -85,9 +85,12 @@ Telusuri dari yang paling murah; tiap langkah menunjuk satu penyebab:
 1. **RFID → Perangkat → "Kesiapan alur"** (tiap tahap × Masuk/Keluar):
    - *"Terbaca, tetapi hanya dicatat — batch TIDAK berpindah"* → mode tahap itu **Catat saja** (bawaan) atau tidak mencakup arah itu.
      Atur di "Mode otorisasi" (Dua arah / preset Otomatis).
-   - *"Tidak ada reader yang membaca Scan Keluar di tahap ini"* → tidak ada reader aktif yang bisa menghasilkan arah itu. Reader "Scan Masuk saja"
-     tidak pernah menghasilkan Scan Keluar; ubah jadi "Dua arah" + petakan antena kedua = Keluar (antena harus terpasang), atau tambah reader
-     "Scan Keluar saja". Rantai yang hanya menerima (Receiving → Wet → Dry → Gudang, mode *Scan Masuk = terima* per tahap) tidak memerlukan Scan Keluar.
+   - *"Mode memproses Scan Keluar, tetapi tidak ada reader yang membacanya"* → mode tahap itu mengirim saat Scan Keluar, tetapi tidak ada reader aktif
+     yang bisa menghasilkan arah itu. Reader "Scan Masuk saja" tidak pernah menghasilkan Scan Keluar, dan reader "Dua arah" **tanpa pemetaan antena** juga
+     hanya Masuk. Pilih salah satu: ubah mode ke *Scan Masuk = terima* bila Keluar memang tak diperlukan, atau jadikan reader "Dua arah" + petakan antena
+     kedua = Keluar (antena harus terpasang), atau tambah reader "Scan Keluar saja".
+   - *"Tidak dipakai — mode tahap ini tidak memproses Scan …"* (abu-abu) → **bukan masalah**: mode tahap itu tidak bertindak pada arah tersebut, jadi reader
+     untuk arah itu tidak diperlukan. Rantai yang hanya menerima (mode *Scan Masuk = terima* per tahap) cukup dengan satu reader Masuk per tahap.
    - *"Reader offline"* → mode sudah benar tetapi tidak ada reader online (kabel/IP/daemon gate).
 2. **RFID → Log baca**: baris *accepted* menampilkan hasil serah-terima — *"Batch berpindah"*, *"Batch sudah di tahap ini"*,
    *"Batch TIDAK berpindah"* (disertai alasan guard, mis. batch belum berada di tahap sebelumnya) atau *"Hanya tercatat — batch tidak berpindah"* —
@@ -103,6 +106,14 @@ SELECT read_at, action, stage, result, result_code, meta->>'mode' AS mode, meta-
   FROM rfid_read_logs ORDER BY id DESC LIMIT 10;
 SQL
 ```
+
+### Pengaturan yang disarankan untuk alur lab (satu reader per tahap)
+- Mode **Scan Masuk = terima otomatis** di Wet, Dry, Gudang, dan Lab LTJ (`project_plant`). Satu reader Masuk per tahap sudah cukup; Receiving dibiarkan
+  (tag didaftarkan lewat wizard Daftarkan Tag). Tiap tap memindahkan batch dari tahap sebelumnya (Receiving → Wet → Dry → Gudang); tap pada batch yang sudah
+  di tahap itu tercatat *"Batch sudah di tahap ini"*, dan batch yang berada di tahap yang salah tercatat *"TIDAK berpindah"* beserta alasannya.
+- **Gudang → Lab LTJ (produk MON)** tidak memakai Scan Keluar RFID: Gudang tidak punya tahap berikutnya di RFID. Kirim lewat tombol web **"Kirim ke Lab LTJ"**
+  (status batch menjadi *dalam pengiriman*), lalu tap reader Lab LTJ untuk menerima. Tap di Lab LTJ sebelum dikirim ditolak guard (batch tetap di Gudang).
+- Perilaku ini dijaga tes `UhfGateChainTest` (4 reader "any" tanpa antena + mode bawaan → hanya tercatat; sesudah mode diatur → rantai berpindah; jalur MON).
 
 ## Diagnosis `link_state` (panel Perangkat)
 | link_state | Arti | Tindakan |
