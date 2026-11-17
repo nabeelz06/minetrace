@@ -5,6 +5,7 @@ namespace App\Services\Hardware\Strategies;
 use App\Contracts\ScanAuthorizationStrategy;
 use App\Models\Batch;
 use App\Services\Process\StageTransitionService;
+use App\Support\ProcessFlow;
 use App\Services\Hardware\RfidService;
 use Illuminate\Support\Facades\Log;
 
@@ -41,14 +42,18 @@ class ScanToReceiveStrategy implements ScanAuthorizationStrategy
             return array_merge($auditResult, [
                 'transition_attempted' => true,
                 'transition_success'   => true,
+                'transition_state'     => 'moved',
                 'transition_message'   => "Batch otomatis diterima di stage {$stage}.",
             ]);
         } catch (\DomainException $e) {
             Log::warning("ScanToReceiveStrategy: {$e->getMessage()}");
 
+            // 'already_done' = pembacaan ulang tag yang batch-nya SUDAH diterima di tahap ini (bukan kegagalan nyata);
+            // UI menampilkannya sebagai info netral. Kunci transition_attempted/success tidak berubah (kontrak lama).
             return array_merge($auditResult, [
                 'transition_attempted' => true,
                 'transition_success'   => false,
+                'transition_state'     => $this->alreadyReceived($batch, $stage) ? 'already_done' : 'blocked',
                 'transition_reason'    => $e->getMessage(),
             ]);
         } catch (\Throwable $e) {
@@ -57,6 +62,7 @@ class ScanToReceiveStrategy implements ScanAuthorizationStrategy
             return array_merge($auditResult, [
                 'transition_attempted' => true,
                 'transition_success'   => false,
+                'transition_state'     => 'error',
                 'transition_reason'    => 'Internal error saat transisi.',
             ]);
         }
@@ -72,6 +78,12 @@ class ScanToReceiveStrategy implements ScanAuthorizationStrategy
             $context['rfid_origin'] ?? 'real_esp32',
             $context['meta'] ?? []
         );
+    }
+
+    /** Batch sudah berada di tahap ini dan tidak sedang dalam pengiriman keluar → penerimaan sudah terjadi. */
+    private function alreadyReceived(Batch $batch, string $stage): bool
+    {
+        return $batch->process_stage === $stage && $batch->status !== ProcessFlow::STATUS_AFTER_SEND;
     }
 
     public function getMode(): string { return 'scan_to_receive'; }

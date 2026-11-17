@@ -49,7 +49,7 @@ class RfidPageTest extends TestCase
                 ->where('field', false)
                 ->where('rfid.can.operate', true)->where('rfid.can.manage', true)
                 ->where('rfid.company.code', 'TIMAH')
-                ->has('rfid.stages', 5)->has('rfid.authorization_modes')->where('rfid.simulation_enabled', true));
+                ->has('rfid.stages', 5)->has('rfid.authorization_modes')->where('rfid.simulation_enabled', true)->has('rfid.test_reset_enabled'));
 
         $this->actingAs($this->user('wet.mtk@ptimah.co.id'))->get('/company/hardware/rfid')
             ->assertInertia(fn (Assert $p) => $p->where('rfid.can.operate', true)->where('rfid.can.manage', false));

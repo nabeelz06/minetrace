@@ -196,6 +196,7 @@ class RfidDeviceService
             'name' => $reader->name,
             'stage' => $reader->stage,
             'direction' => $reader->direction,
+            'directions' => $reader->supportedDirections(),   // arah yang benar-benar bisa dihasilkan (antena/arah tetap)
             'device_type' => $reader->device_type,
             'connection' => $reader->connection,
             'camera_url' => $reader->camera_url,

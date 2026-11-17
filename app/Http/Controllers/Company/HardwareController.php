@@ -60,7 +60,7 @@ class HardwareController extends Controller
         return Inertia::render('Company/Rfid/Index', [
             'field'   => $field,
             'initial' => [
-                'view'           => $request->query('view'),                  // register | in | out | history | logs | devices
+                'view'           => $request->query('view'),                  // register | in | out | tags | history | logs | devices
                 'register_batch' => $request->integer('register_batch') ?: null,
                 'uid'            => $request->query('uid'),
             ],
@@ -75,6 +75,7 @@ class HardwareController extends Controller
                 'authorization_modes' => $this->authorization->getAllModes($companyId),
                 'valid_modes'         => $this->authorization->getValidModes(),
                 'simulation_enabled'  => (bool) config('rfid.simulation_enabled'),
+                'test_reset_enabled'  => (bool) config('rfid.test_reset_enabled'),
                 'uhf_desktop_baud'    => (int) config('rfid.uhf.desktop_baud', 9600),
                 'registration_ttl'    => (int) config('rfid.registration_ttl'),
                 'offline_after'       => (int) config('rfid.offline_after_seconds'),

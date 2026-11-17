@@ -5,6 +5,7 @@ namespace App\Services\Hardware\Strategies;
 use App\Contracts\ScanAuthorizationStrategy;
 use App\Models\Batch;
 use App\Services\Process\StageTransitionService;
+use App\Support\ProcessFlow;
 use App\Services\Hardware\RfidService;
 use Illuminate\Support\Facades\Log;
 
@@ -55,14 +56,17 @@ class ScanToDispatchStrategy implements ScanAuthorizationStrategy
             return array_merge($auditResult, [
                 'transition_attempted' => true,
                 'transition_success'   => true,
+                'transition_state'     => 'moved',
                 'transition_message'   => "Batch otomatis dikirim ke stage {$result['to_stage']}.",
             ]);
         } catch (\DomainException $e) {
             Log::warning("ScanToDispatchStrategy: {$e->getMessage()}");
 
+            // 'already_done' = batch sudah dalam pengiriman dari tahap ini (pembacaan ulang), bukan kegagalan nyata.
             return array_merge($auditResult, [
                 'transition_attempted' => true,
                 'transition_success'   => false,
+                'transition_state'     => ($batch->process_stage === $stage && $batch->status === ProcessFlow::STATUS_AFTER_SEND) ? 'already_done' : 'blocked',
                 'transition_reason'    => $e->getMessage(),
             ]);
         } catch (\Throwable $e) {
@@ -71,6 +75,7 @@ class ScanToDispatchStrategy implements ScanAuthorizationStrategy
             return array_merge($auditResult, [
                 'transition_attempted' => true,
                 'transition_success'   => false,
+                'transition_state'     => 'error',
                 'transition_reason'    => 'Internal error saat dispatch.',
             ]);
         }

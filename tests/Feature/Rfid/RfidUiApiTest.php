@@ -126,6 +126,23 @@ class RfidUiApiTest extends TestCase
     }
 
     #[Test]
+    public function daftar_reader_memuat_arah_yang_benar_benar_bisa_dihasilkan(): void
+    {
+        $net = ['host' => '192.168.99.202', 'port' => 8888];
+        $this->reader(['code' => 'UR4-ANY', 'device_type' => 'uhf_chainway_ur4', 'direction' => 'any', 'connection' => $net]);
+        $this->reader(['code' => 'UR4-2WAY', 'device_type' => 'uhf_chainway_ur4', 'direction' => 'any', 'connection' => $net + ['antennas' => ['1' => 'in', '2' => 'out']]]);
+        $this->reader(['code' => 'ESP-ANY', 'device_type' => 'esp32_rc522', 'direction' => 'any']);
+        $this->reader(['code' => 'WET-OUT', 'device_type' => 'esp32_rc522', 'direction' => 'out']);
+
+        $rows = collect($this->actingAs($this->admin)->getJson(self::BASE . '/readers')->assertOk()->json('data'))->keyBy('code');
+
+        $this->assertSame(['in'], $rows['UR4-ANY']['directions'], 'UR4 "Dua arah" tanpa pemetaan antena hanya membaca Masuk');
+        $this->assertSame(['in', 'out'], $rows['UR4-2WAY']['directions']);
+        $this->assertSame(['in', 'out'], $rows['ESP-ANY']['directions']);
+        $this->assertSame(['out'], $rows['WET-OUT']['directions']);
+    }
+
+    #[Test]
     public function kode_reader_unik_per_perusahaan(): void
     {
         $this->reader();

@@ -11,13 +11,21 @@ use Illuminate\Support\Facades\Cache;
  */
 final class CachePresenceFilter implements PresenceFilter
 {
+    public const PREFIX = 'rfid:presence:';
+
     /** @var array<string,float> kunci lokal => terakhir terbaca (untuk prune/count dan pembatas tulis) */
     private array $seen = [];
 
     /** @var array<string,float> */
     private array $extended = [];
 
-    public function __construct(private readonly float $windowSeconds, private readonly string $prefix = 'rfid:presence:') {}
+    public function __construct(private readonly float $windowSeconds, private readonly string $prefix = self::PREFIX) {}
+
+    /** Lupakan kehadiran satu kunci (reader:EPC) — pembacaan berikutnya diproses seperti pertama kali (reset/lepas tag). */
+    public static function forget(string $key, string $prefix = self::PREFIX): void
+    {
+        Cache::forget($prefix.$key);
+    }
 
     public function shouldProcess(string $key, ?float $now = null): bool
     {

@@ -4,7 +4,10 @@ namespace App\Services\Hardware;
 
 use App\Events\RfidTagScanned;
 use App\Models\Checkpoint;
+use App\Models\RfidReader;
 use App\Models\User;
+use App\Services\Hardware\Uhf\CachePresenceFilter;
+use App\Support\ProcessFlow;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -57,7 +60,10 @@ class RfidScanService
                 'antenna' => $opts['antenna'] ?? null,
                 'rssi' => $opts['rssi'] ?? null,
                 'tid' => $opts['tid'] ?? null,
-                'meta' => array_filter(['event_id' => $opts['event_id'] ?? null, 'ip' => $opts['ip'] ?? null]) ?: null,
+                'meta' => array_filter(
+                    ['event_id' => $opts['event_id'] ?? null, 'ip' => $opts['ip'] ?? null]
+                    + ($duplicate ? [] : $this->handoffMeta($result))
+                ) ?: null,
             ]
         );
 
@@ -68,6 +74,34 @@ class RfidScanService
         }
 
         return [$result, $duplicate];
+    }
+
+    /**
+     * Apa yang sebenarnya dilakukan gate pada batch — disimpan di meta log baca agar "diterima" tidak menyesatkan.
+     *
+     * Pembacaan yang DITERIMA belum tentu memindahkan batch: mode otorisasi bawaan "Catat saja" hanya mencatat. Dengan
+     * mode yang dipakai gate + hasil transisi di log, operator melihat sebabnya di UI (dan ketidakcocokan antara mode di
+     * UI dan mode yang dipakai gate langsung terlihat). Tolakan sebelum strategi (tag asing, arah salah) tidak punya mode.
+     * Duplikat tidak dicatat ulang: hasilnya milik pembacaan sebelumnya.
+     *
+     * @return array{mode?:string, transition?:string, reason?:string}
+     */
+    private function handoffMeta(array $result): array
+    {
+        if (empty($result['_mode'])) {
+            return [];
+        }
+
+        // Hasil transisi hanya bermakna untuk pembacaan yang diterima; yang ditolak strategi cukup mencatat mode-nya.
+        $state = ($result['status'] ?? null) !== 'success' ? null
+            : ($result['transition_state']
+                ?? (empty($result['transition_attempted']) ? 'audit' : (empty($result['transition_success']) ? 'blocked' : 'moved')));
+
+        return array_filter([
+            'mode' => (string) $result['_mode'],
+            'transition' => $state,
+            'reason' => isset($result['transition_reason']) ? mb_substr((string) $result['transition_reason'], 0, 240) : null,
+        ]);
     }
 
     /** @return array{0:array,1:bool} */
@@ -114,7 +148,7 @@ class RfidScanService
             if ($eventId && ($replay = Cache::get($this->eventKey($ctx, $eventId)))) {
                 return [$replay, true];
             }
-            $dedupeKey = "rfid:dd:{$uid}:{$direction}:".($stage ?? '-');
+            $dedupeKey = $this->dedupeKey($uid, $direction, $stage);
             if (config('rfid.dedupe_seconds') > 0 && ($previous = Cache::get($dedupeKey))) {
                 return [$previous, true];
             }
@@ -180,15 +214,49 @@ class RfidScanService
         ));
 
         // Kunci internal (awalan '_') dibuang pemanggil sebelum respons — bentuk respons perangkat tidak berubah.
-        // _checkpoint_id dipakai scan() untuk log + capture CCTV setelah log tercatat.
+        // _checkpoint_id dipakai scan() untuk log + capture CCTV setelah log tercatat; _mode untuk meta log (handoffMeta).
         $result['_company_id'] = (int) ($result['company_id'] ?? $batch->company_id);
         $result['_batch_id'] = $batch->id;
+        $result['_mode'] = $strategy->getMode();
 
         if ($ctx->reader) {
             $this->devices->touch($ctx->reader, $opts['ip'] ?? null);
         }
 
         return $result;
+    }
+
+    private function dedupeKey(string $uid, string $direction, ?string $stage): string
+    {
+        return "rfid:dd:{$uid}:{$direction}:".($stage ?? '-');
+    }
+
+    /**
+     * Lupakan jejak SEMENTARA sebuah UID (dedupe arah+tahap, kehadiran daemon per reader, daftar penolakan UI).
+     * Dipanggil saat tag dilepas/direset agar pembacaan berikutnya diproses seperti pertama kali, tanpa menunggu
+     * jendela dedupe/kehadiran habis. Tidak menyentuh data permanen (checkpoint, log baca, riwayat tag).
+     */
+    public function forgetUid(int $companyId, string $uid): void
+    {
+        $uid = $this->rfid->sanitizeUid($uid);
+
+        foreach (['in', 'out'] as $direction) {
+            foreach ([...ProcessFlow::rfidStages(), null] as $stage) {
+                Cache::forget($this->dedupeKey($uid, $direction, $stage));
+            }
+        }
+
+        foreach (RfidReader::where('company_id', $companyId)->pluck('id') as $readerId) {
+            CachePresenceFilter::forget("{$readerId}:{$uid}");
+        }
+
+        $rejects = Cache::get($this->rejectKey($companyId), []);
+        if ($rejects) {
+            $kept = array_values(array_filter($rejects, fn ($r) => ($r['uid'] ?? null) !== $uid));
+            if (count($kept) !== count($rejects)) {
+                Cache::put($this->rejectKey($companyId), $kept, self::REJECT_TTL);
+            }
+        }
     }
 
     private function eventKey(DeviceContext $ctx, string $eventId): string
