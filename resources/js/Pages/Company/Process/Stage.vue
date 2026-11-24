@@ -24,6 +24,7 @@ import WeightDisplay                     from '@/components/shared/WeightDisplay
 import EmptyState                        from '@/components/shared/EmptyState.vue'
 import PoolPanel                         from '@/components/process/PoolPanel.vue'
 import IntakePanel                       from '@/components/process/IntakePanel.vue'
+import NewTagPanel                       from '@/components/process/NewTagPanel.vue'
 import { useI18n }                       from '@/composables/core/useI18n.js'
 
 const { lang } = useI18n()
@@ -55,6 +56,8 @@ const props = defineProps({
     pool:                 { type: Object, default: null },
     intake:               { type: Array,  default: () => [] },
     legacy_to_wet:        { type: Array,  default: () => [] },
+    new_tags:             { type: Array,  default: () => [] },
+    raw_products:         { type: Array,  default: () => [] },
 })
 
 // ─── Stage identity ───────────────────────────────────────────────────────────
@@ -698,6 +701,8 @@ const exportPieData = computed(() => {
         <!-- ════════════════════════════════════════════════
              MAIN PANELS — Incoming + Current (side by side)
         ════════════════════════════════════════════════ -->
+        <NewTagPanel v-if="isReceiving" :tags="new_tags" :raw-products="raw_products"
+                     :pool-has-input="!!pool?.collecting?.inputs?.length" :can-operate="canReceive"/>
         <IntakePanel v-if="isReceiving" :intake="intake" :legacy-to-wet="legacy_to_wet" :can-operate="canReceive"/>
         <PoolPanel v-if="pool" :stage="isReceiving ? 'wet_process' : stage" :pool="pool" :output-products="output_products" :can-operate="canReceive"/>
 

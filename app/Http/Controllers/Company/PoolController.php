@@ -100,6 +100,43 @@ class PoolController extends Controller
         return back()->with($b->has_discrepancy ? 'warning' : 'success', $b->has_discrepancy ? "⚠ {$msg} Susut melewati ambang — ditandai untuk ditinjau." : $msg);
     }
 
+    /** Tag baru di reader Receiving & Wet → batch timah basah baru (kadar Sn opsional, bisa diisi setelah uji). */
+    public function newTagBatch(Request $request, string $uid): RedirectResponse
+    {
+        abort_unless(Auth::user()->hasAnyRole(ProcessFlow::roles('receiving')), 403);
+        $data = $request->validate([
+            'product_code_id' => 'required|integer',
+            'weight'          => 'required|numeric|min:0.001|max:9999999',
+            'sn_grade_pct'    => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        $r = app(\App\Services\Process\NewTagChoiceService::class)->asNewBatch(
+            Auth::user()->company_id, $uid, (int) $data['product_code_id'], (float) $data['weight'],
+            isset($data['sn_grade_pct']) ? (float) $data['sn_grade_pct'] : null, Auth::id()
+        );
+
+        return back()->with($r['ok'] ? 'success' : 'error', $r['message']);
+    }
+
+    /** Tag baru di reader Receiving & Wet → container hasil proses Wet. */
+    public function newTagWet(string $uid): RedirectResponse
+    {
+        abort_unless(Auth::user()->hasAnyRole(ProcessFlow::roles('wet_process')), 403);
+
+        $r = app(\App\Services\Process\NewTagChoiceService::class)->asWetOutput(Auth::user()->company_id, $uid, Auth::id());
+
+        return back()->with($r['ok'] ? 'success' : 'error', $r['message']);
+    }
+
+    /** Abaikan tag baru (tag hanya lewat / salah baca). */
+    public function newTagDismiss(string $uid): RedirectResponse
+    {
+        abort_unless(Auth::user()->hasAnyRole(ProcessFlow::roles('receiving')), 403);
+        app(\App\Services\Hardware\NewTagQueue::class)->remove(Auth::user()->company_id, $uid);
+
+        return back()->with('success', "Tag {$uid} diabaikan.");
+    }
+
     public function weigh(Request $request, Batch $batch): RedirectResponse
     {
         $this->authorizeDrum($batch);

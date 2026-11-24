@@ -360,7 +360,25 @@ class ProcessController extends Controller
             'pool'                 => PoolController::summary($companyId, $stage === 'receiving' ? 'wet_process' : $stage),
             'intake'               => $stage === 'receiving' ? $this->receivingList($companyId, [ProcessFlow::STATUS_AWAITING_INTAKE, ProcessFlow::STATUS_AFTER_RECEIVE], $tz) : [],
             'legacy_to_wet'        => $stage === 'receiving' ? $this->receivingList($companyId, [ProcessFlow::STATUS_AFTER_SEND], $tz) : [],
+            'new_tags'             => $stage === 'receiving' ? $this->newTags($companyId, $tz) : [],
+            'raw_products'         => $stage === 'receiving'
+                ? \App\Models\ProductCode::where('company_id', $companyId)->where('category', 'raw_material')
+                    ->orderBy('code')->get(['id', 'code', 'name'])->toArray()
+                : [],
         ]);
+    }
+
+    /** UID baru di reader Receiving & Wet yang menunggu pilihan operator (NewTagQueue). */
+    private function newTags(int $companyId, string $tz): array
+    {
+        return array_map(fn (array $t) => [
+            'uid'       => $t['uid'],
+            'reads'     => $t['reads'],
+            'rssi'      => $t['rssi'],
+            'last_seen' => Carbon::parse($t['last_seen'])->timezone($tz)->format('H:i:s'),
+            'expires_in_min' => max(0, \App\Services\Hardware\NewTagQueue::TTL_MINUTES
+                - (int) Carbon::parse($t['last_seen'])->diffInMinutes(now())),
+        ], app(\App\Services\Hardware\NewTagQueue::class)->list($companyId));
     }
 
     // ═══════════════════════════════════════════════════════════════════

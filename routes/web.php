@@ -209,6 +209,9 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
         Route::post('process/pool/{pool}/close', [PoolController::class, 'close'])->name('process.pool.close');
         Route::post('process/{stage}/pool/drum', [PoolController::class, 'drum'])->name('process.pool.drum');
         Route::post('process/receiving/intake/{batch}', [PoolController::class, 'intake'])->name('process.receiving.intake');
+        Route::post('process/receiving/new-tags/{uid}/batch', [PoolController::class, 'newTagBatch'])->name('process.receiving.new-tag.batch');
+        Route::post('process/receiving/new-tags/{uid}/wet', [PoolController::class, 'newTagWet'])->name('process.receiving.new-tag.wet');
+        Route::delete('process/receiving/new-tags/{uid}', [PoolController::class, 'newTagDismiss'])->name('process.receiving.new-tag.dismiss');
 
         // Terima batch dari stage sebelumnya
         Route::post('process/{stage}/receive-batch', [ProcessController::class, 'receiveBatch'])

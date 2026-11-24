@@ -242,6 +242,30 @@ class RfidScanService
         return $result;
     }
 
+    /** UID baru di reader Receiving & Wet: tag bekas ditolak; UID yang belum pernah dipakai masuk antrean pilihan operator. */
+    private function queueNewTag(DeviceContext $ctx, string $uid, array $opts): array
+    {
+        if ($ctx->reader) {
+            $this->devices->touch($ctx->reader, $opts['ip'] ?? null);
+        }
+
+        if (app(PoolService::class)->uidHasHistory($ctx->companyId, $uid)) {
+            return [
+                'status' => 'failed', '_code' => 'tag_recycled', 'name' => 'Tag Bekas',
+                'message' => 'Tag bekas - ganti tag',
+                'detail' => "UID {$uid} sudah pernah dipakai. Gunakan tag baru.",
+            ];
+        }
+
+        app(NewTagQueue::class)->add($ctx->companyId, $uid, $ctx->reader?->id, isset($opts['rssi']) ? (int) $opts['rssi'] : null);
+
+        return [
+            'status' => 'failed', '_code' => 'tag_pending_choice', 'name' => 'Tag Baru',
+            'message' => 'Pilih di PC operator',
+            'detail' => "UID {$uid} baru. Pilih di PC: batch baru atau hasil proses Wet.",
+        ];
+    }
+
     /**
      * UID asing di keluaran Wet/Dry = drum baru dari himpunan tahap itu (PoolService). Hanya bila mode otorisasi tahap
      * itu bukan "Catat saja". Null = bukan kasus drum: pemanggil melanjutkan sebagai "Tag Asing".
@@ -251,10 +275,13 @@ class RfidScanService
         if (! $stage || ! $ctx->companyId) {
             return null;
         }
-        // 2 reader tahap 1: reader Receiving & Wet (stage receiving) → container Wet; reader Dry → drum produk.
-        // Keduanya arah apa pun. Reader lama ber-stage wet_process tetap hanya arah keluar.
+        // Reader Receiving & Wet: drum timah basah baru dan container hasil Wet ditimbang di timbangan yang sama.
+        // UID baru tidak langsung diproses; operator memilih di PC (NewTagQueue → NewTagChoiceService).
+        if ($stage === 'receiving') {
+            return $this->queueNewTag($ctx, $uid, $opts);
+        }
+        // Reader Dry: UID baru = drum produk, arah apa pun. Reader lama ber-stage wet_process tetap hanya arah keluar.
         $poolStage = match (true) {
-            $stage === 'receiving'                         => 'wet_process',
             $stage === 'dry_process'                       => 'dry_process',
             $stage === 'wet_process' && $direction === 'out' => 'wet_process',
             default                                        => null,

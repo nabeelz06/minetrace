@@ -7,6 +7,7 @@ use App\Services\Hardware\DeviceContext;
 use App\Services\Hardware\RfidAuthorizationService;
 use App\Services\Hardware\RfidScanService;
 use App\Services\Process\IntakeService;
+use App\Services\Process\NewTagChoiceService;
 use App\Services\Process\PoolService;
 use App\Services\Process\StageTransitionService;
 use PHPUnit\Framework\Attributes\Test;
@@ -58,15 +59,16 @@ class TwoReaderGateTest extends PoolTestCase
     }
 
     #[Test]
-    public function unknown_uid_at_receiving_reader_creates_wet_container(): void
+    public function unknown_uid_at_receiving_reader_becomes_wet_container_after_operator_choice(): void
     {
         $d = $this->drumBesi('E200TR000003');
         $this->tap('receiving', 'E200TR000003');
         app(IntakeService::class)->record($d->fresh(), 95, 1.5, $this->admin->id);
 
-        $r = $this->tap('receiving', 'E200TR0000C1');
+        $this->tap('receiving', 'E200TR0000C1');
+        $r = app(NewTagChoiceService::class)->asWetOutput($this->company->id, 'E200TR0000C1', $this->admin->id);
 
-        $this->assertSame('success', $r['status']);
+        $this->assertTrue($r['ok']);
         $c = Batch::where('rfid_tag', 'E200TR0000C1')->firstOrFail();
         $this->assertSame(['wet_process', 'awaiting_weight', 'container'], [$c->process_stage, $c->status, $c->container_type]);
     }
@@ -78,6 +80,7 @@ class TwoReaderGateTest extends PoolTestCase
         $this->tap('receiving', 'E200TR000004');
         app(IntakeService::class)->record($d->fresh(), 95, 1.5, $this->admin->id);
         $this->tap('receiving', 'E200TR0000C2');
+        app(NewTagChoiceService::class)->asWetOutput($this->company->id, 'E200TR0000C2', $this->admin->id);
 
         $r = $this->tap('receiving', 'E200TR0000C2');
 
@@ -116,6 +119,7 @@ class TwoReaderGateTest extends PoolTestCase
         $this->tap('receiving', 'E200TR000006');
         app(IntakeService::class)->record($d->fresh(), 100, 2.0, $this->admin->id);
         $this->tap('receiving', 'E200TR0000C4');
+        app(NewTagChoiceService::class)->asWetOutput($this->company->id, 'E200TR0000C4', $this->admin->id);
         $c = Batch::where('rfid_tag', 'E200TR0000C4')->firstOrFail();
         app(PoolService::class)->recordDrumWeight($c, 60, null, $this->admin->id);
 
