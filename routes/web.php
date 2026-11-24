@@ -208,6 +208,7 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
         Route::post('process/pool/drums/{batch}/cancel', [PoolController::class, 'cancel'])->name('process.pool.cancel');
         Route::post('process/pool/{pool}/close', [PoolController::class, 'close'])->name('process.pool.close');
         Route::post('process/{stage}/pool/drum', [PoolController::class, 'drum'])->name('process.pool.drum');
+        Route::post('process/receiving/intake/{batch}', [PoolController::class, 'intake'])->name('process.receiving.intake');
 
         // Terima batch dari stage sebelumnya
         Route::post('process/{stage}/receive-batch', [ProcessController::class, 'receiveBatch'])

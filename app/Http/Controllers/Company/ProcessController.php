@@ -161,9 +161,14 @@ class ProcessController extends Controller
     // STAGE DETAIL
     // ═══════════════════════════════════════════════════════════════════
 
-    public function stage(Request $request, string $stage, RfidAuthorizationService $rfidAuth): Response
+    public function stage(Request $request, string $stage, RfidAuthorizationService $rfidAuth): Response|RedirectResponse
     {
         abort_unless(array_key_exists($stage, self::STAGES), 404);
+
+        // Receiving & Wet digabung: halaman Wet dialihkan ke halaman gabungan.
+        if ($stage === 'wet_process') {
+            return redirect()->route('company.process.stage', 'receiving');
+        }
 
         $companyId = Auth::user()->company_id;
         $config    = self::STAGES[$stage];
@@ -282,7 +287,7 @@ class ProcessController extends Controller
         }
 
         // ─── Navigation semua stage ────────────────────────────────────────
-        $allStages = collect(self::STAGES)->map(fn($c, $s) => [
+        $allStages = collect(self::STAGES)->except('wet_process')->map(fn($c, $s) => [
             'stage'      => $s,
             'label'      => $c['label'],
             'label_en'   => $c['label_en'],
@@ -352,7 +357,9 @@ class ProcessController extends Controller
             'warehouse_inventory'  => $warehouseInventory,
             'warehouse_by_export'  => $warehouseByExport,
             'rfid_auth_mode'       => $rfidAuth->getMode($companyId, $stage),
-            'pool'                 => PoolController::summary($companyId, $stage),
+            'pool'                 => PoolController::summary($companyId, $stage === 'receiving' ? 'wet_process' : $stage),
+            'intake'               => $stage === 'receiving' ? $this->receivingList($companyId, [ProcessFlow::STATUS_AWAITING_INTAKE, ProcessFlow::STATUS_AFTER_RECEIVE], $tz) : [],
+            'legacy_to_wet'        => $stage === 'receiving' ? $this->receivingList($companyId, [ProcessFlow::STATUS_AFTER_SEND], $tz) : [],
         ]);
     }
 
@@ -822,6 +829,16 @@ class ProcessController extends Controller
      * Query batch yang SAH diterima di $stage — dari aturan ProcessFlow::receive_from
      * (tahap sebelumnya, status/produk yang disyaratkan). Satu definisi dengan guard receive().
      */
+    /** Batch di Receiving dengan status tertentu (halaman gabungan Receiving & Wet). */
+    private function receivingList(int $companyId, array $statuses, string $tz): array
+    {
+        return Batch::with(['productCode', 'currentLocation'])
+            ->where('company_id', $companyId)->where('process_stage', 'receiving')->whereIn('status', $statuses)
+            ->orderBy('updated_at')->limit(50)->get()
+            ->map(fn ($b) => $this->formatBatch($b, $tz) + ['container_type' => $b->container_type, 'container_label' => Batch::containerLabel($b->container_type)])
+            ->all();
+    }
+
     private function incomingQuery(string $stage, int $companyId)
     {
         $rules = ProcessFlow::STAGES[$stage]['receive_from'] ?? [];

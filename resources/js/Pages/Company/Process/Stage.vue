@@ -23,6 +23,7 @@ import StatusBadge                       from '@/components/shared/StatusBadge.v
 import WeightDisplay                     from '@/components/shared/WeightDisplay.vue'
 import EmptyState                        from '@/components/shared/EmptyState.vue'
 import PoolPanel                         from '@/components/process/PoolPanel.vue'
+import IntakePanel                       from '@/components/process/IntakePanel.vue'
 import { useI18n }                       from '@/composables/core/useI18n.js'
 
 const { lang } = useI18n()
@@ -52,6 +53,8 @@ const props = defineProps({
     warehouse_by_export:  { type: Object, default: () => ({}) },
     rfid_auth_mode:       { type: String, default: 'audit_only' },
     pool:                 { type: Object, default: null },
+    intake:               { type: Array,  default: () => [] },
+    legacy_to_wet:        { type: Array,  default: () => [] },
 })
 
 // ─── Stage identity ───────────────────────────────────────────────────────────
@@ -695,7 +698,8 @@ const exportPieData = computed(() => {
         <!-- ════════════════════════════════════════════════
              MAIN PANELS — Incoming + Current (side by side)
         ════════════════════════════════════════════════ -->
-        <PoolPanel v-if="pool" :stage="stage" :pool="pool" :output-products="output_products" :can-operate="canReceive"/>
+        <IntakePanel v-if="isReceiving" :intake="intake" :legacy-to-wet="legacy_to_wet" :can-operate="canReceive"/>
+        <PoolPanel v-if="pool" :stage="isReceiving ? 'wet_process' : stage" :pool="pool" :output-products="output_products" :can-operate="canReceive"/>
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
@@ -847,7 +851,7 @@ const exportPieData = computed(() => {
                                   class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-warning bg-warning-soft">
                                 {{ lang === 'en' ? 'Sent — awaiting receipt' : 'Terkirim — menunggu diterima' }}
                             </span>
-                            <button v-else-if="canForward && (isReceiving || isWet)" @click="openForwardModal(batch)"
+                            <button v-else-if="canForward && isWet" @click="openForwardModal(batch)"
                                     class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white active:scale-[0.97]"
                                     style="background:hsl(207 40% 45%)">
                                 {{ lang === 'en'

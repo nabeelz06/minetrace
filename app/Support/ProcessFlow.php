@@ -55,7 +55,8 @@ final class ProcessFlow
             'rfid' => null,
         ],
         'receiving' => [
-            'label' => 'Receiving Area', 'label_en' => 'Receiving Area',
+            // Tahap 1: Receiving & Wet satu area/reader (halaman wet_process dialihkan ke sini).
+            'label' => 'Receiving & Wet', 'label_en' => 'Receiving & Wet',
             'icon' => 'package-open', 'color' => 'blue', 'location_type' => 'receiving',
             'prev_stage' => 'lab_kimia', 'next_stage' => 'wet_process',
             'desc' => 'Penerimaan batch MIT dari Lab Kimia', 'desc_en' => 'Receiving MIT batches from Chemical Lab',

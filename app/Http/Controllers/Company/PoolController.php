@@ -77,6 +77,29 @@ class PoolController extends Controller
         return back()->with($r['ok'] ? 'success' : 'error', $r['message']);
     }
 
+    /** Receiving & Wet: drum besi ditimbang + dicek kadar Sn, lalu langsung masuk himpunan Wet. */
+    public function intake(Request $request, Batch $batch): RedirectResponse
+    {
+        abort_unless($batch->company_id === Auth::user()->company_id, 404);
+        abort_unless(Auth::user()->hasAnyRole(ProcessFlow::roles('receiving')), 403);
+        $data = $request->validate([
+            'weight'       => 'required|numeric|min:0.001|max:9999999',
+            'sn_grade_pct' => 'required|numeric|min:0|max:100',
+        ], [
+            'sn_grade_pct.required' => 'Kadar Sn wajib diisi.',
+        ]);
+
+        try {
+            $b = app(\App\Services\Process\IntakeService::class)->record($batch, (float) $data['weight'], (float) $data['sn_grade_pct'], Auth::id());
+        } catch (\DomainException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $msg = "Drum {$b->batch_code} ditimbang " . number_format($b->current_weight, 2) . " kg, kadar Sn {$data['sn_grade_pct']}%, dan masuk himpunan Wet.";
+
+        return back()->with($b->has_discrepancy ? 'warning' : 'success', $b->has_discrepancy ? "⚠ {$msg} Susut melewati ambang — ditandai untuk ditinjau." : $msg);
+    }
+
     public function weigh(Request $request, Batch $batch): RedirectResponse
     {
         $this->authorizeDrum($batch);

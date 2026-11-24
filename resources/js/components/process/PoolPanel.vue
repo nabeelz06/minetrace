@@ -88,12 +88,12 @@ function submitCancel(drum) {
             </div>
             <form v-if="canOperate" class="flex items-center gap-2" @submit.prevent="submitDrum">
                 <input v-model="uid" type="text" :disabled="busy || !activePool"
-                       :placeholder="en ? 'New drum tag UID' : 'UID tag drum baru'"
+                       :placeholder="isDry ? (en ? 'New product drum UID' : 'UID drum produk baru') : (en ? 'New container UID' : 'UID container baru')"
                        class="h-8 px-3 rounded-lg border border-border bg-background text-xs font-mono w-52"/>
                 <button type="submit" :disabled="busy || !uid.trim() || !activePool"
                         class="px-3 h-8 rounded-lg text-xs font-bold text-white disabled:opacity-50"
                         style="background:hsl(var(--primary))">
-                    {{ en ? 'Drum out' : 'Drum keluar' }}
+                    {{ isDry ? (en ? 'Product drum out' : 'Drum produk keluar') : (en ? 'Container out' : 'Container keluar') }}
                 </button>
             </form>
         </div>
@@ -133,7 +133,7 @@ function submitCancel(drum) {
             <!-- Drum menunggu timbang -->
             <div class="p-5 space-y-3">
                 <div class="flex items-center justify-between">
-                    <p class="text-xs font-bold text-foreground">{{ en ? 'Drums awaiting weighing' : 'Drum menunggu timbang' }}</p>
+                    <p class="text-xs font-bold text-foreground">{{ isDry ? (en ? 'Product drums awaiting weighing' : 'Drum produk menunggu timbang') : (en ? 'Containers awaiting weighing' : 'Container menunggu timbang') }}</p>
                     <button v-if="isDry && canOperate && outputting" :disabled="busy || !canClose" @click="submitClose"
                             class="px-3 h-8 rounded-lg text-xs font-bold text-white disabled:opacity-50"
                             style="background:hsl(var(--success))">
@@ -166,7 +166,7 @@ function submitCancel(drum) {
                         </button>
                         <button v-if="!d.weight" type="button" @click="cancelFor = cancelFor === d.id ? null : d.id"
                                 class="px-3 h-8 rounded-lg text-xs font-bold border border-border text-danger">
-                            {{ en ? 'Cancel drum' : 'Batalkan drum' }}
+                            {{ isDry ? (en ? 'Cancel drum' : 'Batalkan drum') : (en ? 'Cancel container' : 'Batalkan container') }}
                         </button>
                     </form>
                     <form v-if="cancelFor === d.id" class="flex items-center gap-2" @submit.prevent="submitCancel(d)">
