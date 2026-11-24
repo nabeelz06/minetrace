@@ -235,38 +235,39 @@ class TagLifecycleTest extends TestCase
     #[Test]
     public function reset_uji_membalik_serah_terima_otomatis_ke_posisi_saat_registrasi(): void
     {
-        $this->mode('wet_process', 'scan_to_receive');
-        $batch = $this->batch();
+        // Gudang: tahap tanpa penghimpunan (Wet/Dry melepas tag saat menerima, lihat tests/Feature/Pool).
+        $this->mode('warehouse', 'scan_to_receive');
+        $batch = $this->batch(['process_stage' => 'dry_process', 'status' => 'in_transit']);
         $this->register($batch);
 
-        $moved = $this->scan('in', 'wet_process')->assertOk();
+        $moved = $this->scan('in', 'warehouse')->assertOk();
         $moved->assertJsonPath('data.transition_state', 'moved');
-        $this->assertSame(['wet_process', 'in_process'], [$batch->fresh()->process_stage, $batch->fresh()->status]);
+        $this->assertSame(['warehouse', 'in_warehouse'], [$batch->fresh()->process_stage, $batch->fresh()->status]);
 
         $this->actingAs($this->admin)->getJson(self::BASE.'/tags/lookup?uid='.self::UID)
             ->assertJsonPath('data.reset.moves', 1)
             ->assertJsonPath('data.reset.records', 2)   // catatan audit scan + checkpoint serah-terima
-            ->assertJsonPath('data.reset.rewind.process_stage', 'receiving')
-            ->assertJsonPath('data.reset.rewind.status', 'in_process');
+            ->assertJsonPath('data.reset.rewind.process_stage', 'dry_process')
+            ->assertJsonPath('data.reset.rewind.status', 'in_transit');
 
         $this->actingAs($this->admin)->postJson(self::BASE.'/tags/reset', ['uid' => self::UID])
             ->assertOk()->assertJson(['data' => ['voided' => 2, 'rewound' => true]]);
 
         $fresh = $batch->fresh();
-        $this->assertSame(['receiving', 'in_process', self::UID], [$fresh->process_stage, $fresh->status, $fresh->rfid_tag]);
+        $this->assertSame(['dry_process', 'in_transit', self::UID], [$fresh->process_stage, $fresh->status, $fresh->rfid_tag]);
 
         // Pengujian diulang dengan tag yang SAMA — tanpa ganti tag, tanpa menunggu jendela cache.
-        $this->scan('in', 'wet_process')->assertOk()->assertJsonPath('data.transition_state', 'moved');
-        $this->assertSame('wet_process', $batch->fresh()->process_stage);
+        $this->scan('in', 'warehouse')->assertOk()->assertJsonPath('data.transition_state', 'moved');
+        $this->assertSame('warehouse', $batch->fresh()->process_stage);
     }
 
     #[Test]
     public function detail_batch_menyembunyikan_checkpoint_yang_dibatalkan_dan_melaporkan_jumlahnya(): void
     {
-        $this->mode('wet_process', 'scan_to_receive');
-        $batch = $this->batch();
+        $this->mode('warehouse', 'scan_to_receive');
+        $batch = $this->batch(['process_stage' => 'dry_process', 'status' => 'in_transit']);
         $this->register($batch);
-        $this->scan('in', 'wet_process')->assertOk();   // 2 checkpoint: audit scan + serah-terima otomatis
+        $this->scan('in', 'warehouse')->assertOk();   // 2 checkpoint: audit scan + serah-terima otomatis
 
         $stages = fn () => $this->actingAs($this->admin)->get('/company/batches/'.$batch->id)->assertOk();
         $stages()->assertInertia(fn (Assert $p) => $p->component('Company/Batches/Show')
@@ -284,30 +285,30 @@ class TagLifecycleTest extends TestCase
     #[Test]
     public function reset_uji_ditolak_bila_posisi_awal_tak_tercatat_atau_ada_pekerjaan_manual(): void
     {
-        $this->mode('wet_process', 'scan_to_receive');
+        $this->mode('warehouse', 'scan_to_receive');
 
         // (1) Tag didaftarkan sebelum fitur ini: tidak ada batch_snapshot, tetapi sudah ada serah-terima otomatis.
-        $old = $this->batch();
+        $old = $this->batch(['process_stage' => 'dry_process', 'status' => 'in_transit']);
         $this->register($old);
-        $this->scan('in', 'wet_process')->assertOk();
+        $this->scan('in', 'warehouse')->assertOk();
         $reg = Checkpoint::where('batch_id', $old->id)->where('rfid_scan_code', self::UID)->orderBy('id')->firstOrFail();
         $reg->checkpoint_data = array_diff_key($reg->checkpoint_data, ['batch_snapshot' => 1]);
         $reg->save();
 
         $this->actingAs($this->admin)->postJson(self::BASE.'/tags/reset', ['uid' => self::UID])
             ->assertStatus(422)->assertJson(['code' => 'reset_no_baseline']);
-        $this->assertSame('wet_process', $old->fresh()->process_stage, 'ditolak = tidak ada yang diubah');
+        $this->assertSame('warehouse', $old->fresh()->process_stage, 'ditolak = tidak ada yang diubah');
         $this->assertSame(0, Checkpoint::where('batch_id', $old->id)->whereNotNull('voided_at')->count());
 
         // (2) Setelah registrasi ada pekerjaan manual (checkpoint non-scan): jangan menimpanya.
-        $manual = $this->batch();
+        $manual = $this->batch(['process_stage' => 'dry_process', 'status' => 'in_transit']);
         $this->register($manual, 'AA11BB01');
-        $this->scan('in', 'wet_process', 'AA11BB01')->assertOk();
+        $this->scan('in', 'warehouse', 'AA11BB01')->assertOk();
         Checkpoint::create(['batch_id' => $manual->id, 'checkpoint_stage' => 'lab_sample_taken', 'recorded_at' => now()]);
 
         $this->actingAs($this->admin)->postJson(self::BASE.'/tags/reset', ['uid' => 'AA11BB01'])
             ->assertStatus(422)->assertJson(['code' => 'reset_has_manual_work']);
-        $this->assertSame('wet_process', $manual->fresh()->process_stage);
+        $this->assertSame('warehouse', $manual->fresh()->process_stage);
 
         // Lepas tag tetap tersedia sebagai jalur aman.
         $this->actingAs($this->admin)->postJson(self::BASE.'/tags/release', ['uid' => 'AA11BB01', 'reason' => 'other'])->assertOk();
@@ -377,9 +378,10 @@ class TagLifecycleTest extends TestCase
             ->assertJsonPath('data.transition_state', 'already_done');
 
         $this->scan('in', 'dry_process')->assertOk()->assertJsonPath('data.transition_state', 'moved');
-        $this->assertSame(['dry_process', 'in_process'], [$batch->fresh()->process_stage, $batch->fresh()->status]);
+        $this->assertSame(['dry_process', 'in_process', null], [$batch->fresh()->process_stage, $batch->fresh()->status, $batch->fresh()->rfid_tag]);
 
+        // Dry menghimpun: tag dilepas saat diterima, jadi pembacaan ulang menjadi tag asing.
         $this->travel(10)->seconds();
-        $this->scan('in', 'dry_process')->assertOk()->assertJsonPath('data.transition_state', 'already_done');
+        $this->scan('in', 'dry_process')->assertStatus(422)->assertJson(['code' => 'tag_unknown']);
     }
 }

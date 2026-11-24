@@ -204,7 +204,7 @@ class UhfGateChainTest extends TestCase
     }
 
     #[Test]
-    public function setelah_mode_terima_otomatis_diatur_rantai_receiving_wet_dry_gudang_berpindah_per_tap(): void
+    public function setelah_mode_terima_otomatis_diatur_rantai_receiving_wet_dry_gudang_berpindah_per_tap_dengan_tag_baru(): void
     {
         $batch = $this->batchAt('ZIR', 'receiving', 'in_process', self::EPC);
         [, $gate] = $this->vpsSetup();
@@ -213,12 +213,31 @@ class UhfGateChainTest extends TestCase
             $svc->setMode($this->company->id, $s, 'scan_to_receive', $this->admin->id);   // jalur yang sama dengan UI
         }
 
-        foreach ([['wet_process', 'wet_process', 'in_process'], ['dry_process', 'dry_process', 'in_process'], ['warehouse', 'warehouse', 'in_warehouse']] as [$stage, $expStage, $expStatus]) {
-            $log = $this->tap($gate, $stage, self::EPC);
-            $b = $batch->fresh();
-            $this->assertSame([$expStage, $expStatus], [$b->process_stage, $b->status], "tap di {$stage} harus memindahkan batch");
-            $this->assertSame('moved', $log->meta['transition'] ?? null);
-        }
+        // Penghimpunan: Wet/Dry melepas tag saat menerima; drum keluar dengan UID baru (di sini lewat PoolService,
+        // karena reader "any" tanpa pemetaan antena hanya menghasilkan Masuk).
+        $pools = app(\App\Services\Process\PoolService::class);
+
+        $log = $this->tap($gate, 'wet_process', self::EPC);
+        $this->assertSame('moved', $log->meta['transition'] ?? null);
+        $this->assertSame(['wet_process', 'in_process', null], [$batch->fresh()->process_stage, $batch->fresh()->status, $batch->fresh()->rfid_tag]);
+
+        $wet = $pools->createOutputDrum($this->company->id, 'wet_process', self::EPC_2, $this->admin->id)['batch'];
+        $pools->recordDrumWeight($wet, 900, null, $this->admin->id);
+
+        $log = $this->tap($gate, 'dry_process', self::EPC_2);
+        $this->assertSame('moved', $log->meta['transition'] ?? null);
+        $this->assertSame(['dry_process', 'in_process'], [$wet->fresh()->process_stage, $wet->fresh()->status]);
+
+        $dryUid = 'E28068940000502FBF2415AA';
+        $dry = $pools->createOutputDrum($this->company->id, 'dry_process', $dryUid, $this->admin->id)['batch'];
+        $zir = ProductCode::where('company_id', $this->company->id)->where('code', 'ZIR')->firstOrFail();
+        $pools->recordDrumWeight($dry, 400, $zir->id, $this->admin->id);
+        $pools->closeDryPool($dry->pool, $this->admin->id);
+
+        $log = $this->tap($gate, 'warehouse', $dryUid);
+        $this->assertSame('moved', $log->meta['transition'] ?? null);
+        $this->assertSame(['warehouse', 'in_warehouse'], [$dry->fresh()->process_stage, $dry->fresh()->status]);
+        $this->assertSame(['pooled', 'pooled'], [$batch->fresh()->status, $wet->fresh()->status]);
         $gate->shutdown();
     }
 
