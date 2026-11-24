@@ -193,7 +193,7 @@ class PoolService
     {
         $cfg      = ProcessFlow::get($pool->stage);
         $company  = Company::findOrFail($pool->company_id);
-        $location = $this->stageLocation($pool->company_id, $pool->stage) ?? $sample->currentLocation;
+        $location = $this->drumLocation($pool->company_id, $pool->stage, $sample);
         $product  = $sample->productCode;
 
         $drum = Batch::create([
@@ -262,7 +262,7 @@ class PoolService
                 }
                 if ($drum->product_code_id !== $product->id) {
                     $company  = Company::findOrFail($drum->company_id);
-                    $location = $drum->currentLocation ?? $this->stageLocation($drum->company_id, $pool->stage);
+                    $location = $this->drumLocation($drum->company_id, $pool->stage, $drum);
                     $update  += ['product_code_id' => $product->id, 'batch_code' => $this->codes->generate($company, $location, $pool->stage, $product)];
                 }
             }
@@ -443,6 +443,14 @@ class PoolService
     }
 
     // ─── Bantu ────────────────────────────────────────────────────────────
+
+    /** Lokasi untuk kode batch drum: lokasi tahap, lalu lokasi batch, lalu lokasi aktif mana pun milik perusahaan. */
+    private function drumLocation(int $companyId, string $stage, Batch $sample): Location
+    {
+        return $this->stageLocation($companyId, $stage)
+            ?? $sample->currentLocation
+            ?? Location::where('company_id', $companyId)->where('is_active', true)->orderBy('id')->firstOrFail();
+    }
 
     private function stageLocation(int $companyId, string $stage): ?Location
     {

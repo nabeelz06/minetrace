@@ -15,6 +15,7 @@ class BatchTransformation extends Model
         'input_batch_id', 'output_batch_ids', 'transformation_type',
         'location_id', 'transformation_details', 'notes',
         'performed_by', 'transformed_at',
+        'voided_at', 'voided_by', 'void_reason',
     ];
 
     protected $casts = [
