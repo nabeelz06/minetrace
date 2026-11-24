@@ -7,6 +7,7 @@ import SnapshotGalleryCard from '@/components/shared/SnapshotGalleryCard.vue'
 
 import BatchTagCard from '@/components/rfid/BatchTagCard.vue'
 import { useI18n } from '@/composables/core/useI18n.js'
+import { CCTV_UI } from '@/lib/features.js'
 
 const props = defineProps({
     batch:    Object,
@@ -38,6 +39,7 @@ function handleDelete({ id, reason }) {
 
 // ─── Badge status snapshot CCTV per checkpoint ─────────────────────────────────
 function snapshotStatusBadge(status) {
+    if (!CCTV_UI) return null
     if (status === 'captured') return { cls: 'text-success border-success/30 bg-success-soft', label: 'Captured' }
     if (status === 'pending')  return { cls: 'text-warning border-warning/30 bg-warning-soft', label: 'Pending' }
     if (status === 'failed')   return { cls: 'text-danger border-danger/30 bg-danger-soft', label: 'Failed' }
@@ -51,7 +53,7 @@ const tabs = computed(() => {
         { id: 'overview',    label: 'Ringkasan',   icon: 'gauge' },
         { id: 'timeline',    label: 'Timeline',     icon: '⏱' },
         { id: 'checkpoints', label: 'Checkpoint',   icon: 'map-pin' },
-        { id: 'photos',      label: 'Galeri Foto',  icon: 'camera' },
+        ...(CCTV_UI ? [{ id: 'photos', label: 'Galeri Foto', icon: 'camera' }] : []),
     ]
     if (props.batch?.lab_analyses?.length) {
         base.push({ id: 'lab',    label: 'Lab Analisis', icon: 'dna' })

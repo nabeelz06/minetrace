@@ -12,6 +12,7 @@ import { rfidApi } from '@/composables/rfid/useRfidApi.js'
 import { usePolling } from '@/composables/core/usePolling.js'
 import { useI18n } from '@/composables/core/useI18n.js'
 import { formatDateTime, groupUid } from '@/lib/format'
+import { CCTV_UI } from '@/lib/features.js'
 
 const props = defineProps({
     readers:    { type: Array, default: () => [] },
@@ -76,7 +77,7 @@ const columns = computed(() => [
     { key: 'stage', label: t('rfid.hist.stage') },
     { key: 'origin', label: t('rfid.hist.source') },
     { key: 'reader', label: t('rfid.hist.reader'), hideOnMobile: true },
-    { key: 'snapshot_status', label: t('rfid.hist.cctv') },
+    ...(CCTV_UI ? [{ key: 'snapshot_status', label: t('rfid.hist.cctv') }] : []),
 ])
 
 const stageName = key => { const s = props.stages.find(x => x.key === key); return s ? loc(s) : (key ?? '—') }

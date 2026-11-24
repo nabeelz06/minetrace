@@ -12,23 +12,30 @@ const OPERATOR_STAGES = {
     operator_warehouse:   ['warehouse'],
 }
 
-const RFID_ROLES = ['company_admin', 'operator_lab_station', 'operator_lab_ltj', 'operator_wet', 'operator_dry', 'operator_warehouse']
+import { CCTV_UI } from './features.js'
+
+// Wet Process sudah digabung ke halaman "Receiving & Wet" (/company/process/wet_process dialihkan ke receiving),
+// jadi tidak punya menu sendiri.
+const HIDDEN_STAGES = ['wet_process']
+
+const RFID_ROLES =['company_admin', 'operator_lab_station', 'operator_lab_ltj', 'operator_wet', 'operator_dry', 'operator_warehouse']
 
 /** @param {string} role @param {Array<{key:string,label:string,label_en:string,icon:string}>} stages */
 export function buildNavigation(role, stages = []) {
     const stageChildren = (keys) => stages
+        .filter(s => !HIDDEN_STAGES.includes(s.key))
         .filter(s => !keys || keys.includes(s.key))
         .map(s => ({ key: s.key, href: `/company/process/${s.key}`, icon: s.icon, label: s.label, label_en: s.label_en }))
 
     const rfid = RFID_ROLES.includes(role) ? [
         { key: 'rfid', href: '/company/hardware/rfid', icon: 'nfc', labelKey: 'nav.rfid' },
-        {
+        CCTV_UI ? {
             key: 'cctv', href: '/company/hardware/cctv', icon: 'video', labelKey: 'nav.cctv',
             children: [
                 { key: 'cctv_monitor',   href: '/company/hardware/cctv',  icon: 'video',   labelKey: 'nav.cctv_monitor' },
                 { key: 'cctv_snapshots', href: '/company/cctv/snapshots', icon: 'history', labelKey: 'nav.cctv_history' },
             ],
-        },
+        } : { key: 'cctv', href: null, icon: 'video', labelKey: 'nav.cctv', disabled: true },
     ] : []
 
     const dash   = { key: 'dashboard', href: '/company/dashboard', icon: 'layout-dashboard', labelKey: 'nav.dashboard' }

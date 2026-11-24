@@ -70,6 +70,14 @@ const stateClass = active => active
                     </ul>
                 </div>
 
+                <!-- Nonaktif sementara (mis. CCTV): tampil abu-abu, tidak bisa diklik -->
+                <div v-else-if="item.disabled" :class="[baseItem, 'cursor-not-allowed text-sidebar-foreground/35']"
+                     aria-disabled="true" :title="(lang === 'en' ? 'Temporarily disabled' : 'Dinonaktifkan sementara')">
+                    <AppIcon :name="item.icon" :size="20" :label="collapsed ? label(item) : undefined" />
+                    <span v-if="showText" class="flex-1 truncate">{{ label(item) }}</span>
+                    <span v-if="showText" class="text-[10px] font-semibold uppercase">{{ lang === 'en' ? 'Off' : 'Nonaktif' }}</span>
+                </div>
+
                 <!-- Tanpa anak -->
                 <Link v-else :href="item.href" :class="[baseItem, stateClass(isActivePath(path, item.href))]"
                       :aria-current="isActivePath(path, item.href) ? 'page' : undefined" :title="collapsed ? label(item) : undefined"
