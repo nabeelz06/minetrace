@@ -171,7 +171,7 @@ class DashboardController extends Controller
         $inWetProcess = Batch::with(['productCode', 'currentLocation'])
             ->where('company_id', $companyId)
             ->whereIn('process_stage', ['receiving', 'wet_process'])
-            ->whereNotIn('status', ['exported','terminated','transformed'])
+            ->whereNotIn('status', ['exported','terminated','transformed', 'pooled'])
             ->orderByDesc('updated_at')
             ->get()
             ->map(fn($b) => $this->formatBatchForDashboard($b));
@@ -229,7 +229,7 @@ class DashboardController extends Controller
         $inDryProcess = Batch::with(['productCode', 'currentLocation'])
             ->where('company_id', $companyId)
             ->where('process_stage', 'dry_process')
-            ->whereNotIn('status', ['exported','terminated','transformed'])
+            ->whereNotIn('status', ['exported','terminated','transformed', 'pooled'])
             ->orderByDesc('updated_at')
             ->get()
             ->map(fn($b) => $this->formatBatchForDashboard($b));
@@ -296,7 +296,7 @@ class DashboardController extends Controller
         $inProjectPlant = Batch::with(['productCode', 'labAnalyses'])
             ->where('company_id', $companyId)
             ->where('process_stage', 'project_plant')
-            ->whereNotIn('status', ['exported','terminated','transformed'])
+            ->whereNotIn('status', ['exported','terminated','transformed', 'pooled'])
             ->orderByDesc('updated_at')
             ->get()
             ->map(fn($b) => $this->formatBatchForDashboard($b));

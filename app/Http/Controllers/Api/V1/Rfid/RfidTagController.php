@@ -49,7 +49,7 @@ class RfidTagController extends Controller
 
         $rows = Batch::with('productCode:id,code,name')
             ->where('company_id', $request->user()->company_id)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'split'])
+            ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'split', 'pooled'])
             ->when($request->filled('id'), fn ($b) => $b->whereKey($request->integer('id')))
             ->when($tag === 'untagged', fn ($b) => $b->whereNull('rfid_tag'))
             ->when($tag === 'tagged',   fn ($b) => $b->whereNotNull('rfid_tag'))

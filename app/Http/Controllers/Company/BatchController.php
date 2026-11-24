@@ -115,11 +115,11 @@ class BatchController extends Controller
 
                 // Wet: tampilkan batch dari lab_kimia (menunggu receiving) + aktif di wet
                 'operator_wet'         => $query->whereIn('process_stage', ['lab_kimia', 'receiving', 'wet_process'])
-                                                ->whereNotIn('status', ['exported', 'terminated', 'transformed']),
+                                                ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'pooled']),
 
                 // Dry: tampilkan batch dari wet_process yang siap + aktif di dry
                 'operator_dry'         => $query->whereIn('process_stage', ['wet_process', 'dry_process'])
-                                                ->whereNotIn('status', ['exported', 'terminated', 'transformed']),
+                                                ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'pooled']),
 
                 // Lab LTJ: tampilkan MON di warehouse + aktif di project_plant
                 'operator_lab_ltj'     => $query->whereIn('process_stage', ['warehouse', 'project_plant'])
@@ -186,13 +186,13 @@ class BatchController extends Controller
                                     ->where('has_discrepancy', true)
                                     ->count(),
             'total_weight_kg' => Batch::ofCompany($companyId)
-                                    ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+                                    ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'pooled'])
                                     ->sum('current_weight'),
         ];
 
         // ─── Stage distribution ───────────────────────────────────────────
         $stageCounts = Batch::ofCompany($companyId)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+            ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'pooled'])
             ->selectRaw('process_stage, count(*) as cnt')
             ->groupBy('process_stage')
             ->pluck('cnt', 'process_stage')

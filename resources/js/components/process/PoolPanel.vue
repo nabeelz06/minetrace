@@ -164,7 +164,7 @@ function submitCancel(drum) {
                                 style="background:hsl(var(--primary))">
                             {{ en ? 'Save weight' : 'Simpan berat' }}
                         </button>
-                        <button type="button" @click="cancelFor = cancelFor === d.id ? null : d.id"
+                        <button v-if="!d.weight" type="button" @click="cancelFor = cancelFor === d.id ? null : d.id"
                                 class="px-3 h-8 rounded-lg text-xs font-bold border border-border text-danger">
                             {{ en ? 'Cancel drum' : 'Batalkan drum' }}
                         </button>

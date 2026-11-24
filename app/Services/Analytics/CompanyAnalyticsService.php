@@ -133,7 +133,7 @@ class CompanyAnalyticsService
         ];
 
         $counts = Batch::where('company_id', $companyId)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'split'])
+            ->whereNotIn('status', ['exported', 'terminated', 'transformed', 'split', 'pooled'])
             ->whereIn('process_stage', array_keys($stages))
             ->select('process_stage', DB::raw('count(*) as total'), DB::raw('sum(current_weight) as total_weight'))
             ->groupBy('process_stage')

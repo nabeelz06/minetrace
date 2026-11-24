@@ -105,7 +105,7 @@ class GenerateMonthlyReportJob implements ShouldQueue
                 ])->values()->toArray(),
             'by_stage' => Batch::where('company_id', $companyId)
                 ->select('process_stage', \Illuminate\Support\Facades\DB::raw('count(*) as cnt'))
-                ->whereNotIn('status', ['exported','terminated','transformed'])
+                ->whereNotIn('status', ['exported','terminated','transformed', 'pooled'])
                 ->groupBy('process_stage')
                 ->get()
                 ->map(fn($r) => ['stage' => $r->process_stage, 'count' => $r->cnt])

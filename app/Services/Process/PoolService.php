@@ -17,7 +17,6 @@ use App\Models\User;
 use App\Services\Batch\BatchCodeService;
 use App\Services\Hardware\RfidScanService;
 use App\Services\Hardware\RfidService;
-use App\Services\Hardware\RfidTagService;
 use App\Support\ProcessFlow;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -113,7 +112,9 @@ class PoolService
      */
     public function uidHasHistory(int $companyId, string $uid): bool
     {
-        $drumIds = fn ($q) => $q->select('id')->from('batches')->whereNotNull('pool_id');
+        // Hanya drum yang DIBATALKAN yang dikecualikan (UID-nya belum pernah benar-benar dipakai di alur).
+        $drumIds = fn ($q) => $q->select('batch_id')->from('rfid_tag_events')->where('company_id', $companyId)
+            ->where('uid', $uid)->where('reason', RfidTagEvent::REASON_DRUM_CANCELLED)->whereNotNull('batch_id');
 
         return BatchPoolInput::where('released_rfid_tag', $uid)
                 ->whereHas('pool', fn ($q) => $q->where('company_id', $companyId))->exists()
@@ -141,7 +142,10 @@ class PoolService
             DB::select('SELECT pg_advisory_xact_lock(?::int, ?::int)', [$companyId, crc32("pool:{$stage}") & 0x7fffffff]);
 
             if ($owner = Batch::withTrashed()->where('rfid_tag', $uid)->first()) {
-                return $this->fail('tag_in_use', "Tag {$uid} masih terpasang pada batch {$owner->batch_code}.");
+                // Pesan generik: pemilik bisa perusahaan lain (jangan bocorkan kode batch lintas tenant).
+                return $this->fail('tag_in_use', $owner->company_id === $companyId
+                    ? "Tag {$uid} masih terpasang pada batch {$owner->batch_code}."
+                    : "Tag {$uid} sudah dipakai. Gunakan tag lain.");
             }
             if ($this->uidHasHistory($companyId, $uid)) {
                 return $this->fail('tag_recycled', 'Tag bekas — pakai untuk batch baru di Receiving.');
@@ -382,10 +386,13 @@ class PoolService
     {
         DB::transaction(function () use ($drum, $userId, $reason) {
             $drum = Batch::whereKey($drum->id)->lockForUpdate()->firstOrFail();
-            $pool = $drum->pool ? BatchPool::whereKey($drum->pool_id)->lockForUpdate()->first() : null;
+            if ($drum->pool_id) {
+                $stage = BatchPool::whereKey($drum->pool_id)->value('stage');
+                DB::select('SELECT pg_advisory_xact_lock(?::int, ?::int)', [$drum->company_id, crc32("pool:{$stage}") & 0x7fffffff]);
+            }
+            $pool = $drum->pool_id ? BatchPool::whereKey($drum->pool_id)->lockForUpdate()->first() : null;
 
-            if (! $pool || $drum->status !== ProcessFlow::STATUS_AWAITING_WEIGHT
-                || ($pool->stage === 'wet_process' && $drum->initial_weight > 0)) {
+            if (! $pool || $drum->status !== ProcessFlow::STATUS_AWAITING_WEIGHT || $drum->initial_weight > 0) {
                 throw new \DomainException('Hanya drum yang belum ditimbang yang bisa dibatalkan.');
             }
             if ($pool->stage === 'dry_process' && $pool->status === BatchPool::STATUS_CLOSED) {

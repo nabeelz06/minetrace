@@ -46,6 +46,9 @@ class StageTransitionService
         if ($batch->status === ProcessFlow::STATUS_AWAITING_WEIGHT) {
             return 'Drum belum ditimbang.';
         }
+        if ($this->pools->openPoolOf($batch)) {
+            return "Batch {$batch->batch_code} sedang dihimpun di {$batch->process_stage}; keluar hanya lewat drum baru.";
+        }
 
         $rules = $cfg['receive_from'];
         foreach ($rules as $rule) {

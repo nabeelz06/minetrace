@@ -434,6 +434,10 @@ class ProcessController extends Controller
         $batch = Batch::where('company_id', Auth::user()->company_id)
             ->findOrFail($validated['batch_id']);
 
+        if ($batch->status === ProcessFlow::STATUS_AWAITING_WEIGHT || app(\App\Services\Process\PoolService::class)->openPoolOf($batch)) {
+            return back()->with('error', "Batch {$batch->batch_code} sedang dihimpun atau menunggu timbang; berat dicatat lewat panel Penghimpunan.");
+        }
+
         return DB::transaction(function () use ($validated, $batch, $stage) {
             $tz             = 'Asia/Jakarta';
             $previousWeight = (float) $batch->current_weight;
@@ -568,6 +572,9 @@ class ProcessController extends Controller
 
         $companyId  = Auth::user()->company_id;
         $inputBatch = Batch::where('company_id', $companyId)->findOrFail($validated['batch_id']);
+        if (app(\App\Services\Process\PoolService::class)->openPoolOf($inputBatch)) {
+            return back()->with('error', "Batch {$inputBatch->batch_code} sedang dihimpun. Gunakan panel Penghimpunan (drum keluar + Selesai himpunan).");
+        }
 
         // ─── [Chain of Responsibility] Validasi state ─────────────────────
         if ($inputBatch->process_stage !== 'dry_process') {
@@ -821,6 +828,9 @@ class ProcessController extends Controller
 
         return Batch::where('company_id', $companyId)
             ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)
+            ->where('status', '!=', ProcessFlow::STATUS_AWAITING_WEIGHT)
+            // Anggota himpunan terbuka masih di tahapnya; keluar hanya lewat drum baru.
+            ->whereDoesntHave('poolInput.pool', fn ($p) => $p->where('status', '!=', \App\Models\BatchPool::STATUS_CLOSED))
             ->where(function ($q) use ($rules) {
                 foreach ($rules as $rule) {
                     $q->orWhere(function ($r) use ($rule) {
