@@ -122,7 +122,7 @@ class ReportController extends Controller
 
     private function generateBatchTraceabilityReport($company, Carbon $from, Carbon $to, string $format)
     {
-        $batches = Batch::with(['productCode', 'currentLocation', 'checkpoints', 'labAnalyses'])
+        $batches = Batch::with(['productCode', 'currentLocation', 'checkpoints', 'labAnalyses', 'lineageParents.parent', 'lineageChildren.child'])
             ->where('company_id', $company->id)
             ->whereBetween('created_at', [$from, $to])
             ->orderBy('created_at')

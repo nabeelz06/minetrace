@@ -378,6 +378,11 @@ class BatchController extends Controller
                     'status'     => $c->status,
                     'weight'     => $c->current_weight,
                 ])->toArray(),
+                // Penghimpunan Wet/Dry: semua batch asal (rekursif) dan batch gabungan tempat batch ini masuk.
+                'lineage'         => [
+                    'ancestors'   => app(\App\Services\Batch\LineageService::class)->ancestors($batch)->all(),
+                    'descendants' => app(\App\Services\Batch\LineageService::class)->descendants($batch)->all(),
+                ],
                 'voided_checkpoints' => $batch->checkpoints()->whereNotNull('voided_at')->count(),
                 'checkpoints'     => $batch->checkpoints->map(fn($cp) => [
                     'id'               => $cp->id,

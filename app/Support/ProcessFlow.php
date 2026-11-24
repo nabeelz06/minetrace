@@ -19,7 +19,13 @@ final class ProcessFlow
     public const ORDER = ['lab_kimia', 'receiving', 'wet_process', 'dry_process', 'project_plant', 'warehouse'];
 
     /** Status batch yang sudah tidak ikut alur tahap. */
-    public const CLOSED_STATUSES = ['exported', 'terminated', 'transformed', 'split'];
+    public const CLOSED_STATUSES = ['exported', 'terminated', 'transformed', 'split', 'pooled'];
+
+    /** Input yang sudah digabung ke drum output sebuah himpunan. */
+    public const STATUS_POOLED = 'pooled';
+
+    /** Drum output himpunan yang belum ditimbang (dan, di Dry, belum diberi produk). */
+    public const STATUS_AWAITING_WEIGHT = 'awaiting_weight';
 
     public const STATUS_AFTER_RECEIVE = 'in_process';
     public const STATUS_AFTER_SEND    = 'in_transit';

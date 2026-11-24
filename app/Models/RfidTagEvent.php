@@ -13,6 +13,12 @@ class RfidTagEvent extends Model
     /** Alasan yang boleh dipilih operator saat melepas tag. 'test' dipakai otomatis oleh reset uji. */
     public const REASONS = ['replaced', 'lost', 'damaged', 'other'];
 
+    /** Alasan sistem (tidak bisa dipilih operator): tag dilepas otomatis saat batch masuk himpunan Wet/Dry. */
+    public const REASON_POOLED = 'pooled';
+
+    /** Alasan sistem: tag drum output dilepas karena drum dibatalkan. */
+    public const REASON_DRUM_CANCELLED = 'drum_cancelled';
+
     /** Jenis peristiwa: registered (terpasang) | released (dilepas) | reset (reset uji, tag tetap terpasang). */
     public const EVENTS = ['registered', 'released', 'reset'];
 

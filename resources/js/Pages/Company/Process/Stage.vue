@@ -22,6 +22,7 @@ import AppLayout                         from '@/Layouts/AppLayout.vue'
 import StatusBadge                       from '@/components/shared/StatusBadge.vue'
 import WeightDisplay                     from '@/components/shared/WeightDisplay.vue'
 import EmptyState                        from '@/components/shared/EmptyState.vue'
+import PoolPanel                         from '@/components/process/PoolPanel.vue'
 import { useI18n }                       from '@/composables/core/useI18n.js'
 
 const { lang } = useI18n()
@@ -50,6 +51,7 @@ const props = defineProps({
     warehouse_inventory:  { type: Array,  default: () => [] },
     warehouse_by_export:  { type: Object, default: () => ({}) },
     rfid_auth_mode:       { type: String, default: 'audit_only' },
+    pool:                 { type: Object, default: null },
 })
 
 // ─── Stage identity ───────────────────────────────────────────────────────────
@@ -693,6 +695,8 @@ const exportPieData = computed(() => {
         <!-- ════════════════════════════════════════════════
              MAIN PANELS — Incoming + Current (side by side)
         ════════════════════════════════════════════════ -->
+        <PoolPanel v-if="pool" :stage="stage" :pool="pool" :output-products="output_products" :can-operate="canReceive"/>
+
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
             <!-- PANEL KIRI: INCOMING ──────────────────────────────── -->
@@ -835,7 +839,11 @@ const exportPieData = computed(() => {
                             </Link>
                             
                             <!-- Forward batch (receiving, wet) -->
-                            <span v-if="canForward && (isReceiving || isWet) && batch.status === 'in_transit'"
+                            <span v-if="isWet && (batch.in_pool || batch.status === 'awaiting_weight' || batch.status === 'pooled')"
+                                  class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-info bg-info-soft">
+                                {{ lang === 'en' ? 'In pool' : 'Dihimpun' }}
+                            </span>
+                            <span v-else-if="canForward && (isReceiving || isWet) && batch.status === 'in_transit'"
                                   class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-warning bg-warning-soft">
                                 {{ lang === 'en' ? 'Sent — awaiting receipt' : 'Terkirim — menunggu diterima' }}
                             </span>
@@ -846,7 +854,7 @@ const exportPieData = computed(() => {
                                     ? `Send → ${stage_config?.next_stage ? getStageLabel(stage_config.next_stage) : ''}`
                                     : `Kirim → ${stage_config?.next_stage ? getStageLabel(stage_config.next_stage) : ''}` }}
                             </button>
-                            <button v-if="isDry && canDryTransform" @click="openTransformModal(batch)"
+                            <button v-if="isDry && canDryTransform && !pool" @click="openTransformModal(batch)"
                                     class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white active:scale-[0.97]"
                                     style="background:hsl(var(--warning))">
                                 {{ lang === 'en' ? 'Transform' : 'Transformasi' }}
@@ -877,7 +885,7 @@ const exportPieData = computed(() => {
         <!-- ════════════════════════════════════════════════
              DRY PROCESS INFO BOX
         ════════════════════════════════════════════════ -->
-        <div v-if="isDry && canDryTransform"
+        <div v-if="isDry && canDryTransform && !pool"
              class="rounded-2xl border border-warning/30 p-5 animate-fade-in delay-200"
              style="background:hsl(var(--warning-soft))">
             <div class="flex items-start gap-3">

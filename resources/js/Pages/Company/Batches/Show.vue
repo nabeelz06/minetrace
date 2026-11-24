@@ -367,6 +367,33 @@ const weightRetentionPct = computed(() => {
                         </Link>
                     </div>
                 </div>
+
+                <!-- Silsilah penghimpunan: batch asal (rekursif) & batch gabungan -->
+                <div v-for="sec in [
+                        { key: 'ancestors',   list: batch.lineage?.ancestors ?? [],   id: lang === 'en' ? 'Origin batches' : 'Asal batch' },
+                        { key: 'descendants', list: batch.lineage?.descendants ?? [], id: lang === 'en' ? 'Merged into' : 'Digabung ke' },
+                     ].filter(s => s.list.length)" :key="sec.key"
+                     class="md:col-span-2 rounded-2xl border border-border bg-card p-5 space-y-3">
+                    <h3 class="text-sm font-semibold text-foreground flex items-center gap-2">
+                        {{ sec.id }}
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{{ sec.list.length }}</span>
+                    </h3>
+                    <div class="divide-y divide-border">
+                        <Link v-for="n in sec.list" :key="n.id" :href="`/company/batches/${n.id}`"
+                              class="flex items-center gap-3 py-2 hover:bg-muted/30 rounded-lg px-2"
+                              :style="{ paddingLeft: `${(n.depth - 1) * 16 + 8}px` }">
+                            <AppIcon :name="stageIcon(n.process_stage) || 'circle'" :size="16" />
+                            <span class="text-xs font-mono font-semibold text-foreground">{{ n.batch_code }}</span>
+                            <span class="text-xs text-muted-foreground">{{ n.product }} · {{ n.status }}</span>
+                            <span v-if="sec.key === 'ancestors' && n.weight != null" class="text-xs text-muted-foreground ml-auto">
+                                {{ n.is_estimate ? '≈ ' : '' }}{{ formatWeight(n.weight) }}
+                            </span>
+                        </Link>
+                    </div>
+                    <p v-if="sec.key === 'ancestors' && sec.list.some(n => n.is_estimate)" class="text-xs text-muted-foreground">
+                        {{ lang === 'en' ? '≈ estimated share, split by drum weight at Dry Process.' : '≈ perkiraan sumbangan, dibagi menurut berat drum di Dry Process.' }}
+                    </p>
+                </div>
             </div>
 
             <!-- ─── Tab: Timeline ───────────────────────────────────────── -->

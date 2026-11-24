@@ -25,7 +25,7 @@ class Batch extends Model
 
     protected $fillable = [
         'company_id', 'batch_code', 'rfid_tag', 'lot_number',
-        'product_code_id', 'parent_batch_id',
+        'product_code_id', 'parent_batch_id', 'pool_id',
         'initial_weight', 'current_weight', 'weight_unit',
         'process_stage', 'status', 'current_location_id',
         'is_split', 'split_count', 'split_suffix', 'split_reason',
@@ -76,6 +76,30 @@ class Batch extends Model
     public function childBatches(): HasMany
     {
         return $this->hasMany(Batch::class, 'parent_batch_id');
+    }
+
+    /** Himpunan yang menghasilkan batch ini (drum output Wet/Dry). */
+    public function pool(): BelongsTo
+    {
+        return $this->belongsTo(BatchPool::class, 'pool_id');
+    }
+
+    /** Keanggotaan batch ini sebagai input sebuah himpunan. */
+    public function poolInput(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(BatchPoolInput::class);
+    }
+
+    /** Sisi silsilah ke induk (batch yang digabung menjadi batch ini), tanpa yang di-void. */
+    public function lineageParents(): HasMany
+    {
+        return $this->hasMany(BatchLineage::class, 'child_batch_id')->whereNull('voided_at');
+    }
+
+    /** Sisi silsilah ke anak (batch gabungan tempat batch ini masuk), tanpa yang di-void. */
+    public function lineageChildren(): HasMany
+    {
+        return $this->hasMany(BatchLineage::class, 'parent_batch_id')->whereNull('voided_at');
     }
 
     public function currentLocation(): BelongsTo

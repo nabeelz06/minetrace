@@ -293,7 +293,10 @@ class RfidRegistrationService
                 $checkpoint = Checkpoint::create([
                     'batch_id'         => $batch->id,
                     'location_id'      => $batch->current_location_id,
-                    'checkpoint_stage' => 'lab_kimia_create',
+                    // Tahap batch saat tag dipasang (tag bekas dipakai ulang di Receiving, bukan hanya di Lab Kimia).
+                    'checkpoint_stage' => $batch->process_stage === 'lab_kimia'
+                        ? 'lab_kimia_create'
+                        : (\App\Support\ProcessFlow::get($batch->process_stage)['record_cp'] ?? 'lab_kimia_create'),
                     'weight_recorded'  => $batch->current_weight,
                     'weight_previous'  => $batch->current_weight,
                     'weight_loss'      => 0,

@@ -26,6 +26,8 @@ class StageTransitionService
 {
     private const TZ = 'Asia/Jakarta';
 
+    public function __construct(private readonly PoolService $pools) {}
+
     // ─── Guard ────────────────────────────────────────────────────────────
 
     /** @return string|null pesan galat bila batch TIDAK boleh diterima di $stage */
@@ -40,6 +42,9 @@ class StageTransitionService
         }
         if (in_array($batch->status, ProcessFlow::CLOSED_STATUSES, true)) {
             return "Batch {$batch->batch_code} berstatus {$batch->status} dan tidak ikut alur tahap.";
+        }
+        if ($batch->status === ProcessFlow::STATUS_AWAITING_WEIGHT) {
+            return 'Drum belum ditimbang.';
         }
 
         $rules = $cfg['receive_from'];
@@ -81,6 +86,12 @@ class StageTransitionService
         }
         if (in_array($batch->status, ProcessFlow::CLOSED_STATUSES, true)) {
             return "Batch {$batch->batch_code} berstatus {$batch->status} dan tidak dapat dikirim.";
+        }
+        if ($batch->status === ProcessFlow::STATUS_AWAITING_WEIGHT) {
+            return 'Drum belum ditimbang.';
+        }
+        if (PoolService::isPoolStage($stage) && $this->pools->openPoolOf($batch)) {
+            return "Batch {$batch->batch_code} sedang dihimpun. Keluarkan lewat \"Drum keluar\" dengan tag baru.";
         }
         if ($batch->status === ProcessFlow::STATUS_AFTER_SEND) {
             return "Batch {$batch->batch_code} sudah dalam pengiriman. Menunggu penerimaan di tahap berikutnya.";
@@ -128,6 +139,10 @@ class StageTransitionService
 
             $ts = Carbon::now(self::TZ)->format('d/m/Y H:i:s') . ' WIB';
 
+            // Wet/Dry: batch masuk himpunan & tag-nya dilepas (penghimpunan, lihat PoolService).
+            $releasedUid = $fresh->rfid_tag;
+            $pool = PoolService::isPoolStage($stage) ? $this->pools->join($fresh, $o['user_id'] ?? null) : null;
+
             return Checkpoint::create([
                 'batch_id'         => $fresh->id,
                 'location_id'      => $locationId,
@@ -145,7 +160,7 @@ class StageTransitionService
                     'from_stage' => $from,
                     'to_stage'   => $stage,
                     'timestamp'  => $ts,
-                ],
+                ] + ($pool ? ['pool_id' => $pool->id, 'rfid_released' => $releasedUid] : []),
                 'recorded_by' => $o['user_id'] ?? null,
                 'recorded_at' => now(),
             ]);

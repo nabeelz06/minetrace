@@ -13,6 +13,7 @@ use App\Http\Controllers\Company\ExportController;
 use App\Http\Controllers\Company\ReportController;
 use App\Http\Controllers\Company\SettingsController;
 use App\Http\Controllers\Company\ProcessController;
+use App\Http\Controllers\Company\PoolController;
 use App\Http\Controllers\SuperAdmin\UserController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use Illuminate\Support\Facades\Route;
@@ -202,7 +203,13 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
             ->middleware('role:company_admin|operator_warehouse')
             ->name('process.warehouse.send_ltj');
 
-        // Terima batch dari stage sebelumnya 
+        // Penghimpunan Wet/Dry: drum keluar, timbang, selesai himpunan, batalkan drum (peran dicek di controller)
+        Route::post('process/pool/drums/{batch}/weight', [PoolController::class, 'weigh'])->name('process.pool.weigh');
+        Route::post('process/pool/drums/{batch}/cancel', [PoolController::class, 'cancel'])->name('process.pool.cancel');
+        Route::post('process/pool/{pool}/close', [PoolController::class, 'close'])->name('process.pool.close');
+        Route::post('process/{stage}/pool/drum', [PoolController::class, 'drum'])->name('process.pool.drum');
+
+        // Terima batch dari stage sebelumnya
         Route::post('process/{stage}/receive-batch', [ProcessController::class, 'receiveBatch'])
             ->middleware("role:{$allCompanyRoles}")
             ->name('process.receive-batch');

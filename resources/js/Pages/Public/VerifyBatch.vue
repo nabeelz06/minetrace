@@ -13,6 +13,7 @@ const props = defineProps({
     state:       { type: String, required: true },   // valid | invalid | malformed
     batch:       { type: Object, default: null },
     timeline:    { type: Array,  default: () => [] },
+    origins:     { type: Array,  default: () => [] },
     verified_at: { type: String, default: null },
 })
 
@@ -74,6 +75,16 @@ const stageLabel  = (s) => (lang.value === 'en' ? s.en : s.id)
                         <p class="text-xs text-muted-foreground">{{ formatDate(step.date) }}</p>
                     </li>
                 </ol>
+            </div>
+
+            <div v-if="origins.length" class="mt-6">
+                <h2 class="mb-3 text-sm font-semibold">{{ lang === 'en' ? 'Origin batches' : 'Asal batch' }}</h2>
+                <ul class="divide-y divide-border rounded-lg border border-border bg-card text-sm">
+                    <li v-for="o in origins" :key="o.batch_code" class="flex justify-between gap-4 px-4 py-2" :style="{ paddingLeft: `${o.depth * 12 + 4}px` }">
+                        <span class="break-all font-mono text-xs">{{ o.batch_code }}</span>
+                        <span class="text-xs text-muted-foreground">{{ o.product }} · {{ stageLabel(o.stage) }}</span>
+                    </li>
+                </ul>
             </div>
 
             <p class="mt-6 text-xs text-muted-foreground">{{ t('verify.privacy_note') }}</p>

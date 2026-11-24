@@ -98,6 +98,7 @@
         <th width="4%" class="tc">CP</th>
         <th width="4%" class="tc">RFID</th>
         <th width="4%" class="tc">Lab</th>
+        <th width="14%">Asal / Digabung ke</th>
         <th>Tanggal Dibuat</th>
       </tr>
     </thead>
@@ -113,7 +114,7 @@
           'active' => 'Aktif', 'in_process' => 'Proses',
           'in_transit' => 'Transit', 'in_warehouse' => 'Gudang',
           'exported' => 'Ekspor', 'transformed' => 'Split',
-          'terminated' => 'Selesai', default => $batch->status
+          'terminated' => 'Selesai', 'pooled' => 'Dihimpun', 'awaiting_weight' => 'Tunggu timbang', default => $batch->status
         };
         $stageLabel = match($batch->process_stage) {
           'lab_kimia' => 'Lab Kimia', 'receiving' => 'Receiving',
@@ -138,6 +139,12 @@
         <td class="tc">{{ $batch->checkpoints->count() }}</td>
         <td class="tc">{{ $batch->rfid_tag ? '✓' : '—' }}</td>
         <td class="tc">{{ $batch->labAnalyses->where('is_validated', true)->count() > 0 ? '✓' : '—' }}</td>
+        <td class="mono muted">
+          @php $parents = $batch->lineageParents->map(fn ($l) => $l->parent?->batch_code)->filter(); $children = $batch->lineageChildren->map(fn ($l) => $l->child?->batch_code)->filter(); @endphp
+          @if($parents->isNotEmpty()) &larr; {{ $parents->implode(', ') }} @endif
+          @if($children->isNotEmpty()) &rarr; {{ $children->implode(', ') }} @endif
+          @if($parents->isEmpty() && $children->isEmpty()) &mdash; @endif
+        </td>
         <td class="muted">{{ $batch->created_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') }}</td>
       </tr>
       @endforeach

@@ -87,7 +87,7 @@ class ProcessController extends Controller
         $stageSummaries = collect(self::STAGES)->map(function ($config, $stage) use ($companyId) {
             $batches = Batch::where('company_id', $companyId)
                 ->where('process_stage', $stage)
-                ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+                ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)
                 ->get(['id', 'current_weight', 'has_discrepancy', 'status']);
 
             $incomingCount = 0;
@@ -134,12 +134,12 @@ class ProcessController extends Controller
             ]);
 
         $totalActive   = Batch::where('company_id', $companyId)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count();
+            ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)->count();
         $totalAlerts   = Batch::where('company_id', $companyId)
             ->where('has_discrepancy', true)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count();
+            ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)->count();
         $totalWeight   = Batch::where('company_id', $companyId)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->sum('current_weight');
+            ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)->sum('current_weight');
         $totalExported = Batch::where('company_id', $companyId)
             ->where('status', 'exported')->count();
 
@@ -173,11 +173,12 @@ class ProcessController extends Controller
         $query = Batch::with([
                 'productCode',
                 'currentLocation',
+                'poolInput.pool',
                 'checkpoints' => fn($q) => $q->latest('recorded_at')->limit(1),
             ])
             ->where('company_id', $companyId)
             ->where('process_stage', $stage)
-            ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+            ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)
             ->latest('updated_at');
 
         if ($request->filled('search')) {
@@ -200,7 +201,7 @@ class ProcessController extends Controller
         $stats = [
             'current_count'  => Batch::where('company_id', $companyId)
                 ->where('process_stage', $stage)
-                ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count(),
+                ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)->count(),
             'incoming_count' => count($incomingBatches),
             'alerts'         => Batch::where('company_id', $companyId)
                 ->where('process_stage', $stage)
@@ -208,7 +209,7 @@ class ProcessController extends Controller
             'total_weight'   => round(
                 Batch::where('company_id', $companyId)
                     ->where('process_stage', $stage)
-                    ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+                    ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)
                     ->sum('current_weight'), 2
             ),
             'avg_loss_pct'   => round(
@@ -291,7 +292,7 @@ class ProcessController extends Controller
             'is_current' => $s === $stage,
             'count'      => Batch::where('company_id', $companyId)
                                ->where('process_stage', $s)
-                               ->whereNotIn('status', ['exported', 'terminated', 'transformed'])->count(),
+                               ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)->count(),
         ])->values()->toArray();
 
         // ─── Warehouse inventory breakdown (hanya untuk stage warehouse) ───
@@ -302,7 +303,7 @@ class ProcessController extends Controller
             $whBatches = Batch::with('productCode')
                 ->where('company_id', $companyId)
                 ->where('process_stage', 'warehouse')
-                ->whereNotIn('status', ['exported', 'terminated', 'transformed'])
+                ->whereNotIn('status', ProcessFlow::CLOSED_STATUSES)
                 ->get();
 
             $warehouseInventory = $whBatches
@@ -351,6 +352,7 @@ class ProcessController extends Controller
             'warehouse_inventory'  => $warehouseInventory,
             'warehouse_by_export'  => $warehouseByExport,
             'rfid_auth_mode'       => $rfidAuth->getMode($companyId, $stage),
+            'pool'                 => PoolController::summary($companyId, $stage),
         ]);
     }
 
@@ -887,6 +889,9 @@ class ProcessController extends Controller
             'has_discrepancy' => $b->has_discrepancy,
             'export_status'   => $b->export_status,
             'rfid_tag'        => $b->rfid_tag,
+            // Penghimpunan: anggota himpunan terbuka tidak dikirim satu per satu; drum output dikelola di panel himpunan.
+            'in_pool'         => $b->relationLoaded('poolInput') ? (bool) $b->poolInput?->pool?->isOpen() : false,
+            'is_pool_drum'    => (bool) $b->pool_id,
             'location'        => $b->currentLocation ? [
                 'id'   => $b->currentLocation->id,
                 'code' => $b->currentLocation->code,

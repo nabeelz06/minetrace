@@ -2,6 +2,7 @@
 
 namespace App\Services\Hardware;
 
+use App\Services\Process\PoolService;
 use App\Events\RfidTagScanned;
 use App\Models\Checkpoint;
 use App\Models\RfidReader;
@@ -179,6 +180,10 @@ class RfidScanService
         $allowGlobal = $ctx->identity === 'anonymous' && config('rfid.legacy_global_tag_fallback');
         $batch = $this->rfid->findBatchByUid($uid, $ctx->companyId, $allowGlobal);
 
+        if (! $batch && ($drum = $this->tryPoolDrum($ctx, $direction, $uid, $stage, $opts))) {
+            return $drum;
+        }
+
         if (! $batch) {
             Log::warning("RFID scan {$direction}: UID {$uid} tidak dikenal (identity={$ctx->identity}, company_id={$ctx->companyId})");
 
@@ -224,6 +229,64 @@ class RfidScanService
         }
 
         return $result;
+    }
+
+    /**
+     * UID asing di keluaran Wet/Dry = drum baru dari himpunan tahap itu (PoolService). Hanya bila mode otorisasi tahap
+     * itu bukan "Catat saja". Null = bukan kasus drum: pemanggil melanjutkan sebagai "Tag Asing".
+     */
+    private function tryPoolDrum(DeviceContext $ctx, string $direction, string $uid, ?string $stage, array $opts): ?array
+    {
+        if ($direction !== 'out' || ! $stage || ! PoolService::isPoolStage($stage) || ! $ctx->companyId) {
+            return null;
+        }
+
+        $mode = $this->authorization->getStrategy($ctx->companyId, $stage)->getMode();
+        if ($mode === 'audit_only') {
+            return null;
+        }
+
+        $r = app(PoolService::class)->createOutputDrum($ctx->companyId, $stage, $uid, $opts['user_id'] ?? null, 'rfid');
+
+        if ($ctx->reader) {
+            $this->devices->touch($ctx->reader, $opts['ip'] ?? null);
+        }
+
+        if (! $r['ok']) {
+            return [
+                'status' => 'failed',
+                '_code' => $r['code'],
+                '_mode' => $mode,
+                'name' => match ($r['code']) {
+                    'tag_recycled' => 'Tag Bekas',
+                    'pool_empty' => 'Himpunan Kosong',
+                    'pool_full' => 'Drum Penuh',
+                    default => 'Drum Ditolak',
+                },
+                'message' => mb_substr($r['message'], 0, 32),
+                'detail' => $r['message'],
+            ];
+        }
+
+        $drum = $r['batch'];
+        $checkpointId = $drum->checkpoints()->latest('id')->value('id');
+
+        return [
+            'status' => 'success',
+            '_code' => 'pool_output_created',
+            '_mode' => $mode,
+            '_company_id' => $ctx->companyId,
+            '_batch_id' => $drum->id,
+            '_checkpoint_id' => $checkpointId,
+            'batch_id' => $drum->id,
+            'batch_code' => $drum->batch_code,
+            'scan_stage' => $stage,
+            'transition_state' => 'moved',
+            'transition_reason' => $r['message'],
+            'name' => 'Drum Baru',
+            'message' => 'Timbang drum',
+            'detail' => $r['message'],
+        ];
     }
 
     private function dedupeKey(string $uid, string $direction, ?string $stage): string

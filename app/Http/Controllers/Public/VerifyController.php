@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Public;
 use App\Enums\BatchStage;
 use App\Http\Controllers\Controller;
 use App\Models\Batch;
+use App\Services\Batch\LineageService;
+use App\Models\Checkpoint;
 use App\Services\Batch\QrCodeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -72,6 +74,9 @@ class VerifyController extends Controller
                 'stage'      => $this->stageLabels($batch->process_stage),
             ],
             'timeline'    => $this->timeline($batch),
+            'origins'     => app(LineageService::class)->ancestors($batch)
+                ->map(fn ($n) => ['batch_code' => $n['batch_code'], 'product' => $n['product'], 'depth' => $n['depth'], 'stage' => $this->stageLabels($n['process_stage'])])
+                ->values()->all(),
             'verified_at' => now()->toIso8601String(),
         ], 200);
     }
@@ -80,7 +85,9 @@ class VerifyController extends Controller
     private function timeline(Batch $batch): array
     {
         $seen = [];
-        $rows = $batch->checkpoints()
+        // Linimasa mencakup tahap para batch asal (penghimpunan Wet/Dry); checkpoint yang di-void tidak ditampilkan.
+        $rows = Checkpoint::whereIn('batch_id', app(LineageService::class)->lineageIds($batch))
+            ->whereNull('voided_at')
             ->where(fn ($q) => $q->whereNull('rfid_origin')->orWhere('rfid_origin', '!=', 'simulation'))
             ->orderBy('recorded_at')
             ->limit(200)
