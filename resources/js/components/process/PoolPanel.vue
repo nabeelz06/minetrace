@@ -33,6 +33,7 @@ const busy = ref(false)
 const uid  = ref('')
 const weights  = ref({})
 const products = ref({})
+const snGrades = ref({})
 const cancelFor    = ref(null)
 const cancelReason = ref('')
 
@@ -54,6 +55,7 @@ function submitWeight(drum) {
     post(`/company/process/pool/drums/${drum.id}/weight`, {
         weight: weights.value[drum.id],
         product_code_id: isDry.value ? products.value[drum.id] : null,
+        sn_grade_pct: isDry.value ? null : snGrades.value[drum.id],
     })
 }
 
@@ -159,7 +161,11 @@ function submitCancel(drum) {
                         <input v-model="weights[d.id]" type="number" step="0.001" min="0.001"
                                :placeholder="en ? 'Weight (kg)' : 'Berat (kg)'"
                                class="h-8 px-3 rounded-lg border border-border bg-background text-xs w-32"/>
-                        <button type="submit" :disabled="busy || !weights[d.id] || (isDry && !products[d.id])"
+                        <input v-if="!isDry" v-model="snGrades[d.id]" type="number" step="0.001" min="0" max="100"
+                               :placeholder="en ? 'Residual Sn (%)' : 'Kadar Sn sisa (%)'"
+                               :title="en ? 'Measured after Wet; usually far below the incoming ~60%' : 'Diukur setelah Wet; biasanya jauh di bawah ~60% saat datang'"
+                               class="h-8 px-3 rounded-lg border border-border bg-background text-xs w-36"/>
+                        <button type="submit" :disabled="busy || !weights[d.id] || (isDry && !products[d.id]) || (!isDry && (snGrades[d.id] === undefined || snGrades[d.id] === ''))"
                                 class="px-3 h-8 rounded-lg text-xs font-bold text-white disabled:opacity-50"
                                 style="background:hsl(var(--primary))">
                             {{ en ? 'Save weight' : 'Simpan berat' }}

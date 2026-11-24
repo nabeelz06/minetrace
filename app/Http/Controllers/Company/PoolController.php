@@ -140,19 +140,32 @@ class PoolController extends Controller
     public function weigh(Request $request, Batch $batch): RedirectResponse
     {
         $this->authorizeDrum($batch);
+        $isWet = $batch->process_stage === 'wet_process';
         $data = $request->validate([
             'weight'          => 'required|numeric|min:0.001|max:9999999',
             'product_code_id' => 'nullable|integer|exists:product_codes,id',
+            // Container Wet: kadar Sn sisa diukur ulang (sudah jauh di bawah kadar drum besi).
+            'sn_grade_pct'    => ($isWet ? 'required' : 'nullable') . '|numeric|min:0|max:100',
+        ], [
+            'sn_grade_pct.required' => 'Kadar Sn sisa container wajib diisi.',
         ]);
 
         try {
-            $drum = $this->pools->recordDrumWeight($batch, (float) $data['weight'], $data['product_code_id'] ?? null, Auth::id());
+            $drum = $this->pools->recordDrumWeight(
+                $batch, (float) $data['weight'], $data['product_code_id'] ?? null, Auth::id(),
+                $isWet ? (float) $data['sn_grade_pct'] : null
+            );
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage());
         }
 
+        $sn = $drum->checkpoints()->latest('id')->value('checkpoint_data') ?? [];
+        $snMsg = isset($sn['sn_separated_kg'])
+            ? " Sn sisa {$sn['sn_grade_pct']}% (" . number_format($sn['sn_out_kg'], 2) . ' kg); Sn terpisah di Wet ' . number_format($sn['sn_separated_kg'], 2) . " kg ({$sn['sn_separated_pct']}%)."
+            : '';
+
         $msg = $drum->status === ProcessFlow::STATUS_AFTER_SEND
-            ? "Drum {$drum->batch_code} ditimbang " . number_format($drum->initial_weight, 2) . ' kg dan siap dikirim ke Dry Process.'
+            ? "Drum {$drum->batch_code} ditimbang " . number_format($drum->initial_weight, 2) . ' kg dan siap dikirim ke Dry Process.' . $snMsg
             : "Drum {$drum->batch_code} ditimbang " . number_format($drum->initial_weight, 2) . ' kg. Tekan "Selesai himpunan" bila semua drum sudah ditimbang.';
 
         return back()->with('success', $msg);

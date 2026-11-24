@@ -240,9 +240,17 @@ class PoolService
     // ─── Timbang & tutup ──────────────────────────────────────────────────
 
     /** @throws \DomainException */
-    public function recordDrumWeight(Batch $drum, float $weight, ?int $productCodeId, int $userId): Batch
+    /**
+     * @param  ?float  $snPct  Kadar Sn sisa container Wet (%). Setelah proses basah kadar Sn jauh turun dari ~60%
+     *                         drum besi (literatur sisa hasil pengolahan: sekitar 0,3–3% Sn), jadi diukur ulang.
+     */
+    public function recordDrumWeight(Batch $drum, float $weight, ?int $productCodeId, int $userId, ?float $snPct = null): Batch
     {
-        return DB::transaction(function () use ($drum, $weight, $productCodeId, $userId) {
+        if ($snPct !== null && ($snPct < 0 || $snPct > 100)) {
+            throw new \DomainException('Kadar Sn harus di antara 0 dan 100%.');
+        }
+
+        return DB::transaction(function () use ($drum, $weight, $productCodeId, $userId, $snPct) {
             $drum = Batch::whereKey($drum->id)->lockForUpdate()->firstOrFail();
             $pool = $drum->pool;
 
@@ -272,6 +280,12 @@ class PoolService
                 }
             }
 
+            $sn = null;
+            if ($pool->stage === 'wet_process' && $snPct !== null) {
+                $update['sn_grade_pct'] = $snPct;
+                $sn = $this->wetSnBalance($pool, $weight, $snPct);
+            }
+
             $drum->update($update);
 
             Checkpoint::create([
@@ -280,8 +294,8 @@ class PoolService
                 'checkpoint_stage' => ProcessFlow::get($pool->stage)['forward_cp'],
                 'weight_recorded'  => $weight,
                 'is_verified'      => true,
-                'notes'            => "Drum ditimbang: {$weight} kg",
-                'checkpoint_data'  => ['action' => 'pool_drum_weighed', 'pool_id' => $pool->id],
+                'notes'            => "Drum ditimbang: {$weight} kg" . ($snPct !== null ? ", kadar Sn sisa {$snPct}%" : ''),
+                'checkpoint_data'  => ['action' => 'pool_drum_weighed', 'pool_id' => $pool->id] + ($sn ?? []),
                 'recorded_by'      => $userId,
                 'recorded_at'      => now(),
             ]);
@@ -293,6 +307,30 @@ class PoolService
 
             return $drum->fresh();
         });
+    }
+
+    /**
+     * Neraca Sn himpunan Wet: Sn masuk (berat × kadar drum besi yang kadarnya tercatat) vs Sn tersisa di container.
+     * Selisihnya = Sn yang dipisahkan proses Wet. Null bila tidak ada input berkadar Sn (data lama).
+     *
+     * @return ?array{sn_grade_pct:float, sn_in_kg:float, sn_out_kg:float, sn_separated_kg:float, sn_separated_pct:float}
+     */
+    public function wetSnBalance(BatchPool $pool, float $containerWeight, float $snPct): ?array
+    {
+        $inputs = $pool->inputs()->with('batch:id,sn_grade_pct')->get()->filter(fn ($i) => $i->batch?->sn_grade_pct !== null);
+        $out = round($containerWeight * $snPct / 100, 3);
+        if ($inputs->isEmpty()) {
+            return ['sn_grade_pct' => $snPct, 'sn_out_kg' => $out];
+        }
+        $in = round($inputs->sum(fn ($i) => (float) $i->weight_at_join * (float) $i->batch->sn_grade_pct / 100), 3);
+
+        return [
+            'sn_grade_pct'     => $snPct,
+            'sn_in_kg'         => $in,
+            'sn_out_kg'        => $out,
+            'sn_separated_kg'  => round($in - $out, 3),
+            'sn_separated_pct' => $in > 0 ? round(($in - $out) / $in * 100, 2) : 0.0,
+        ];
     }
 
     /** "Selesai himpunan" Dry. @throws \DomainException */
