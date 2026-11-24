@@ -118,7 +118,8 @@ class PoolGateTest extends PoolTestCase
         $this->assertSame('success', $this->scan('out', 'dry_process', 'E200CHAIN0D1')['status']);
         $dry = Batch::where('rfid_tag', 'E200CHAIN0D1')->firstOrFail();
         $pools->recordDrumWeight($dry, 40, $this->product('MON')->id, $this->admin->id);
-        $pools->closeDryPool($dry->pool, $this->admin->id);
+        $this->completeDryPool($dry->pool);
+        $pools->closeDryPool($dry->pool->fresh(), $this->admin->id);
 
         $this->assertSame('success', $this->scan('in', 'warehouse', 'E200CHAIN0D1')['status']);
         $dry->refresh();

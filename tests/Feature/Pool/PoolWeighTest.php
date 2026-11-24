@@ -81,13 +81,28 @@ class PoolWeighTest extends PoolTestCase
     }
 
     #[Test]
-    public function dry_drum_requires_product(): void
+    public function dry_drums_get_mon_zir_ilm_automatically_and_close_needs_all_three(): void
     {
         $this->fillPool('dry_process', [100]);
         $a = $this->drum('dry_process', 'E200DRYW0010');
+        $b = $this->drum('dry_process', 'E200DRYW0011');
+        $this->assertSame(['MON', 'ZIR'], [$a->productCode->code, $b->productCode->code]);
 
-        $this->expectException(\DomainException::class);
+        // Timbang tanpa memilih produk: produk slot dipakai.
         $this->pools()->recordDrumWeight($a, 30.0, null, $this->admin->id);
+        $this->pools()->recordDrumWeight($b, 20.0, null, $this->admin->id);
+        $this->assertSame('MON', $a->fresh()->productCode->code);
+
+        try {
+            $this->pools()->closeDryPool($a->pool->fresh(), $this->admin->id);
+            $this->fail('Himpunan Dry tertutup tanpa drum ILM.');
+        } catch (\DomainException $e) {
+            $this->assertStringContainsString('ILM', $e->getMessage());
+        }
+
+        $c = $this->drum('dry_process', 'E200DRYW0012');
+        $this->assertSame('ILM', $c->productCode->code);
+        $this->assertFalse($this->pools()->createOutputDrum($this->company->id, 'dry_process', 'E200DRYW0013', $this->admin->id)['ok']);
     }
 
     #[Test]
@@ -111,11 +126,13 @@ class PoolWeighTest extends PoolTestCase
         $zir = $this->drum('dry_process', 'E200DRYW0006');
         $this->pools()->recordDrumWeight($mon, 30.0, $this->product('MON')->id, $this->admin->id);
         $this->pools()->recordDrumWeight($zir, 50.0, $this->product('ZIR')->id, $this->admin->id);
+        $ilm = $this->drum('dry_process', 'E200DRYW0007');
+        $this->pools()->recordDrumWeight($ilm, 0.001, null, $this->admin->id);
 
         $pool = $this->pools()->closeDryPool($mon->pool->fresh(), $this->admin->id);
 
         $this->assertSame(BatchPool::STATUS_CLOSED, $pool->status);
-        $this->assertEqualsWithDelta(20.0, $pool->loss_pct, 0.001);
+        $this->assertEqualsWithDelta(20.0, $pool->loss_pct, 0.01);
         $this->assertSame('in_transit', $mon->fresh()->status);
         $this->assertSame('MON', $mon->fresh()->productCode->code);
         $this->assertSame('pooled', $in1->fresh()->status);
@@ -124,7 +141,7 @@ class PoolWeighTest extends PoolTestCase
         $edge = BatchLineage::where('parent_batch_id', $in1->id)->where('child_batch_id', $mon->id)->firstOrFail();
         $this->assertEqualsWithDelta(22.5, $edge->contributed_weight, 0.001);
         $this->assertTrue($edge->weight_is_estimate);
-        $this->assertSame(4, BatchLineage::where('pool_id', $pool->id)->count());
+        $this->assertSame(6, BatchLineage::where('pool_id', $pool->id)->count());   // 2 input × 3 drum
         $this->assertNull(app(StageTransitionService::class)->receiveError($zir->fresh(), 'warehouse'));
     }
 

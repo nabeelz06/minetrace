@@ -39,6 +39,24 @@ abstract class PoolTestCase extends TestCase
         return ProductCode::where('company_id', $this->company->id)->where('code', $code)->firstOrFail();
     }
 
+    /**
+     * Lengkapi himpunan Dry sampai punya 3 drum (MON, ZIR, ILM), semua ditimbang. Himpunan Dry hanya bisa
+     * ditutup bila ketiga produk ada.
+     */
+    protected function completeDryPool(\App\Models\BatchPool $pool, float $kg = 10.0): void
+    {
+        $svc = app(\App\Services\Process\PoolService::class);
+        for ($i = 0; $i < 3; $i++) {
+            $r = $svc->createOutputDrum($this->company->id, 'dry_process', sprintf('E200FILL%04d%02d', $pool->id, $i), $this->admin->id);
+            if (! $r['ok']) {
+                break;
+            }
+        }
+        foreach (Batch::where('pool_id', $pool->id)->where('initial_weight', '<=', 0)->get() as $d) {
+            $svc->recordDrumWeight($d, $kg, null, $this->admin->id);
+        }
+    }
+
     protected function makeBatch(string $stage, string $status, array $attrs = []): Batch
     {
         $this->seq++;

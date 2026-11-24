@@ -26,8 +26,10 @@ const drums      = computed(() => props.pool?.drums ?? [])
 // Pool yang sedang dikeluarkan (Dry) atau yang akan menjadi drum berikutnya.
 const activePool = computed(() => outputting.value ?? collecting.value)
 const outputtingDrums = computed(() => drums.value.filter(d => outputting.value && d.pool_id === outputting.value.id))
+// Dry: wajib 3 drum (MON, ZIR, ILM), semua ditimbang.
+const DRY_PRODUCTS = ['MON', 'ZIR', 'ILM']
 const canClose = computed(() => isDry.value && outputting.value
-    && outputtingDrums.value.length > 0 && outputtingDrums.value.every(d => d.weight))
+    && DRY_PRODUCTS.every(p => outputtingDrums.value.some(d => d.product === p && d.weight)))
 
 const busy = ref(false)
 const uid  = ref('')
@@ -54,7 +56,6 @@ function submitDrum() {
 function submitWeight(drum) {
     post(`/company/process/pool/drums/${drum.id}/weight`, {
         weight: weights.value[drum.id],
-        product_code_id: isDry.value ? products.value[drum.id] : null,
         sn_grade_pct: isDry.value ? null : snGrades.value[drum.id],
     })
 }
@@ -81,10 +82,10 @@ function submitCancel(drum) {
                 <p class="text-xs text-muted-foreground mt-0.5">
                     {{ en
                         ? (isDry
-                            ? 'Received drums are pooled (old tags released). Each product leaves in its own drum with a new tag (max 3).'
+                            ? 'Received drums are pooled (old tags released). The pool always leaves as 3 new-tagged drums: the 1st tag is MON, the 2nd ZIR, the 3rd ILM.'
                             : 'Received batches are pooled (old tags released). One new tagged drum takes the whole pool.')
                         : (isDry
-                            ? 'Drum yang diterima dihimpun (tag lama dilepas). Tiap produk keluar dalam drum sendiri dengan tag baru (maks 3).'
+                            ? 'Drum yang diterima dihimpun (tag lama dilepas). Himpunan selalu keluar 3 drum bertag baru: tag ke-1 MON, ke-2 ZIR, ke-3 ILM.'
                             : 'Batch yang diterima dihimpun (tag lama dilepas). Satu drum bertag baru mengambil seluruh himpunan.') }}
                 </p>
             </div>
@@ -154,10 +155,7 @@ function submitCancel(drum) {
                         {{ en ? 'Weighed' : 'Ditimbang' }}: {{ d.product }} · <WeightDisplay :kg="d.weight" size="xs"/>
                     </p>
                     <form v-if="canOperate" class="flex items-center gap-2 flex-wrap" @submit.prevent="submitWeight(d)">
-                        <select v-if="isDry" v-model="products[d.id]" class="h-8 px-2 rounded-lg border border-border bg-background text-xs">
-                            <option :value="undefined" disabled>{{ en ? 'Product' : 'Produk' }}</option>
-                            <option v-for="p in outputProducts" :key="p.id" :value="p.id">{{ p.code }}</option>
-                        </select>
+                        <span v-if="isDry" class="px-2 h-8 inline-flex items-center rounded-lg text-xs font-bold text-white" style="background:hsl(var(--primary))">{{ d.product }}</span>
                         <input v-model="weights[d.id]" type="number" step="0.001" min="0.001"
                                :placeholder="en ? 'Weight (kg)' : 'Berat (kg)'"
                                class="h-8 px-3 rounded-lg border border-border bg-background text-xs w-32"/>
@@ -165,7 +163,7 @@ function submitCancel(drum) {
                                :placeholder="en ? 'Residual Sn (%)' : 'Kadar Sn sisa (%)'"
                                :title="en ? 'Measured after Wet; usually far below the incoming ~60%' : 'Diukur setelah Wet; biasanya jauh di bawah ~60% saat datang'"
                                class="h-8 px-3 rounded-lg border border-border bg-background text-xs w-36"/>
-                        <button type="submit" :disabled="busy || !weights[d.id] || (isDry && !products[d.id]) || (!isDry && (snGrades[d.id] === undefined || snGrades[d.id] === ''))"
+                        <button type="submit" :disabled="busy || !weights[d.id] || (!isDry && (snGrades[d.id] === undefined || snGrades[d.id] === ''))"
                                 class="px-3 h-8 rounded-lg text-xs font-bold text-white disabled:opacity-50"
                                 style="background:hsl(var(--primary))">
                             {{ en ? 'Save weight' : 'Simpan berat' }}

@@ -21,6 +21,9 @@ class BatchPool extends Model
     /** Dry: paling banyak satu drum per produk ini. */
     public const MAX_DRY_DRUMS = 3;
 
+    /** Produk keluaran Dry: satu himpunan selalu keluar satu drum untuk tiap produk, dengan urutan slot ini. */
+    public const DRY_PRODUCTS = ['MON', 'ZIR', 'ILM'];
+
     protected $fillable = [
         'company_id', 'stage', 'status', 'opened_at', 'closed_at', 'closed_by',
         'total_input_weight', 'total_output_weight', 'loss_pct', 'has_discrepancy', 'transformation_id',

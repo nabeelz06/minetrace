@@ -26,7 +26,8 @@ class LineageTest extends PoolTestCase
 
         $dry = $p->createOutputDrum($this->company->id, 'dry_process', 'E200LIN00D01', $this->admin->id)['batch'];
         $p->recordDrumWeight($dry, 40, $this->product('MON')->id, $this->admin->id);
-        $p->closeDryPool($dry->pool, $this->admin->id);
+        $this->completeDryPool($dry->pool);
+        $p->closeDryPool($dry->pool->fresh(), $this->admin->id);
 
         return [$a, $b, $wet->fresh(), $dry->fresh()];
     }
@@ -49,7 +50,10 @@ class LineageTest extends PoolTestCase
 
         $desc = app(LineageService::class)->descendants($a);
 
-        $this->assertSame([$wet->id, $dry->id], $desc->pluck('id')->all());
+        // Container Wet lalu 3 drum produk Dry (MON, ZIR, ILM).
+        $this->assertSame($wet->id, $desc->first()['id']);
+        $this->assertContains($dry->id, $desc->pluck('id')->all());
+        $this->assertCount(4, $desc);
     }
 
     #[Test]

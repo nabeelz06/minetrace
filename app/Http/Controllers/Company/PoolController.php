@@ -54,7 +54,8 @@ class PoolController extends Controller
                 'pool_id'    => $d->pool_id,
                 'batch_code' => $d->batch_code,
                 'rfid_tag'   => $d->rfid_tag,
-                'product'    => $d->initial_weight > 0 ? $d->productCode?->code : null,
+                // Dry: produk sudah ditetapkan saat drum dibuat (slot MON/ZIR/ILM). Wet: hanya setelah ditimbang.
+                'product'    => ($stage === 'dry_process' || $d->initial_weight > 0) ? $d->productCode?->code : null,
                 'weight'     => $d->initial_weight > 0 ? $d->initial_weight : null,
                 'created_at' => Carbon::parse($d->created_at)->timezone($tz)->format('d/m H:i'),
             ])->all();

@@ -127,7 +127,8 @@ class TwoReaderGateTest extends PoolTestCase
         $this->tap('dry_process', 'E200TR0000P2');
         $p = Batch::where('rfid_tag', 'E200TR0000P2')->firstOrFail();
         app(PoolService::class)->recordDrumWeight($p, 30, $this->product('ILM')->id, $this->admin->id);
-        app(PoolService::class)->closeDryPool($p->pool, $this->admin->id);
+        $this->completeDryPool($p->pool);
+        app(PoolService::class)->closeDryPool($p->pool->fresh(), $this->admin->id);
         app(StageTransitionService::class)->receive($p->fresh(), 'warehouse', ['user_id' => $this->admin->id]);
 
         $this->assertSame(['warehouse', 'ILM'], [$p->fresh()->process_stage, $p->fresh()->productCode->code]);

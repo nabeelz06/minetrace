@@ -50,6 +50,7 @@ class PoolWebTest extends PoolTestCase
         $this->actingAs($this->admin)->post("/company/process/pool/drums/{$drum->id}/weight", [
             'weight' => 45, 'product_code_id' => $this->product('ZIR')->id,
         ])->assertSessionHas('success');
+        $this->completeDryPool($drum->pool);
         $this->actingAs($this->admin)->post("/company/process/pool/{$drum->pool_id}/close")->assertSessionHas('success');
 
         $this->assertSame('in_transit', $drum->fresh()->status);

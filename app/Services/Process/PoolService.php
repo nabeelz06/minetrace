@@ -166,7 +166,11 @@ class PoolService
                 return $this->fail('pool_full', 'Himpunan sudah punya 3 drum. Tekan "Selesai himpunan" dulu.');
             }
 
-            $drum = $this->makeDrum($pool, $inputs->first()->batch, $uid, $userId, $source);
+            // Dry: satu himpunan selalu keluar 3 drum — MON, ZIR, ILM. Tag baru berikutnya otomatis mengisi produk
+            // pertama yang belum punya drum (urutan MON → ZIR → ILM); operator tidak memilih produk.
+            $product = $stage === 'dry_process' ? $this->nextDryProduct($pool) : null;
+
+            $drum = $this->makeDrum($pool, $inputs->first()->batch, $uid, $userId, $source, $product);
 
             if ($stage === 'wet_process') {
                 $this->closePool($pool, $inputs, collect([$drum]), $userId, estimate: false);
@@ -193,12 +197,26 @@ class PoolService
             ?? $base()->where('status', BatchPool::STATUS_COLLECTING)->lockForUpdate()->first();
     }
 
-    private function makeDrum(BatchPool $pool, Batch $sample, string $uid, ?int $userId, string $source): Batch
+    /** Produk Dry berikutnya untuk himpunan ini (MON → ZIR → ILM), mengisi slot kosong (mis. setelah drum dibatalkan). */
+    private function nextDryProduct(BatchPool $pool): ?ProductCode
+    {
+        $taken = Batch::where('pool_id', $pool->id)->with('productCode:id,code')->get()
+            ->map(fn ($b) => $b->productCode?->code)->filter()->all();
+        foreach (BatchPool::DRY_PRODUCTS as $code) {
+            if (! in_array($code, $taken, true)) {
+                return ProductCode::where('company_id', $pool->company_id)->where('code', $code)->first();
+            }
+        }
+
+        return null;
+    }
+
+    private function makeDrum(BatchPool $pool, Batch $sample, string $uid, ?int $userId, string $source, ?ProductCode $product = null): Batch
     {
         $cfg      = ProcessFlow::get($pool->stage);
         $company  = Company::findOrFail($pool->company_id);
         $location = $this->drumLocation($pool->company_id, $pool->stage, $sample);
-        $product  = $sample->productCode;
+        $product ??= $sample->productCode;
 
         $drum = Batch::create([
             'company_id'          => $pool->company_id,
@@ -264,6 +282,8 @@ class PoolService
             $update = ['initial_weight' => $weight, 'current_weight' => $weight, 'updated_by' => $userId];
 
             if ($pool->stage === 'dry_process') {
+                // Produk sudah ditetapkan saat drum dibuat (slot MON/ZIR/ILM); pilihan manual tetap diterima.
+                $productCodeId ??= in_array($drum->productCode?->code, BatchPool::DRY_PRODUCTS, true) ? $drum->product_code_id : null;
                 $product = $productCodeId ? ProductCode::find($productCodeId) : null;
                 if (! $product || ! in_array($product->code, ['MON', 'ZIR', 'ILM'], true)) {
                     throw new \DomainException('Pilih produk drum: MON, ZIR, atau ILM.');
@@ -348,6 +368,10 @@ class PoolService
             }
             if ($drums->contains(fn ($d) => $d->initial_weight <= 0)) {
                 throw new \DomainException('Masih ada drum yang belum ditimbang.');
+            }
+            $codes = $drums->load('productCode:id,code')->map(fn ($d) => $d->productCode?->code)->all();
+            if ($missing = array_values(array_diff(BatchPool::DRY_PRODUCTS, $codes))) {
+                throw new \DomainException('Himpunan Dry harus keluar 3 drum (MON, ZIR, ILM). Belum ada drum: ' . implode(', ', $missing) . '.');
             }
 
             $this->closePool($pool, $pool->inputs()->with('batch')->get(), $drums, $userId, estimate: true);
