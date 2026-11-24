@@ -56,6 +56,7 @@ class BatchService
             $batch = Batch::create([
                 'company_id'         => $company->id,
                 'batch_code'         => $batchCode,
+                'container_type'     => ($data['process_stage'] ?? 'lab_kimia') === 'lab_kimia' ? 'drum_besi' : ($data['container_type'] ?? null),
                 'product_code_id'    => $productCode->id,
                 'initial_weight'     => $data['initial_weight'],
                 'current_weight'     => $data['initial_weight'],

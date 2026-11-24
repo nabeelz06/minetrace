@@ -46,6 +46,9 @@ class StageTransitionService
         if ($batch->status === ProcessFlow::STATUS_AWAITING_WEIGHT) {
             return 'Drum belum ditimbang.';
         }
+        if ($batch->status === ProcessFlow::STATUS_AWAITING_INTAKE) {
+            return 'Drum besi belum ditimbang dan dicek kadar Sn.';
+        }
         if ($this->pools->openPoolOf($batch)) {
             return "Batch {$batch->batch_code} sedang dihimpun di {$batch->process_stage}; keluar hanya lewat drum baru.";
         }
@@ -93,6 +96,9 @@ class StageTransitionService
         if ($batch->status === ProcessFlow::STATUS_AWAITING_WEIGHT) {
             return 'Drum belum ditimbang.';
         }
+        if ($batch->status === ProcessFlow::STATUS_AWAITING_INTAKE) {
+            return 'Drum besi belum ditimbang dan dicek kadar Sn.';
+        }
         if (PoolService::isPoolStage($stage) && $this->pools->openPoolOf($batch)) {
             return "Batch {$batch->batch_code} sedang dihimpun. Keluarkan lewat \"Drum keluar\" dengan tag baru.";
         }
@@ -135,7 +141,12 @@ class StageTransitionService
 
             $fresh->update(array_filter([
                 'process_stage'       => $stage,
-                'status'              => $stage === 'warehouse' ? ProcessFlow::STATUS_WAREHOUSE : ProcessFlow::STATUS_AFTER_RECEIVE,
+                'status'              => match ($stage) {
+                    'warehouse' => ProcessFlow::STATUS_WAREHOUSE,
+                    // Receiving & Wet digabung: drum besi menunggu timbang + kadar Sn (IntakeService) sebelum masuk Wet.
+                    'receiving' => ProcessFlow::STATUS_AWAITING_INTAKE,
+                    default     => ProcessFlow::STATUS_AFTER_RECEIVE,
+                },
                 'current_location_id' => $locationId,
                 'updated_by'          => $o['user_id'] ?? null,
             ], fn ($v) => $v !== null));

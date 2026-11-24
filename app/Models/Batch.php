@@ -23,8 +23,22 @@ class Batch extends Model
 {
     use HasFactory, SoftDeletes, LogsActivity;
 
+    /** Jenis wadah yang dilacak (null = data sebelum fitur ini). */
+    public const CONTAINER_TYPES = ['drum_besi', 'container', 'product_drum'];
+
+    private const CONTAINER_LABELS = [
+        'drum_besi'    => ['id' => 'Drum besi', 'en' => 'Steel drum'],
+        'container'    => ['id' => 'Container', 'en' => 'Container'],
+        'product_drum' => ['id' => 'Drum produk', 'en' => 'Product drum'],
+    ];
+
+    public static function containerLabel(?string $type, string $lang = 'id'): string
+    {
+        return self::CONTAINER_LABELS[$type][$lang === 'en' ? 'en' : 'id'] ?? '—';
+    }
+
     protected $fillable = [
-        'company_id', 'batch_code', 'rfid_tag', 'lot_number',
+        'company_id', 'batch_code', 'rfid_tag', 'container_type', 'sn_grade_pct', 'lot_number',
         'product_code_id', 'parent_batch_id', 'pool_id',
         'initial_weight', 'current_weight', 'weight_unit',
         'process_stage', 'status', 'current_location_id',
@@ -38,6 +52,7 @@ class Batch extends Model
         'initial_weight'  => 'float',
         'current_weight'  => 'float',
         'mass_loss_pct'   => 'float',
+        'sn_grade_pct'    => 'float',
         'is_split'        => 'boolean',
         'has_discrepancy' => 'boolean',
         'metadata'        => 'array',

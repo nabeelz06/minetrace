@@ -27,6 +27,9 @@ final class ProcessFlow
     /** Drum output himpunan yang belum ditimbang (dan, di Dry, belum diberi produk). */
     public const STATUS_AWAITING_WEIGHT = 'awaiting_weight';
 
+    /** Drum besi tiba di Receiving, belum ditimbang & dicek kadar Sn (lihat IntakeService). */
+    public const STATUS_AWAITING_INTAKE = 'awaiting_intake';
+
     public const STATUS_AFTER_RECEIVE = 'in_process';
     public const STATUS_AFTER_SEND    = 'in_transit';
     public const STATUS_WAREHOUSE     = 'in_warehouse';

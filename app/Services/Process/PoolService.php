@@ -204,6 +204,7 @@ class PoolService
             'company_id'          => $pool->company_id,
             'batch_code'          => $this->codes->generate($company, $location, $pool->stage, $product),
             'rfid_tag'            => $uid,
+            'container_type'      => $pool->stage === 'wet_process' ? 'container' : 'product_drum',
             'product_code_id'     => $product->id,
             'pool_id'             => $pool->id,
             'initial_weight'      => 0,
