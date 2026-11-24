@@ -3,6 +3,7 @@
 namespace App\Services\Hardware;
 
 use App\Services\Process\PoolService;
+use App\Services\Hardware\Strategies\AuditOnlyStrategy;
 use App\Events\RfidTagScanned;
 use App\Models\Checkpoint;
 use App\Models\RfidReader;
@@ -201,6 +202,16 @@ class RfidScanService
         $origin = $opts['origin'] ?? 'real_esp32';
         $scanStage = $this->rfid->resolveScanStage($batch, $stage);
         $strategy = $this->authorization->getStrategy($batch->company_id, $scanStage);
+
+        // Reader gabungan Receiving & Wet: hanya drum besi kiriman Lab Kimia yang diterima otomatis (Scan IN).
+        // Tag terdaftar lain di area itu (container di timbangan, drum menunggu timbang, batch lama) hanya dicatat.
+        if ($stage === 'receiving') {
+            if ($batch->process_stage === 'lab_kimia' && $batch->status === ProcessFlow::STATUS_AFTER_SEND) {
+                $direction = 'in';
+            } else {
+                $strategy = new AuditOnlyStrategy($this->rfid);
+            }
+        }
         $context = [
             'rfid_origin' => $origin,
             'meta' => ['event_id' => $opts['event_id'] ?? null, 'reader_id' => $ctx->reader?->id],
@@ -237,9 +248,21 @@ class RfidScanService
      */
     private function tryPoolDrum(DeviceContext $ctx, string $direction, string $uid, ?string $stage, array $opts): ?array
     {
-        if ($direction !== 'out' || ! $stage || ! PoolService::isPoolStage($stage) || ! $ctx->companyId) {
+        if (! $stage || ! $ctx->companyId) {
             return null;
         }
+        // 2 reader tahap 1: reader Receiving & Wet (stage receiving) → container Wet; reader Dry → drum produk.
+        // Keduanya arah apa pun. Reader lama ber-stage wet_process tetap hanya arah keluar.
+        $poolStage = match (true) {
+            $stage === 'receiving'                         => 'wet_process',
+            $stage === 'dry_process'                       => 'dry_process',
+            $stage === 'wet_process' && $direction === 'out' => 'wet_process',
+            default                                        => null,
+        };
+        if (! $poolStage) {
+            return null;
+        }
+        $stage = $poolStage;
 
         $mode = $this->authorization->getStrategy($ctx->companyId, $stage)->getMode();
         if ($mode === 'audit_only') {
