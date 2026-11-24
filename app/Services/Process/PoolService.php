@@ -410,7 +410,8 @@ class PoolService
         $alert     = $threshold ? $pct >= $threshold->warning_threshold_pct : false;
 
         $pool->update(['total_output_weight' => $out, 'loss_pct' => $pct, 'has_discrepancy' => $alert]);
-        Batch::whereIn('id', $drums->pluck('id'))->update(['mass_loss_pct' => $pct, 'has_discrepancy' => $alert]);
+        // Query builder melewati mutator model, jadi persen dibatasi di sini (berat salah ketik → persen ekstrem).
+        Batch::whereIn('id', $drums->pluck('id'))->update(['mass_loss_pct' => \App\Support\LossPct::clamp($pct), 'has_discrepancy' => $alert]);
         $pool->transformation?->update([
             'transformation_details' => array_merge($pool->transformation->transformation_details ?? [], [
                 'total_output_weight' => $out, 'loss_pct' => $pct, 'has_discrepancy' => $alert,

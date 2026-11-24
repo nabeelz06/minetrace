@@ -108,4 +108,10 @@ class Checkpoint extends Model
             default                => str_replace('_', ' ', $this->checkpoint_stage ?? ''),
         };
     }
+
+    /** Dibatasi ke rentang kolom decimal (lihat App\Support\LossPct). */
+    public function setWeightLossPctAttribute($value): void
+    {
+        $this->attributes['weight_loss_pct'] = \App\Support\LossPct::clamp($value, \App\Support\LossPct::MAX_5_2);
+    }
 }

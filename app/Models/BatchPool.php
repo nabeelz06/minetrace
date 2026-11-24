@@ -60,4 +60,10 @@ class BatchPool extends Model
     {
         return $this->status !== self::STATUS_CLOSED;
     }
+
+    /** Dibatasi ke rentang kolom decimal (lihat App\Support\LossPct). */
+    public function setLossPctAttribute($value): void
+    {
+        $this->attributes['loss_pct'] = \App\Support\LossPct::clamp($value, \App\Support\LossPct::MAX_7_2);
+    }
 }

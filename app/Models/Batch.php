@@ -226,4 +226,10 @@ class Batch extends Model
     {
         return $query->where('process_stage', $stage);
     }
+
+    /** Dibatasi ke rentang kolom decimal (lihat App\Support\LossPct). */
+    public function setMassLossPctAttribute($value): void
+    {
+        $this->attributes['mass_loss_pct'] = \App\Support\LossPct::clamp($value, \App\Support\LossPct::MAX_5_2);
+    }
 }
