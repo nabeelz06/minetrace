@@ -24,19 +24,19 @@ class PoolWebTest extends PoolTestCase
     {
         $in = $this->pooled();
 
-        $this->actingAs($this->admin)->get('/company/process/wet_process')
+        // Halaman Wet digabung ke Receiving & Wet: panel himpunan Wet tampil di halaman receiving.
+        $this->actingAs($this->admin)->get('/company/process/receiving')
             ->assertInertia(fn (AssertableInertia $p) => $p
                 ->where('pool.collecting.inputs.0.batch_id', $in->id)
-                ->where('pool.collecting.total_weight', 50)
-                ->where('batches.data.0.in_pool', true));
+                ->where('pool.collecting.total_weight', 50));
 
         $this->actingAs($this->admin)->post('/company/process/wet_process/pool/drum', ['uid' => 'E200WEB00001'])->assertRedirect();
 
-        $this->actingAs($this->admin)->get('/company/process/wet_process')
+        $this->actingAs($this->admin)->get('/company/process/receiving')
             ->assertInertia(fn (AssertableInertia $p) => $p
                 ->where('pool.collecting', null)
                 ->where('pool.drums.0.rfid_tag', 'E200WEB00001')
-                ->where('batches.data', fn ($rows) => collect($rows)->pluck('id')->doesntContain($in->id)));
+                ->where('intake', fn ($rows) => collect($rows)->pluck('id')->doesntContain($in->id)));
     }
 
     #[Test]
