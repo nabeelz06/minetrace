@@ -326,6 +326,9 @@ class BatchController extends Controller
                 'has_discrepancy' => $batch->has_discrepancy,
                 'export_status'   => $batch->export_status,
                 'rfid_tag'        => $batch->rfid_tag,
+                'container_type'  => $batch->container_type,
+                'container_label' => Batch::containerLabel($batch->container_type),
+                'sn_grade_pct'    => $batch->sn_grade_pct,
                 'notes'           => $batch->notes,
                 'created_by_user' => $batch->createdByUser ? ['name' => $batch->createdByUser->name] : null,
                 // Timestamp detail

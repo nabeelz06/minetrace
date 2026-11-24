@@ -90,6 +90,8 @@
         <th width="3%" class="tc">#</th>
         <th width="15%">Kode Batch</th>
         <th width="6%">Produk</th>
+        <th width="7%">Wadah</th>
+        <th width="5%" class="tr">Sn (%)</th>
         <th width="8%" class="tr">Berat Awal (kg)</th>
         <th width="8%" class="tr">Berat Kini (kg)</th>
         <th width="6%" class="tr">Susut (%)</th>
@@ -127,6 +129,8 @@
         <td class="tc muted">{{ $i + 1 }}</td>
         <td class="mono bold">{{ $batch->batch_code }}</td>
         <td class="tc bold">{{ $batch->productCode?->code ?? '—' }}</td>
+        <td>{{ \App\Models\Batch::containerLabel($batch->container_type) }}</td>
+        <td class="tr">{{ $batch->sn_grade_pct !== null ? number_format($batch->sn_grade_pct, 3) : '—' }}</td>
         <td class="tr">{{ number_format($batch->initial_weight, 2) }}</td>
         <td class="tr {{ $batch->has_discrepancy ? 'red' : '' }}">
           {{ number_format($batch->current_weight, 2) }}

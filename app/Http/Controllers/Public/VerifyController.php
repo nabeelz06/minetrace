@@ -67,6 +67,7 @@ class VerifyController extends Controller
             'state' => 'valid',
             'batch' => [
                 'batch_code' => $batch->batch_code,
+                'container'  => ['id' => Batch::containerLabel($batch->container_type), 'en' => Batch::containerLabel($batch->container_type, 'en')],
                 'product'    => $batch->productCode?->name,
                 'company'    => $batch->company?->name,
                 'location'   => $batch->currentLocation?->name,

@@ -304,6 +304,8 @@ const weightRetentionPct = computed(() => {
                         <div v-for="info in [
                             { label: 'Kode Batch', value: batch.batch_code, mono: true },
                             { label: 'Lot Number', value: batch.lot_number || '—', mono: true },
+                            { label: lang === 'en' ? 'Container' : 'Jenis Wadah', value: batch.container_label || '—' },
+                            ...(batch.sn_grade_pct != null ? [{ label: lang === 'en' ? 'Sn grade' : 'Kadar Sn', value: `${batch.sn_grade_pct}%` }] : []),
                             { label: 'Stage', value: `${stageLabel(batch.process_stage)}` },
                             { label: 'Status', value: statusLabel(batch.status) },
                             { label: 'Lokasi', value: batch.location?.name || '—' },

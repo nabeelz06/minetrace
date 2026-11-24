@@ -48,6 +48,10 @@ const stageLabel  = (s) => (lang.value === 'en' ? s.en : s.id)
                     <dt class="text-muted-foreground">{{ t('verify.product') }}</dt>
                     <dd class="text-right font-medium">{{ batch.product || '—' }}</dd>
                 </div>
+                <div v-if="batch.container" class="flex justify-between gap-4 px-4 py-3">
+                    <dt class="text-muted-foreground">{{ lang === 'en' ? 'Container' : 'Jenis wadah' }}</dt>
+                    <dd class="text-right font-medium">{{ stageLabel(batch.container) }}</dd>
+                </div>
                 <div class="flex justify-between gap-4 px-4 py-3">
                     <dt class="text-muted-foreground">{{ t('verify.company') }}</dt>
                     <dd class="text-right font-medium">{{ batch.company || '—' }}</dd>
