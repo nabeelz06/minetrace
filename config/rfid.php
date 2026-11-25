@@ -72,6 +72,10 @@ return [
      */
     'uhf' => [
         'ur4_port' => (int) env('RFID_UR4_PORT', 8888),
+        // Mode TCP Client: reader menyambung ke server (Remote IP/Port di reader). Port per reader di connection.listen_port.
+        'inbound_bind' => (string) env('RFID_UHF_INBOUND_BIND', '0.0.0.0'),
+        // Sumber yang diizinkan untuk koneksi masuk, dipisah koma (kosong = semua sumber).
+        'inbound_allowed_cidrs' => array_values(array_filter(array_map('trim', explode(',', (string) env('RFID_UHF_INBOUND_ALLOWED_CIDRS', ''))))),
         'presence_seconds' => (int) env('RFID_UHF_PRESENCE_SECONDS', 10),
         'min_rssi' => is_numeric(env('RFID_UHF_MIN_RSSI')) ? (int) env('RFID_UHF_MIN_RSSI') : null,
         'reconnect_max' => (int) env('RFID_UHF_RECONNECT_MAX', 30),

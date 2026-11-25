@@ -27,6 +27,9 @@ final class Ur4Link
 {
     private const READ_BYTES = 8192;
 
+    /** Mode masuk: jeda sebelum memeriksa soket masuk berikutnya (detik). */
+    private const INBOUND_POLL = 1.0;
+
     /** Urutan pembacaan konfigurasi sebelum inventory dimulai. */
     private const CONFIG_STEPS = [
         Ur4Command::Version, Ur4Command::Power, Ur4Command::Region,
@@ -116,6 +119,8 @@ final class Ur4Link
         private readonly ?Closure $jitter = null,
         private readonly ?Closure $log = null,
         private readonly ?Closure $tap = null,
+        /** true = reader dalam mode TCP Client: reader yang menyambung ke kita, connector menerima (accept) soket masuk. */
+        private readonly bool $inbound = false,
     ) {
         $this->proto = new ChainwayUr4Protocol($cfg->verifyXor);
         $this->stateSince = ($this->now)();
@@ -309,7 +314,11 @@ final class Ur4Link
             Ur4LinkState::Contested => 'contested',
             Ur4LinkState::Stalled => 'stalled',
             Ur4LinkState::ConfigMismatch => 'config_mismatch',
-            Ur4LinkState::Backoff => in_array($this->lastError, ['connect_failed', 'connect_timeout', 'connect_refused'], true) ? 'unreachable' : 'connecting',
+            Ur4LinkState::Backoff => match (true) {
+                $this->lastError === 'awaiting_reader' => 'awaiting_reader',
+                in_array($this->lastError, ['connect_failed', 'connect_timeout', 'connect_refused'], true) => 'unreachable',
+                default => 'connecting',
+            },
         };
     }
 
@@ -340,6 +349,14 @@ final class Ur4Link
     private function startConnect(float $now): void
     {
         $stream = ($this->connector)($this->host, $this->port);
+        if (! $stream && $this->inbound) {
+            // Belum ada reader yang menyambung: bukan galat. Cek lagi sebentar lagi, tanpa log dan penghitung.
+            $this->lastError = 'awaiting_reader';
+            $this->detail = "menunggu reader menyambung ke port {$this->port}";
+            $this->enterWaiting(Ur4LinkState::Backoff, $now + self::INBOUND_POLL);
+
+            return;
+        }
         if (! $stream) {
             $this->fail('connect_failed', $now);
 
@@ -650,7 +667,9 @@ final class Ur4Link
             }
         }
 
-        $this->enterWaiting(Ur4LinkState::Backoff, $now + $this->exponentialDelay() * $this->jitter());
+        // Mode masuk: reader menyambung ulang sendiri, jadi soket barunya diterima cepat (tanpa backoff eksponensial).
+        $delay = $this->inbound ? self::INBOUND_POLL : $this->exponentialDelay() * $this->jitter();
+        $this->enterWaiting(Ur4LinkState::Backoff, $now + $delay);
     }
 
     private function exponentialDelay(): float
