@@ -7,7 +7,6 @@ use App\Services\Hardware\RfidReadLogService;
 use App\Services\Hardware\RfidRegistrationService;
 use App\Services\Hardware\RfidScanService;
 use App\Services\Hardware\Uhf\UhfGate;
-use App\Services\Hardware\Uhf\Ur4InboundListener;
 use App\Services\Hardware\Uhf\Ur4Link;
 use Illuminate\Console\Command;
 
@@ -43,11 +42,6 @@ class RfidUhfGate extends Command
     {
         $this->trapSignals();
 
-        // Reader mode TCP Client (connection.mode = tcp_client) menyambung ke port dengar di server ini.
-        $inbound = Ur4InboundListener::fromConfig(function (string $level, string $message) {
-            $level === 'warning' ? $this->warn($message) : $this->info($message);
-        });
-
         $gate = new UhfGate(
             $scans,
             $events,
@@ -64,7 +58,6 @@ class RfidUhfGate extends Command
             (array) $this->option('reader'),
             registrations: $registrations,
             readLogs: $readLogs,
-            inbound: $inbound,
         );
 
         $maxRuntime = (int) $this->option('max-runtime');
@@ -88,7 +81,6 @@ class RfidUhfGate extends Command
         }
 
         $gate->shutdown();
-        $inbound->close();
         $this->info('rfid:uhf-gate berhenti.');
 
         return self::SUCCESS;

@@ -44,9 +44,6 @@ final class UhfGate
 
     public const LOCK_REFRESH_EVERY = 10.0;
 
-    /** Penanda host untuk gate mode TCP Client (kunci eksklusif dan klaim memakai inbound:<port>). */
-    public const INBOUND_HOST = 'inbound';
-
     /** @var array<int,array{reader:RfidReader,link:Ur4Link,sig:string,host:string,port:int,presence:PresenceFilter,presence_sec:float,arbiter:?TagArbiter,reads:int,events:int,rejected:array<string,int>}> */
     private array $gates = [];
 
@@ -85,8 +82,6 @@ final class UhfGate
         private readonly ?Closure $connectCheck = null,
         private readonly ?RfidRegistrationService $registrations = null,
         private readonly ?RfidReadLogService $readLogs = null,
-        /** soket dengar untuk reader mode TCP Client (null = mode itu tidak tersedia) */
-        private readonly ?Ur4InboundListener $inbound = null,
     ) {
         $this->owner = $owner ?? ('gate:'.(gethostname() ?: 'host').':'.getmypid());
     }
@@ -120,7 +115,7 @@ final class UhfGate
             ->when($this->codes, fn ($q) => $q->whereIn('code', array_map('strtoupper', $this->codes)))
             ->orderBy('id')
             ->get()
-            ->filter(fn (RfidReader $r) => self::isInbound($r) || trim((string) ($r->connectionConfig()['host'] ?? '')) !== '')
+            ->filter(fn (RfidReader $r) => trim((string) ($r->connectionConfig()['host'] ?? '')) !== '')
             ->keyBy('id');
 
         // Reader dihapus/dinonaktifkan atau koneksinya berubah: tutup. Perubahan stage/arah tidak butuh sambung ulang.
@@ -155,18 +150,7 @@ final class UhfGate
             }
             [$host, $port] = $this->endpointOf($reader);
 
-            if (self::isInbound($reader)) {
-                if (! $this->inbound) {
-                    $this->skip($reader, 'config_mismatch', 'inbound_unavailable', 'mode TCP Client tidak aktif di daemon ini');
-
-                    continue;
-                }
-                if ($port < 1024 || $port > 65535) {
-                    $this->skip($reader, 'config_mismatch', 'inbound_port', "listen_port {$port} di luar 1024-65535");
-
-                    continue;
-                }
-            } elseif ($code = EndpointGuard::validate($host, $port)) {
+            if ($code = EndpointGuard::validate($host, $port)) {
                 $this->skip($reader, 'config_mismatch', "endpoint_{$code}", "alamat {$host}:{$port} ditolak ({$code}): ".EndpointGuard::message($code));
 
                 continue;
@@ -187,11 +171,6 @@ final class UhfGate
             $claimed["{$host}:{$port}"] = $id;
             unset($this->skipped[$id]);
         }
-
-        $this->inbound?->retain(array_values(array_map(
-            fn (array $g) => $g['port'],
-            array_filter($this->gates, fn (array $g) => $g['host'] === self::INBOUND_HOST),
-        )));
     }
 
     /** Majukan semua tautan dan arbiter. Tidak memblokir. */
@@ -313,16 +292,14 @@ final class UhfGate
         $map = $this->antennaMap($reader);
         $presenceSec = $this->presenceSeconds($reader);
 
-        $inbound = $host === self::INBOUND_HOST;
         $link = new Ur4Link(
             $host,
             $port,
             Ur4LinkConfig::fromConfig($map),
-            $inbound ? $this->inbound->connector($port) : $this->connector,
+            $this->connector,
             $this->now,
             fn (array $tag) => $this->onTag($id, $tag),
-            connectCheck: $inbound ? null : $this->connectCheck,
-            inbound: $inbound,
+            connectCheck: $this->connectCheck,
             log: function (string $level, string $message) use ($reader) {
                 ($this->out)($level === 'warning' ? 'warning' : 'info', "Reader {$reader->code}: {$message}");
                 Log::log($level === 'warning' ? 'warning' : 'info', "rfid:uhf-gate {$reader->code} {$message}");
@@ -346,8 +323,7 @@ final class UhfGate
             'rejected' => [],
         ];
 
-        $where = $inbound ? "TCP Client, port dengar {$port}" : "{$host}:{$port}";
-        ($this->out)('line', "Reader {$reader->code} ({$where}) tahap ".($reader->stage ?? '-').', arah '.$reader->direction);
+        ($this->out)('line', "Reader {$reader->code} ({$host}:{$port}) tahap ".($reader->stage ?? '-').', arah '.$reader->direction);
     }
 
     private function closeGate(int $id, string $why): void
@@ -441,7 +417,7 @@ final class UhfGate
                 [
                     'origin' => 'real_uhf',
                     'event_id' => 'ur4-'.$reader->id.'-'.Str::ulid(),
-                    'ip' => $this->addressOf($gate),
+                    'ip' => $gate['host'],
                     'antenna' => $antenna,
                     'rssi' => $rssi,
                     'tid' => $tid,
@@ -547,7 +523,7 @@ final class UhfGate
             'antenna' => $info['antenna'],
             'rssi' => $info['rssi'],
             'tid' => $info['tid'],
-            'meta' => ['ip' => $this->addressOf($gate)],
+            'meta' => ['ip' => $gate['host']],
         ]);
 
         ($this->out)('line', sprintf(
@@ -622,7 +598,7 @@ final class UhfGate
 
             // "Online" hanya bila tautan SEHAT (inventory berjalan); selain itu last_seen_at dibiarkan menua.
             if ($healthy) {
-                $attrs += ['last_seen_at' => now(), 'last_ip' => $this->addressOf($gate)];
+                $attrs += ['last_seen_at' => now(), 'last_ip' => $gate['host']];
                 if (! empty($s['device']['firmware'])) {
                     $attrs['firmware_version'] = 'UR4 '.$s['device']['firmware'];
                 }
@@ -635,31 +611,10 @@ final class UhfGate
 
     // ─── Util ─────────────────────────────────────────────────────────────
 
-    /** Reader mode TCP Client: reader yang menyambung ke server di connection.listen_port. */
-    public static function isInbound(RfidReader $reader): bool
-    {
-        $c = $reader->connectionConfig();
-
-        return ($c['mode'] ?? null) === 'tcp_client' && (int) ($c['listen_port'] ?? 0) > 0;
-    }
-
-    /** Alamat untuk log/meta: IP sumber koneksi masuk, atau host reader. */
-    private function addressOf(array $gate): string
-    {
-        if ($gate['host'] === self::INBOUND_HOST) {
-            return $this->inbound?->peer($gate['port']) ?? 'tcp_client:'.$gate['port'];
-        }
-
-        return $gate['host'];
-    }
-
     /** @return array{0:string,1:int} */
     private function endpointOf(RfidReader $reader): array
     {
         $c = $reader->connectionConfig();
-        if (self::isInbound($reader)) {
-            return [self::INBOUND_HOST, (int) $c['listen_port']];
-        }
 
         return [trim((string) ($c['host'] ?? '')), (int) ($c['port'] ?? config('rfid.uhf.ur4_port', 8888))];
     }

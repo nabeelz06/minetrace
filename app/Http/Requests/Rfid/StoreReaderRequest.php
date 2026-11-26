@@ -46,8 +46,6 @@ class StoreReaderRequest extends FormRequest
             'connection.host' => ['nullable', 'required_if:device_type,uhf_chainway_ur4', 'string', 'max:255',
                 'regex:/^[A-Za-z0-9.:_-]+$/'],
             'connection.port' => ['nullable', 'integer', 'between:1,65535'],
-            'connection.mode' => ['nullable', Rule::in(['tcp_server', 'tcp_client'])],
-            'connection.listen_port' => ['nullable', 'required_if:connection.mode,tcp_client', 'integer', 'between:1024,65535'],
             'connection.antennas' => ['nullable', 'array'],
             'connection.antennas.*' => [Rule::in(['in', 'out'])],
             'connection.min_rssi' => ['nullable', 'integer', 'between:-120,0'],
@@ -93,23 +91,6 @@ class StoreReaderRequest extends FormRequest
         }
 
         $conn = array_merge($existing?->connectionConfig() ?? [], is_array($data['connection'] ?? null) ? $data['connection'] : []);
-        $active = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : ($existing?->is_active ?? true);
-
-        // Mode TCP Client: reader menyambung ke server; satu port dengar hanya untuk satu reader aktif.
-        if (($conn['mode'] ?? null) === 'tcp_client' && (int) ($conn['listen_port'] ?? 0) > 0) {
-            $port = (int) $conn['listen_port'];
-            $taken = $active && RfidReader::whereIn('device_type', RfidReader::NETWORK_TYPES)
-                ->where('is_active', true)
-                ->when($existing?->id, fn ($q, $id) => $q->whereKeyNot($id))
-                ->get()
-                ->contains(fn (RfidReader $r) => ($r->connectionConfig()['mode'] ?? null) === 'tcp_client'
-                    && (int) ($r->connectionConfig()['listen_port'] ?? 0) === $port);
-            if ($taken) {
-                $validator->errors()->add('connection.listen_port', 'Port dengar ini sudah dipakai reader aktif lain.');
-            }
-
-            return;
-        }
         $host = trim((string) ($conn['host'] ?? ''));
         if ($host === '') {
             return;   // required_if sudah menandai bila wajib
