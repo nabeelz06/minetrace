@@ -14,7 +14,7 @@ import {
     Check, Lock, Mail, BadgeCheck, CircleDashed, Hourglass, Layers, Scale, Factory, MapPin, Bell, CircleHelp,
     ExternalLink, Power, Zap, CircleAlert, OctagonAlert, ScanSearch, RadioTower, Barcode, Monitor, SlidersHorizontal,
     Antenna, Gauge, Mountain, User, Globe, Radiation, Pickaxe, Gem, ClipboardList, Lightbulb, Wrench, Dna, Link, Circle,
-    RotateCcw, Unlink,
+    RotateCcw, Unlink, ArrowLeftRight, Recycle,
 } from 'lucide-vue-next'
 
 const MAP = {
@@ -38,7 +38,7 @@ const MAP = {
     'sliders-horizontal': SlidersHorizontal, antenna: Antenna, gauge: Gauge, mountain: Mountain,
     user: User, globe: Globe, radiation: Radiation, pickaxe: Pickaxe, gem: Gem, 'clipboard-list': ClipboardList,
     lightbulb: Lightbulb, wrench: Wrench, dna: Dna, link: Link, circle: Circle,
-    'rotate-ccw': RotateCcw, unlink: Unlink,
+    'rotate-ccw': RotateCcw, unlink: Unlink, 'arrow-left-right': ArrowLeftRight, recycle: Recycle,
 }
 
 const props = defineProps({

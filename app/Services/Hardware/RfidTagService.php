@@ -3,6 +3,7 @@
 namespace App\Services\Hardware;
 
 use App\Models\Batch;
+use App\Models\BatchPoolInput;
 use App\Models\Checkpoint;
 use App\Models\RfidReadLog;
 use App\Models\RfidTagEvent;
@@ -19,7 +20,9 @@ use Illuminate\Support\Facades\Log;
  *  - Lepas tag     : mengosongkan batches.rfid_tag (UNIQUE tetap), mencatat rfid_tag_events 'released'.
  *  - Reset uji     : menyembunyikan (void) scan tag itu dari umpan, mengembalikan posisi batch ke keadaan saat
  *                    registrasi bila ada serah-terima otomatis, dan mencatat rfid_tag_events 'reset'. Tag TETAP terpasang.
- *  - Keduanya melupakan jejak sementara (dedupe/kehadiran/penolakan) agar pembacaan berikutnya diproses
+ *  - Bebaskan tag  : (pakai ulang) melepas tag dari batch bila masih terpasang LALU menandai UID "baru lagi" lewat
+ *                    peristiwa 'cleared'. Riwayat tidak dihapus; pemeriksaan "tag bekas" hanya menghitung jejak sesudahnya.
+ *  - Semuanya melupakan jejak sementara (dedupe/kehadiran/penolakan) agar pembacaan berikutnya diproses
  *    seperti pertama kali, tanpa menunggu jendela cache habis.
  */
 class RfidTagService
@@ -99,6 +102,77 @@ class RfidTagService
         return ['uid' => $uid, 'batch_id' => $owner->id, 'batch_code' => $owner->batch_code];
     }
 
+    // ─── Bebaskan tag (pakai ulang) ───────────────────────────────────────
+
+    /**
+     * Satu langkah untuk memakai ulang tag fisik: lepas dari batch lama bila masih terpasang, lalu tandai UID "baru lagi".
+     * Tag milik perusahaan lain diperlakukan seperti tag asing (tidak disentuh, tanpa rincian lintas tenant).
+     *
+     * @return array{uid:string, was_attached:bool, released_from:?string}
+     *
+     * @throws \DomainException invalid_uid | tag_foreign
+     */
+    public function freeForReuse(int $companyId, string $rawUid, ?User $user, ?string $note = null): array
+    {
+        $uid = $this->rfid->sanitizeUid($rawUid);
+        if ($uid === '') {
+            throw new \DomainException('invalid_uid');
+        }
+
+        $result = DB::transaction(function () use ($companyId, $uid, $user, $note) {
+            $owner = Batch::withTrashed()->where('rfid_tag', $uid)->lockForUpdate()->first();
+            if ($owner && (int) $owner->company_id !== $companyId) {
+                throw new \DomainException('tag_foreign');
+            }
+
+            $releasedFrom = null;
+            if ($owner) {
+                $owner->update(['rfid_tag' => null]);
+                RfidTagEvent::create([
+                    'company_id'   => $companyId,
+                    'batch_id'     => $owner->id,
+                    'uid'          => $uid,
+                    'event'        => 'released',
+                    'reason'       => RfidTagEvent::REASON_REUSE,
+                    'note'         => $note ? mb_substr($note, 0, 255) : null,
+                    'performed_by' => $user?->id,
+                ]);
+                $releasedFrom = $owner->batch_code;
+            }
+
+            $this->markFresh($companyId, $uid, $user?->id, $note, $owner?->id);
+
+            Log::info("RFID tag DIBEBASKAN (pakai ulang): UID {$uid}" . ($releasedFrom ? " dari batch {$releasedFrom}" : '') . ' oleh user_id=' . ($user?->id ?? '-'));
+
+            return ['uid' => $uid, 'was_attached' => (bool) $owner, 'released_from' => $releasedFrom];
+        });
+
+        $this->scans->forgetUid($companyId, $uid);
+
+        return $result;
+    }
+
+    /**
+     * Tandai UID "baru lagi" TANPA melepas tag dari batch (pemanggil memastikan tidak ada pemilik hidup).
+     * Dipakai alur antrean tag baru Receiving & Wet saat operator memilih memakai ulang tag bekas.
+     */
+    public function markFresh(int $companyId, string $uid, ?int $userId, ?string $note = null, ?int $batchId = null): void
+    {
+        RfidTagEvent::create([
+            'company_id'            => $companyId,
+            'batch_id'              => $batchId,
+            'uid'                   => $uid,
+            'event'                 => RfidTagEvent::EVENT_CLEARED,
+            'reason'                => RfidTagEvent::REASON_REUSE,
+            'note'                  => $note ? mb_substr($note, 0, 255) : null,
+            'performed_by'          => $userId,
+            // Batas id: jejak dengan id <= batas ini dianggap sudah "lunas" (lihat PoolService::uidHasHistory).
+            'barrier_checkpoint_id' => (int) Checkpoint::where('company_id', $companyId)->where('rfid_scan_code', $uid)->max('id'),
+            'barrier_pool_input_id' => (int) BatchPoolInput::where('released_rfid_tag', $uid)
+                ->whereHas('pool', fn ($q) => $q->where('company_id', $companyId))->max('id'),
+        ]);
+    }
+
     // ─── Lihat status tag ─────────────────────────────────────────────────
 
     /**
@@ -117,7 +191,7 @@ class RfidTagService
 
         $out = [
             'uid' => $uid, 'state' => 'free', 'batch' => null,
-            'scans' => 0, 'last_scan_at' => null, 'reset' => null, 'history' => [],
+            'scans' => 0, 'last_scan_at' => null, 'reset' => null, 'history' => [], 'fresh' => null,
         ];
 
         if ($owner && $owner->company_id !== $companyId) {
@@ -126,6 +200,8 @@ class RfidTagService
             return $out;
         }
 
+        // fresh = UID dianggap baru oleh antrean tag baru Receiving & Wet dan drum keluar Wet/Dry (tanpa "Tag bekas").
+        $out['fresh']   = ! app(\App\Services\Process\PoolService::class)->uidHasHistory($companyId, $uid);
         $out['history'] = $this->uidHistory($companyId, $uid, 6);
         if (! $owner) {
             return $out;

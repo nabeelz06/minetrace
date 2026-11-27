@@ -7,10 +7,11 @@ export function formatTime(iso, lang = 'id') {
     return new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'id-ID', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(iso))
 }
 
+/** Tanggal + jam WIB sampai DETIK (penelusuran kronologis): "27 Nov, 09.40.12". */
 export function formatDateTime(iso, lang = 'id') {
     if (!iso) return '—'
     return new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'id-ID', {
-        timeZone: TZ, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+        timeZone: TZ, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
     }).format(new Date(iso))
 }
 

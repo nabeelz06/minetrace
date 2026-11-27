@@ -39,6 +39,8 @@ final class RfidApi
         'tag_none'                 => ['Batch ini tidak memiliki tag.', 'This batch has no tag.'],
         'tag_released'             => ['Tag dilepas dari batch.', 'Tag released from the batch.'],
         'tag_free'                 => ['Tag ini tidak terpasang pada batch mana pun.', 'This tag is not attached to any batch.'],
+        'tag_reuse_ready'          => ['Tag dibebaskan. Tempel tag ini ke wadah baru; sistem akan memperlakukannya sebagai tag baru.', 'Tag freed. Attach it to a new container; the system will treat it as a new tag.'],
+        'uid_invalid'              => ['UID tag kosong atau tidak valid.', 'The tag UID is empty or invalid.'],
         'tag_reset'                => ['Jejak tag dibersihkan. Tag tetap terpasang dan siap dites ulang.', 'Tag history cleared. The tag stays attached and is ready to test again.'],
         'reset_disabled'           => ['Reset uji dinonaktifkan di sistem ini (RFID_TEST_RESET_ENABLED).', 'Test reset is disabled on this system (RFID_TEST_RESET_ENABLED).'],
         'reset_batch_closed'       => ['Batch ini sudah ditutup (diekspor/terminal) dan tidak dapat direset.', 'This batch is closed (exported/terminal) and cannot be reset.'],

@@ -20,7 +20,7 @@ class NewTagQueue
     private const MAX_ENTRIES = 30;
 
     /** Tambah atau perbarui UID (pembacaan berulang hanya memperbarui waktu terakhir terbaca). */
-    public function add(int $companyId, string $uid, ?int $readerId = null, ?int $rssi = null): void
+    public function add(int $companyId, string $uid, ?int $readerId = null, ?int $rssi = null, bool $recycled = false): void
     {
         $list = $this->fresh($companyId);
         $now = now()->toIso8601String();
@@ -32,13 +32,15 @@ class NewTagQueue
             'reads'      => ($list[$uid]['reads'] ?? 0) + 1,
             'reader_id'  => $readerId ?? ($list[$uid]['reader_id'] ?? null),
             'rssi'       => $rssi ?? ($list[$uid]['rssi'] ?? null),
+            // Tag bekas: operator boleh memilih memakainya ulang (RfidTagService::markFresh dijalankan saat memilih).
+            'recycled'   => $recycled,
         ];
 
         uasort($list, fn ($a, $b) => strcmp($b['last_seen'], $a['last_seen']));
         $this->save($companyId, array_slice($list, 0, self::MAX_ENTRIES, true));
     }
 
-    /** @return list<array{uid:string,first_seen:string,last_seen:string,reads:int,reader_id:?int,rssi:?int}> */
+    /** @return list<array{uid:string,first_seen:string,last_seen:string,reads:int,reader_id:?int,rssi:?int,recycled?:bool}> */
     public function list(int $companyId): array
     {
         return array_values($this->fresh($companyId));

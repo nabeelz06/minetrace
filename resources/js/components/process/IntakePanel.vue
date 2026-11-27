@@ -5,7 +5,9 @@
  */
 import { ref, computed } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
+import AppIcon from '@/components/app/AppIcon.vue'
 import WeightDisplay from '@/components/shared/WeightDisplay.vue'
+import WeightVerifyDialog from '@/components/process/WeightVerifyDialog.vue'
 import { useI18n } from '@/composables/core/useI18n.js'
 
 const props = defineProps({
@@ -17,17 +19,12 @@ const props = defineProps({
 const { lang } = useI18n()
 const en = computed(() => lang.value === 'en')
 
-const busy    = ref(false)
-const weights = ref({})
-const sn      = ref({})
+const busy = ref(false)
 
-function submitIntake(b) {
-    busy.value = true
-    router.post(`/company/process/receiving/intake/${b.id}`, { weight: weights.value[b.id], sn_grade_pct: sn.value[b.id] }, {
-        preserveScroll: true,
-        onFinish: () => { busy.value = false },
-    })
-}
+// Timbang & kadar Sn lewat popup (WeightVerifyDialog mode "intake"): berat terisi berat tercatat, selisih tampil langsung.
+const dialogOpen   = ref(false)
+const dialogBatch  = ref(null)
+function openIntake(b) { dialogBatch.value = b; dialogOpen.value = true }
 
 function receiveIntoWet(b) {
     busy.value = true
@@ -60,22 +57,20 @@ function receiveIntoWet(b) {
                 <div class="min-w-0 flex-1">
                     <Link :href="`/company/batches/${b.id}`" class="font-mono text-xs font-bold hover:text-primary">{{ b.batch_code }}</Link>
                     <p class="text-xs text-muted-foreground">
-                        {{ b.container_label }} · {{ b.rfid_tag ?? '—' }} · Lab: <WeightDisplay :kg="b.current_weight" size="xs"/>
+                        {{ b.container_label }} · {{ b.rfid_tag ?? '—' }} · {{ en ? 'Recorded' : 'Tercatat' }}: <WeightDisplay :kg="b.current_weight" size="xs"/>
+                    </p>
+                    <p v-if="b.partner_name || b.lot_number || b.origin_location" class="text-xs text-muted-foreground">
+                        <span v-if="b.partner_name">{{ b.partner_name }}</span>
+                        <span v-if="b.lot_number" class="font-mono"> · {{ b.lot_number }}</span>
+                        <span v-if="b.origin_location"> · {{ b.origin_location }}</span>
                     </p>
                 </div>
-                <form v-if="canOperate" class="flex items-center gap-2" @submit.prevent="submitIntake(b)">
-                    <input v-model="weights[b.id]" type="number" step="0.001" min="0.001"
-                           :placeholder="en ? 'Weight (kg)' : 'Berat (kg)'"
-                           class="h-8 px-3 rounded-lg border border-border bg-background text-xs w-28"/>
-                    <input v-model="sn[b.id]" type="number" step="0.001" min="0" max="100"
-                           :placeholder="en ? 'Sn grade (%)' : 'Kadar Sn (%)'"
-                           class="h-8 px-3 rounded-lg border border-border bg-background text-xs w-28"/>
-                    <button type="submit" :disabled="busy || !weights[b.id] || sn[b.id] === undefined || sn[b.id] === ''"
-                            class="px-3 h-8 rounded-lg text-xs font-bold text-white disabled:opacity-50"
-                            style="background:hsl(var(--primary))">
-                        {{ en ? 'Save & pour to Wet' : 'Simpan & tuang ke Wet' }}
-                    </button>
-                </form>
+                <button v-if="canOperate" type="button" :disabled="busy" @click="openIntake(b)"
+                        class="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold text-white disabled:opacity-50"
+                        style="background:hsl(var(--primary))">
+                    <AppIcon name="scale" :size="14" />
+                    {{ en ? 'Weigh & Sn grade' : 'Timbang & kadar Sn' }}
+                </button>
             </div>
 
             <div v-for="b in legacyToWet" :key="`l-${b.id}`" class="px-5 py-3 flex items-center gap-3">
@@ -92,5 +87,7 @@ function receiveIntoWet(b) {
                 </button>
             </div>
         </div>
+
+        <WeightVerifyDialog v-model:open="dialogOpen" mode="intake" :batch="dialogBatch" />
     </div>
 </template>

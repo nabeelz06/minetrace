@@ -25,6 +25,7 @@ const toast = inject('toast', null)
 const props = defineProps({
     productCodes: Array,
     locations:    Array,
+    origin_locations: { type: Array, default: () => [] },   // saran lokasi asal kiriman (config/batch.php)
     user_name:    String,
     user_role:    String,
     timestamp_now:String,
@@ -38,6 +39,11 @@ const form = useForm({
     location_id:     '',
     initial_weight:  '',
     notes:           '',
+    // Data mitra PT Timah (opsional; bisa dilengkapi nanti dari detail batch)
+    partner_name:      '',
+    lot_number:        '',
+    origin_location:   '',
+    partner_signatory: '',
 })
 
 const selectedProduct = computed(() =>
@@ -271,6 +277,44 @@ function submit() {
                     </p>
                 </div>
 
+                <!-- ─── Data Mitra (opsional) ──────────────────────── -->
+                <fieldset class="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+                    <legend class="px-1 text-sm font-semibold text-foreground">
+                        {{ t('batch.partner.title') }}
+                        <span class="ml-1 font-normal text-muted-foreground">({{ lang === 'en' ? 'optional' : 'opsional' }})</span>
+                    </legend>
+                    <p class="text-xs text-muted-foreground">{{ t('batch.partner.subtitle') }}</p>
+
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div class="space-y-1">
+                            <label for="cb-partner" class="block text-sm font-medium">{{ t('batch.partner.name') }}</label>
+                            <input id="cb-partner" v-model="form.partner_name" maxlength="120" autocomplete="off" :placeholder="t('batch.partner.name_ph')"
+                                   class="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                            <p v-if="form.errors.partner_name" class="text-xs text-danger">{{ form.errors.partner_name }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label for="cb-lot" class="block text-sm font-medium">{{ t('batch.partner.lot') }}</label>
+                            <input id="cb-lot" v-model="form.lot_number" maxlength="80" autocomplete="off" :placeholder="t('batch.partner.lot_ph')"
+                                   class="h-11 w-full rounded-xl border bg-background px-3 font-mono text-sm focus:ring-2 focus:ring-primary/20"
+                                   :class="form.errors.lot_number ? 'border-danger/40' : 'border-input focus:border-primary'" />
+                            <p v-if="form.errors.lot_number" class="text-xs text-danger">{{ form.errors.lot_number }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label for="cb-origin" class="block text-sm font-medium">{{ t('batch.partner.origin') }}</label>
+                            <input id="cb-origin" v-model="form.origin_location" maxlength="120" autocomplete="off" list="cb-origin-list" :placeholder="t('batch.partner.origin_ph')"
+                                   class="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                            <datalist id="cb-origin-list"><option v-for="o in origin_locations" :key="o" :value="o" /></datalist>
+                            <p v-if="form.errors.origin_location" class="text-xs text-danger">{{ form.errors.origin_location }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label for="cb-sign" class="block text-sm font-medium">{{ t('batch.partner.signatory') }}</label>
+                            <input id="cb-sign" v-model="form.partner_signatory" maxlength="120" autocomplete="off" :placeholder="t('batch.partner.signatory_ph')"
+                                   class="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                            <p v-if="form.errors.partner_signatory" class="text-xs text-danger">{{ form.errors.partner_signatory }}</p>
+                        </div>
+                    </div>
+                </fieldset>
+
                 <!-- Tag RFID: satu jalur registrasi (halaman RFID / tombol "Daftarkan Tag" di detail batch) -->
                 <div class="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-3 text-sm">
                     <AppIcon name="tag" :size="20" class="mt-0.5 flex-shrink-0 text-muted-foreground" />
@@ -308,10 +352,10 @@ function submit() {
                                 {{ lang === 'en' ? 'Batch Code Format' : 'Format Kode Batch' }}
                             </p>
                             <p class="text-xs font-mono font-bold text-foreground mt-1">
-                                B-YYYYMMDD-XXX
+                                TMH.SGT-LK.MIK-DDMMYY-001
                             </p>
                             <p class="text-xs text-muted-foreground mt-0.5">
-                                {{ lang === 'en' ? 'Unique per day, sequential' : 'Unik per hari, sekuensial' }}
+                                {{ lang === 'en' ? 'Day-month-year (WIB), sequential per day' : 'Tanggal-bulan-tahun (WIB), berurut per hari' }}
                             </p>
                         </div>
                         <div>

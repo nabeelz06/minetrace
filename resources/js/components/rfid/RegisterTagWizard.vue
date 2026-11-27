@@ -19,6 +19,7 @@ import ResultBanner from '@/components/app/ResultBanner.vue'
 import ConfirmDialog from '@/components/app/ConfirmDialog.vue'
 import BatchPicker from '@/components/rfid/BatchPicker.vue'
 import UhfDesktopPanel from '@/components/rfid/UhfDesktopPanel.vue'
+import WeightVerifyDialog from '@/components/process/WeightVerifyDialog.vue'
 import { rfidApi, useApiText } from '@/composables/rfid/useRfidApi.js'
 import { pushToast } from '@/composables/core/useToast.js'
 import { usePolling } from '@/composables/core/usePolling.js'
@@ -60,6 +61,14 @@ const result = ref(null)          // { type: 'success'|'error'|'expired', title,
 const resultRef = ref(null)
 const manualRef = ref(null)
 const lastAttempt = ref(null)     // percobaan tap terakhir yang GAGAL pada sesi aktif (dari server)
+
+// Setelah tag terdaftar: timbang ulang batch itu lewat popup (menyamakan berat sistem dengan timbangan nyata).
+const weighOpen = ref(false)
+const weighBatch = computed(() => batch.value ? {
+    id: batch.value.id, batch_code: batch.value.batch_code, current_weight: batch.value.weight_kg,
+    initial_weight: batch.value.initial_weight, lot_number: batch.value.lot_number,
+    partner_name: batch.value.partner_name, partner_signatory: batch.value.partner_signatory,
+} : null)
 
 // Reader terpilih (atau semua reader aktif bila "mana pun") tidak online → tap tidak akan terbaca: beri tahu sebelum menunggu.
 const readerWarning = computed(() => {
@@ -335,11 +344,16 @@ const steps = [1, 2, 3]
                 <Link v-if="batch" :href="`/company/batches/${batch.id}`" class="inline-flex min-h-[52px] items-center gap-2 rounded-xl border border-input px-6 text-base font-semibold hover:bg-accent">
                     <AppIcon name="external-link" :size="18" />{{ t('rfid.reg.view_batch') }}
                 </Link>
+                <button v-if="result.type === 'success' && batch?.can_verify_weight && canOperate" type="button" class="inline-flex min-h-[52px] items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-6 text-base font-semibold text-primary hover:bg-primary/10" @click="weighOpen = true">
+                    <AppIcon name="scale" :size="18" />{{ t('batch.verify.cta_after_tag') }}
+                </button>
                 <button v-if="result.type === 'success' && result.uid && canOperate" type="button" class="inline-flex min-h-[52px] items-center gap-2 rounded-xl px-4 text-base font-medium text-muted-foreground hover:bg-accent hover:text-foreground" @click="emit('manage-uid', result.uid)">
                     <AppIcon name="unlink" :size="18" />{{ t('rfid.reg.attempt_manage') }}
                 </button>
             </div>
         </div>
+
+        <WeightVerifyDialog v-model:open="weighOpen" mode="verify" :batch="weighBatch" />
 
         <ConfirmDialog v-model:open="releaseOpen" :loading="releasing"
                        :title="t('rfid.tagmgr.release_title', { batch: lastAttempt?.owner?.batch_code ?? '' })"

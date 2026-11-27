@@ -380,8 +380,9 @@ class TagLifecycleTest extends TestCase
         $this->scan('in', 'dry_process')->assertOk()->assertJsonPath('data.transition_state', 'moved');
         $this->assertSame(['dry_process', 'in_process', null], [$batch->fresh()->process_stage, $batch->fresh()->status, $batch->fresh()->rfid_tag]);
 
-        // Dry menghimpun: tag dilepas saat diterima, jadi pembacaan ulang menjadi tag asing.
+        // Dry menghimpun: tag dilepas saat diterima. Pembacaan ulang dikenali sebagai tag bekas (punya riwayat),
+        // bukan drum produk baru — operator memakainya ulang lewat "Pakai ulang" bila memang dipakai kembali.
         $this->travel(10)->seconds();
-        $this->scan('in', 'dry_process')->assertStatus(422)->assertJson(['code' => 'tag_unknown']);
+        $this->scan('in', 'dry_process')->assertStatus(422)->assertJson(['code' => 'tag_recycled']);
     }
 }

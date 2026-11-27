@@ -232,6 +232,12 @@ class UhfGateChainTest extends TestCase
         $dry = $pools->createOutputDrum($this->company->id, 'dry_process', $dryUid, $this->admin->id)['batch'];
         $zir = ProductCode::where('company_id', $this->company->id)->where('code', 'ZIR')->firstOrFail();
         $pools->recordDrumWeight($dry, 400, $zir->id, $this->admin->id);
+        // Himpunan Dry wajib mengeluarkan 3 drum produk (MON, ZIR, ILM) sebelum "Selesai himpunan".
+        foreach (['MON' => 'E28068940000502FBF2415AB', 'ILM' => 'E28068940000502FBF2415AC'] as $code => $uid) {
+            $product = ProductCode::where('company_id', $this->company->id)->where('code', $code)->firstOrFail();
+            $extra = $pools->createOutputDrum($this->company->id, 'dry_process', $uid, $this->admin->id)['batch'];
+            $pools->recordDrumWeight($extra, 300, $product->id, $this->admin->id);
+        }
         $pools->closeDryPool($dry->pool, $this->admin->id);
 
         $log = $this->tap($gate, 'warehouse', $dryUid);

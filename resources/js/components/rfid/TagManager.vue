@@ -110,7 +110,9 @@ async function onDone({ mode, uid, data }) {
         type: 'success',
         text: mode === 'reset'
             ? t(data.rewound ? 'rfid.tagmgr.reset_done_rewind' : 'rfid.tagmgr.reset_done', { n: data.voided, uid: formatUidShort(uid) })
-            : t('rfid.tagmgr.released_done', { uid: formatUidShort(uid), batch: data.batch_code }),
+            : mode === 'reuse'
+                ? t('rfid.tagmgr.reuse_done', { uid: formatUidShort(uid) })
+                : t('rfid.tagmgr.released_done', { uid: formatUidShort(uid), batch: data.batch_code }),
     }
     await Promise.all([check(uid, { scroll: false }), loadRecent()])
 }
@@ -119,6 +121,9 @@ const state = computed(() => looked.value?.state ?? null)
 const batch = computed(() => looked.value?.batch ?? null)
 const plan = computed(() => looked.value?.reset ?? null)
 const canRelease = computed(() => props.canOperate && ['bound', 'archived'].includes(state.value))
+// Tag bebas yang pernah dipakai ("bekas") tetap ditolak sebagai tag baru sampai dibebaskan; tag terpasang bisa dibebaskan sekaligus.
+const isUsed = computed(() => state.value === 'free' && looked.value?.fresh === false)
+const canReuse = computed(() => props.canOperate && (canRelease.value || isUsed.value))
 
 // Alasan reset uji tidak tersedia (null = boleh). Selalu diberi penjelasan agar tombol mati tidak membingungkan.
 const resetBlocked = computed(() => {
@@ -169,6 +174,9 @@ onMounted(() => {
                             <div class="min-w-0">
                                 <p class="break-all font-mono text-base font-semibold" :title="looked.uid">{{ formatUidGrouped(looked.uid) }}</p>
                                 <p v-if="state === 'free'" class="mt-1 text-sm text-muted-foreground">{{ t('rfid.tagmgr.free_desc') }}</p>
+                                <p v-if="state === 'free'" class="mt-1 text-sm" :class="isUsed ? 'font-medium text-warning' : 'text-muted-foreground'">
+                                    {{ isUsed ? t('rfid.tagmgr.used_desc') : t('rfid.tagmgr.fresh_desc') }}
+                                </p>
                                 <p v-else-if="state === 'foreign'" class="mt-1 text-sm text-muted-foreground">{{ t('rfid.tagmgr.foreign_desc') }}</p>
                                 <p v-else-if="state === 'archived'" class="mt-1 text-sm text-warning">{{ t('rfid.tagmgr.archived_desc') }}</p>
                             </div>
@@ -201,9 +209,12 @@ onMounted(() => {
                         </dl>
 
                         <!-- Tindakan: selalu terlihat; bila tidak tersedia, alasannya dijelaskan -->
-                        <div v-if="state === 'free' && canOperate" class="border-t border-border pt-4">
+                        <div v-if="state === 'free' && canOperate" class="flex flex-wrap items-center gap-2 border-t border-border pt-4">
                             <button type="button" class="inline-flex min-h-[48px] items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90" @click="emit('register-uid', looked.uid)">
                                 <AppIcon name="tag" :size="18" />{{ t('rfid.tagmgr.register_this') }}
+                            </button>
+                            <button v-if="isUsed" type="button" class="inline-flex min-h-[48px] items-center gap-2 rounded-lg border border-input px-4 text-sm font-semibold hover:bg-accent" @click="openAction('reuse')">
+                                <AppIcon name="recycle" :size="18" />{{ t('rfid.tagmgr.reuse') }}
                             </button>
                         </div>
 
@@ -223,6 +234,13 @@ onMounted(() => {
                                 </button>
                                 <p class="text-sm text-muted-foreground">{{ t('rfid.tagmgr.release_hint') }}</p>
                             </div>
+
+                            <div v-if="canReuse && canRelease" class="space-y-1.5">
+                                <button type="button" class="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary hover:bg-primary/10 sm:w-auto" @click="openAction('reuse')">
+                                    <AppIcon name="recycle" :size="18" />{{ t('rfid.tagmgr.reuse') }}
+                                </button>
+                                <p class="text-sm text-muted-foreground">{{ t('rfid.tagmgr.reuse_hint') }}</p>
+                            </div>
                         </div>
 
                         <!-- Riwayat singkat tag ini (lintas batch) -->
@@ -230,7 +248,7 @@ onMounted(() => {
                             <h3 class="mb-2 text-sm font-semibold">{{ t('rfid.tagmgr.history') }}</h3>
                             <ul v-if="looked.history?.length" class="space-y-1.5 text-sm">
                                 <li v-for="h in looked.history" :key="h.id" class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                    <span class="font-semibold" :class="h.event === 'released' ? 'text-warning' : 'text-success'">{{ t(`rfid.tagmgr.ev_${h.event}`) }}</span>
+                                    <span class="font-semibold" :class="h.event === 'released' ? 'text-warning' : h.event === 'cleared' ? 'text-primary' : 'text-success'">{{ t(`rfid.tagmgr.ev_${h.event}`) }}</span>
                                     <span v-if="h.batch_code" class="text-muted-foreground">{{ t('rfid.tagmgr.in_batch', { batch: h.batch_code }) }}</span>
                                     <span v-if="h.reason" class="text-muted-foreground">· {{ t(`rfid.tag.reason_${h.reason}`) }}</span>
                                     <span class="text-muted-foreground">· {{ formatDateTime(h.at, lang) }}<template v-if="h.by"> · {{ h.by }}</template></span>

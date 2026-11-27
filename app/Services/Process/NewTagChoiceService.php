@@ -13,6 +13,7 @@ use App\Services\Batch\QrCodeService;
 use App\Services\Hardware\NewTagQueue;
 use App\Services\Hardware\RfidScanService;
 use App\Services\Hardware\RfidService;
+use App\Services\Hardware\RfidTagService;
 use App\Support\ProcessFlow;
 use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -25,6 +26,10 @@ use Illuminate\Support\Facades\Log;
  *                    Receiving sebagai drum besi. Bila kadar Sn sudah ada, isi langsung dituang ke Wet (IntakeService);
  *                    bila belum, batch menunggu di "timbang & kadar Sn".
  *  - asWetOutput() : container hasil proses Wet (PoolService::createOutputDrum).
+ *
+ * Tag BEKAS (pernah dipakai) hanya diterima bila operator memilih "Pakai ulang" ($reuse = true) dan tag itu tidak
+ * lagi terpasang pada batch mana pun. Pilihan itu menulis peristiwa 'cleared' (RfidTagService::markFresh) dalam
+ * transaksi yang sama dengan pembuatan batch/container, sehingga gagal = tidak ada yang berubah.
  */
 class NewTagChoiceService
 {
@@ -39,10 +44,21 @@ class NewTagChoiceService
     ) {}
 
     /** @return array{ok:bool, code:string, message:string, batch?:Batch} */
-    public function asWetOutput(int $companyId, string $rawUid, ?int $userId): array
+    public function asWetOutput(int $companyId, string $rawUid, ?int $userId, bool $reuse = false): array
     {
         $uid = $this->rfid->sanitizeUid($rawUid);
-        $r = $this->pools->createOutputDrum($companyId, 'wet_process', $uid, $userId, 'web');
+
+        DB::beginTransaction();
+        try {
+            if ($reuse && $uid !== '') {
+                $this->freshenForReuse($companyId, $uid, $userId);
+            }
+            $r = $this->pools->createOutputDrum($companyId, 'wet_process', $uid, $userId, 'web');
+            $r['ok'] ? DB::commit() : DB::rollBack();   // gagal → tanda "bebas" ikut dibatalkan
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
 
         if ($r['ok'] || in_array($r['code'], ['tag_in_use', 'tag_recycled', 'invalid_uid'], true)) {
             $this->queue->remove($companyId, $uid);   // pilihan selesai atau tag memang tidak bisa dipakai
@@ -51,7 +67,7 @@ class NewTagChoiceService
     }
 
     /** @return array{ok:bool, code:string, message:string, batch?:Batch} */
-    public function asNewBatch(int $companyId, string $rawUid, int $productCodeId, float $weight, ?float $snPct, ?int $userId): array
+    public function asNewBatch(int $companyId, string $rawUid, int $productCodeId, float $weight, ?float $snPct, ?int $userId, bool $reuse = false): array
     {
         $uid = $this->rfid->sanitizeUid($rawUid);
         if ($uid === '') {
@@ -68,10 +84,10 @@ class NewTagChoiceService
 
             return $this->fail('tag_in_use', "Tag {$uid} sudah dipakai. Gunakan tag lain.");
         }
-        if ($this->pools->uidHasHistory($companyId, $uid)) {
+        if (! $reuse && $this->pools->uidHasHistory($companyId, $uid)) {
             $this->queue->remove($companyId, $uid);
 
-            return $this->fail('tag_recycled', 'Tag bekas — gunakan tag baru.');
+            return $this->fail('tag_recycled', 'Tag bekas — pilih "Pakai ulang" atau gunakan tag baru.');
         }
 
         $product = ProductCode::where('company_id', $companyId)->find($productCodeId);
@@ -84,7 +100,13 @@ class NewTagChoiceService
         }
 
         try {
-            $batch = DB::transaction(fn () => $this->createAtReceiving($companyId, $uid, $product, $location, $weight, $userId));
+            $batch = DB::transaction(function () use ($companyId, $uid, $product, $location, $weight, $userId, $reuse) {
+                if ($reuse) {
+                    $this->freshenForReuse($companyId, $uid, $userId);
+                }
+
+                return $this->createAtReceiving($companyId, $uid, $product, $location, $weight, $userId);
+            });
         } catch (UniqueConstraintViolationException) {
             return $this->fail('tag_in_use', "Tag {$uid} sudah dipakai. Gunakan tag lain.");
         }
@@ -110,6 +132,19 @@ class NewTagChoiceService
             'ok' => true, 'code' => 'new_batch_poured', 'batch' => $batch,
             'message' => "Batch {$batch->batch_code} dibuat ({$weight} kg, kadar Sn {$snPct}%) dan masuk himpunan Wet.",
         ];
+    }
+
+    /**
+     * Tag bekas yang dipilih operator untuk dipakai ulang: tulis 'cleared' agar uidHasHistory() menganggapnya baru.
+     * Tag yang masih terpasang pada batch (milik siapa pun) tidak disentuh — dilepas dulu lewat "Bebaskan tag".
+     */
+    private function freshenForReuse(int $companyId, string $uid, ?int $userId): void
+    {
+        if (Batch::withTrashed()->where('rfid_tag', $uid)->exists() || ! $this->pools->uidHasHistory($companyId, $uid)) {
+            return;
+        }
+
+        app(RfidTagService::class)->markFresh($companyId, $uid, $userId, 'Dipakai ulang dari antrean tag baru Receiving & Wet');
     }
 
     private function createAtReceiving(int $companyId, string $uid, ProductCode $product, Location $location, float $weight, ?int $userId): Batch

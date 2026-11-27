@@ -58,7 +58,7 @@ class RfidTagController extends Controller
                 ->orWhere('rfid_tag', 'ILIKE', strtoupper(str_replace([' ', ':', '-'], '', $q)) . '%')))
             ->latest('id')
             ->limit($limit)
-            ->get(['id', 'batch_code', 'product_code_id', 'process_stage', 'status', 'rfid_tag', 'current_weight']);
+            ->get(['id', 'batch_code', 'lot_number', 'product_code_id', 'process_stage', 'status', 'rfid_tag', 'initial_weight', 'current_weight', 'metadata']);
 
         return RfidApi::ok('ok', $rows->map(fn (Batch $b) => [
             'id'           => $b->id,
@@ -69,6 +69,12 @@ class RfidTagController extends Controller
             'status'       => $b->status,
             'rfid_tag'     => $b->rfid_tag,
             'weight_kg'    => (float) $b->current_weight,
+            // Konteks popup "timbang ulang" setelah tag terdaftar (Lab Kimia / Receiving, belum dihimpun).
+            'initial_weight'    => (float) $b->initial_weight,
+            'lot_number'        => $b->lot_number,
+            'partner_name'      => $b->metadata['partner_name'] ?? null,
+            'partner_signatory' => $b->metadata['partner_signatory'] ?? null,
+            'can_verify_weight' => \App\Services\Process\WeightVerificationService::canVerify($b),
         ])->all());
     }
 
@@ -103,6 +109,25 @@ class RfidTagController extends Controller
         }
 
         return RfidApi::ok('tag_released', $r + ['released_uid' => $r['uid']]);
+    }
+
+    /**
+     * POST tags/reuse — "Bebaskan tag": lepas dari batch lama (bila masih terpasang) dan tandai UID baru lagi agar
+     * tag fisik yang sama bisa dipakai ulang di Receiving & Wet, Wet, Dry, maupun registrasi (rfid.operate).
+     */
+    public function reuse(TagUidRequest $request): JsonResponse
+    {
+        Gate::authorize('rfid.operate');
+
+        try {
+            $r = $this->tags->freeForReuse(
+                $request->user()->company_id, $request->string('uid')->toString(), $request->user(), $request->input('note'),
+            );
+        } catch (\DomainException $e) {
+            return $e->getMessage() === 'invalid_uid' ? RfidApi::fail('uid_invalid') : RfidApi::fail('tag_in_use');
+        }
+
+        return RfidApi::ok('tag_reuse_ready', $r + ['released_uid' => $r['was_attached'] ? $r['uid'] : null]);
     }
 
     /** POST tags/reset — reset uji (rfid.manage + config rfid.test_reset_enabled). */

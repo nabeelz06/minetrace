@@ -115,7 +115,9 @@ const nextUrl = computed(() => props.batches?.next_page_url)
                     <AppIcon v-if="row.has_discrepancy" name="triangle-alert" :size="16" class="flex-shrink-0 text-danger" :label="t('batchlist.discrepancy')" />
                     <div class="min-w-0">
                         <Link :href="`/company/batches/${row.id}`" class="block truncate font-mono text-sm font-semibold text-primary underline-offset-2 hover:underline">{{ row.batch_code }}</Link>
-                        <span v-if="row.lot_number" class="block font-mono text-xs text-muted-foreground">{{ row.lot_number }}</span>
+                        <span v-if="row.lot_number || row.partner_name" class="block truncate text-xs text-muted-foreground">
+                            <span v-if="row.partner_name">{{ row.partner_name }}</span><span v-if="row.partner_name && row.lot_number"> · </span><span v-if="row.lot_number" class="font-mono">{{ row.lot_number }}</span>
+                        </span>
                     </div>
                 </div>
             </template>

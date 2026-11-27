@@ -8,6 +8,7 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { router } from '@inertiajs/vue3'
+import AppIcon from '@/components/app/AppIcon.vue'
 import { useI18n } from '@/composables/core/useI18n.js'
 
 const props = defineProps({
@@ -44,6 +45,7 @@ function submitBatch(t) {
         product_code_id: form.value.product_code_id,
         weight: form.value.weight,
         sn_grade_pct: form.value.sn_grade_pct === '' ? null : form.value.sn_grade_pct,
+        reuse: !!t.recycled,   // tag bekas: memilih = memakainya ulang (server menandai tag sebagai baru lagi)
     }, {
         preserveScroll: true,
         onSuccess: () => { open.value = null },
@@ -53,7 +55,7 @@ function submitBatch(t) {
 
 function asWet(t) {
     busy.value = true
-    router.post(`/company/process/receiving/new-tags/${encodeURIComponent(t.uid)}/wet`, {}, {
+    router.post(`/company/process/receiving/new-tags/${encodeURIComponent(t.uid)}/wet`, { reuse: !!t.recycled }, {
         preserveScroll: true,
         onFinish: () => { busy.value = false },
     })
@@ -80,8 +82,8 @@ function dismiss(t) {
         </div>
         <p class="px-5 pt-3 text-xs text-muted-foreground">
             {{ en
-                ? 'Choose what each new tag is: a new batch of wet tin that just arrived, or a container out of Wet Process. Used tags are rejected automatically.'
-                : 'Pilih jenis tiap tag baru: batch baru timah basah yang baru datang, atau container hasil proses Wet. Tag bekas ditolak otomatis.' }}
+                ? 'Choose what each new tag is: a new batch of wet tin that just arrived, or a container out of Wet Process. Tags marked "Used" were used before — choosing one reuses it (its history is kept).'
+                : 'Pilih jenis tiap tag baru: batch baru timah basah yang baru datang, atau container hasil proses Wet. Tag bertanda "Bekas" pernah dipakai — memilihnya berarti memakai ulang (riwayat tetap tersimpan).' }}
         </p>
 
         <p v-if="!tags.length" class="px-5 py-4 text-xs text-muted-foreground">
@@ -92,7 +94,12 @@ function dismiss(t) {
             <div v-for="t in tags" :key="t.uid" class="px-5 py-3">
                 <div class="flex items-center gap-3 flex-wrap">
                     <div class="min-w-0 flex-1">
-                        <p class="font-mono text-xs font-bold">{{ t.uid }}</p>
+                        <p class="font-mono text-xs font-bold">
+                            {{ t.uid }}
+                            <span v-if="t.recycled" class="ml-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 align-middle font-sans text-[10px] font-bold bg-warning-soft text-warning">
+                                <AppIcon name="recycle" :size="11" />{{ en ? 'Used tag — will be reused' : 'Tag bekas — dipakai ulang' }}
+                            </span>
+                        </p>
                         <p class="text-xs text-muted-foreground">
                             {{ en ? 'Last read' : 'Terakhir terbaca' }} {{ t.last_seen }} · {{ t.reads }}× ·
                             {{ en ? `clears in ${t.expires_in_min} min` : `hilang dalam ${t.expires_in_min} menit` }}

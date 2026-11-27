@@ -1,6 +1,7 @@
 <script setup>
 /**
- * TagActionDialog — dialog aksi "Kelola Tag": Lepas tag (alasan baku + catatan) atau Reset uji (pratinjau dampak + catatan).
+ * TagActionDialog — dialog aksi "Kelola Tag": Lepas tag (alasan baku + catatan), Reset uji (pratinjau dampak + catatan),
+ * atau Bebaskan & pakai ulang (lepas + tandai baru lagi, untuk tag fisik yang dipakai berulang).
  *
  * Dialog tidak memutuskan apa pun: izin, pagar keamanan, dan audit ditegakkan server. Tugasnya menjelaskan dampak sebelum
  * tombol ditekan, menampilkan galat server dengan bahasa aktif, lalu memberi tahu induknya (`done`) agar data disegarkan.
@@ -16,7 +17,7 @@ import { formatUidShort } from '@/lib/format'
 
 const props = defineProps({
     open:   { type: Boolean, default: false },
-    mode:   { type: String, default: 'release' },   // release | reset
+    mode:   { type: String, default: 'release' },   // release | reset | reuse
     tag:    { type: Object, default: null },        // data hasil rfidApi.tagLookup
     stages: { type: Array, default: () => [] },
 })
@@ -36,6 +37,7 @@ const error = ref('')
 watch(() => props.open, o => { if (o) { reason.value = 'replaced'; note.value = ''; error.value = ''; loading.value = false } })
 
 const isReset = computed(() => props.mode === 'reset')
+const isReuse = computed(() => props.mode === 'reuse')
 const uidShort = computed(() => formatUidShort(props.tag?.uid))
 const batchCode = computed(() => props.tag?.batch?.batch_code ?? '')
 const plan = computed(() => props.tag?.reset ?? null)
@@ -51,7 +53,9 @@ async function submit() {
     loading.value = true; error.value = ''
     const res = isReset.value
         ? await rfidApi.resetTag({ uid: props.tag.uid, note: note.value || null })
-        : await rfidApi.releaseTagByUid({ uid: props.tag.uid, reason: reason.value, note: note.value || null })
+        : isReuse.value
+            ? await rfidApi.reuseTag({ uid: props.tag.uid, note: note.value || null })
+            : await rfidApi.releaseTagByUid({ uid: props.tag.uid, reason: reason.value, note: note.value || null })
     loading.value = false
     if (!res.ok) { error.value = apiText(res); return }
     emit('done', { mode: props.mode, uid: props.tag.uid, data: res.data })
@@ -64,10 +68,10 @@ async function submit() {
         <DialogContent class="max-w-md">
             <DialogHeader>
                 <DialogTitle class="text-lg">
-                    {{ isReset ? t('rfid.tagmgr.reset_title', { uid: uidShort }) : t('rfid.tagmgr.release_title', { batch: batchCode }) }}
+                    {{ isReset ? t('rfid.tagmgr.reset_title', { uid: uidShort }) : isReuse ? t('rfid.tagmgr.reuse_title', { uid: uidShort }) : t('rfid.tagmgr.release_title', { batch: batchCode }) }}
                 </DialogTitle>
                 <DialogDescription class="text-sm">
-                    {{ isReset ? t('rfid.tagmgr.reset_desc', { batch: batchCode }) : t('rfid.tagmgr.release_desc', { uid: uidShort }) }}
+                    {{ isReset ? t('rfid.tagmgr.reset_desc', { batch: batchCode }) : isReuse ? t('rfid.tagmgr.reuse_desc') : t('rfid.tagmgr.release_desc', { uid: uidShort }) }}
                 </DialogDescription>
             </DialogHeader>
 
@@ -89,7 +93,7 @@ async function submit() {
             </ul>
 
             <!-- Lepas tag: alasan baku (tercatat di riwayat tag) -->
-            <fieldset v-if="!isReset" class="space-y-2">
+            <fieldset v-if="!isReset && !isReuse" class="space-y-2">
                 <legend class="mb-1 text-sm font-medium">{{ t('rfid.tag.reason') }}</legend>
                 <label v-for="r in REASONS" :key="r" class="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border border-border px-3 hover:bg-accent">
                     <input v-model="reason" type="radio" :value="r" class="h-5 w-5 border-input text-primary" />{{ t(`rfid.tag.reason_${r}`) }}
@@ -109,9 +113,9 @@ async function submit() {
                 </button>
                 <button type="button" :disabled="loading"
                         class="min-h-[44px] rounded-lg px-4 text-sm font-semibold hover:opacity-90 disabled:opacity-60"
-                        :class="isReset ? 'bg-primary text-primary-foreground' : 'bg-danger text-background'"
+                        :class="isReset || isReuse ? 'bg-primary text-primary-foreground' : 'bg-danger text-background'"
                         @click="submit">
-                    {{ loading ? t('app.processing') : (isReset ? t('rfid.tagmgr.reset_confirm') : t('rfid.tag.confirm')) }}
+                    {{ loading ? t('app.processing') : (isReset ? t('rfid.tagmgr.reset_confirm') : isReuse ? t('rfid.tagmgr.reuse_confirm') : t('rfid.tag.confirm')) }}
                 </button>
             </DialogFooter>
         </DialogContent>

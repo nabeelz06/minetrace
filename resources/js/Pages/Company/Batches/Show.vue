@@ -6,13 +6,20 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import SnapshotGalleryCard from '@/components/shared/SnapshotGalleryCard.vue'
 
 import BatchTagCard from '@/components/rfid/BatchTagCard.vue'
+import WeightVerifyDialog from '@/components/process/WeightVerifyDialog.vue'
+import PartnerInfoCard from '@/components/batch/PartnerInfoCard.vue'
 import { useI18n } from '@/composables/core/useI18n.js'
 import { CCTV_UI } from '@/lib/features.js'
 
 const props = defineProps({
-    batch:    Object,
-    timeline: Array,
+    batch:            Object,
+    timeline:         Array,
+    can_actions:      { type: Object, default: () => ({}) },
+    origin_locations: { type: Array, default: () => [] },
 })
+
+// Popup "Verifikasi berat" (timbang ulang) — hanya untuk batch Lab Kimia/Receiving yang belum dihimpun.
+const verifyOpen = ref(false)
 
 const page = usePage()
 const can  = computed(() => page.props.can ?? {})
@@ -130,18 +137,19 @@ function formatDate(d) {
 
     const match = String(d).match(/^(\d{2})\/(\d{2})\/(\d{4})[ ,]+(\d{2}):(\d{2})(?::(\d{2}))?/)
     if (match) {
-        const [, day, month, year, hour, minute] = match
-        const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
+        const [, day, month, year, hour, minute, second] = match
+        const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second ?? 0))
+        // Sampai detik: penelusuran kronologis butuh urutan kejadian yang tepat.
         return parsed.toLocaleString('id-ID', {
             day: '2-digit', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit'
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
         })
     }
 
     // Fallback untuk nilai ISO/lain yang mungkin tidak ambigu
     return new Date(d).toLocaleString('id-ID', {
         day:'2-digit', month:'short', year:'numeric',
-        hour:'2-digit', minute:'2-digit'
+        hour:'2-digit', minute:'2-digit', second:'2-digit'
     })
 }
 
@@ -250,6 +258,13 @@ const weightRetentionPct = computed(() => {
 
             <!-- ─── Weight Progress Bar ─────────────────────────── -->
                     <div class="mt-6 p-4 rounded-xl bg-muted/40 space-y-3">
+                        <div v-if="can_actions.verify_weight" class="flex justify-end">
+                            <button type="button"
+                                    class="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-primary px-3.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                                    @click="verifyOpen = true">
+                                <AppIcon name="scale" :size="16" />{{ lang === 'en' ? 'Verify weight' : 'Verifikasi berat' }}
+                            </button>
+                        </div>
                         <div class="flex items-center justify-between text-sm">
                             <div>
                                 <span class="text-muted-foreground">Berat awal: </span>
@@ -305,7 +320,7 @@ const weightRetentionPct = computed(() => {
                     <div class="space-y-3">
                         <div v-for="info in [
                             { label: 'Kode Batch', value: batch.batch_code, mono: true },
-                            { label: 'Lot Number', value: batch.lot_number || '—', mono: true },
+                            { label: lang === 'en' ? 'Lot / partner no.' : 'No. Partai / Lot', value: batch.lot_number || '—', mono: true },
                             { label: lang === 'en' ? 'Container' : 'Jenis Wadah', value: batch.container_label || '—' },
                             ...(batch.sn_grade_pct != null ? [{ label: lang === 'en' ? 'Sn grade' : 'Kadar Sn', value: `${batch.sn_grade_pct}%` }] : []),
                             { label: 'Stage', value: `${stageLabel(batch.process_stage)}` },
@@ -344,6 +359,9 @@ const weightRetentionPct = computed(() => {
                         </div>
                     </div>
                 </div>
+
+                <!-- Data mitra PT Timah: nama mitra, no. partai, lokasi asal, penanda tangan -->
+                <PartnerInfoCard :batch="batch" :can-edit="!!can_actions.edit_partner" :origin-locations="origin_locations" />
 
                 <!-- Child batches (jika ada) -->
                 <div v-if="batch.child_batches?.length" class="md:col-span-2 rounded-2xl border border-border bg-card p-5 space-y-4">
@@ -810,6 +828,8 @@ const weightRetentionPct = computed(() => {
                 </div>
             </Transition>
         </Teleport>
+    
+        <WeightVerifyDialog v-model:open="verifyOpen" mode="verify" :batch="batch" />
     </AppLayout>
 </template>
 

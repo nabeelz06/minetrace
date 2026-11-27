@@ -85,14 +85,72 @@ class NewTagChoiceTest extends PoolTestCase
     }
 
     #[Test]
-    public function recycled_tag_is_rejected_and_not_queued(): void
+    public function recycled_tag_is_queued_with_recycled_flag_but_makes_nothing_by_itself(): void
     {
         $this->wetPoolWithDrum('E200NT0000D2');   // tag drum besi dilepas saat masuk himpunan Wet
 
         $r = $this->tap('receiving', 'E200NT0000D2');
 
+        // Stiker lama di karung tidak boleh membuat batch/drum sendiri, tetapi operator boleh memakainya ulang di PC.
         $this->assertSame('tag_recycled', $r['_code']);
+        $queued = $this->queue()->list($this->company->id);
+        $this->assertCount(1, $queued);
+        $this->assertSame('E200NT0000D2', $queued[0]['uid']);
+        $this->assertTrue($queued[0]['recycled']);
+        $this->assertSame(1, Batch::where('company_id', $this->company->id)->count());   // tidak ada batch baru
+    }
+
+    #[Test]
+    public function fresh_tag_is_queued_without_recycled_flag(): void
+    {
+        $this->tap('receiving', 'E200NT0000F1');
+
+        $this->assertFalse($this->queue()->list($this->company->id)[0]['recycled']);
+    }
+
+    #[Test]
+    public function choosing_recycled_tag_without_reuse_is_still_rejected(): void
+    {
+        $this->wetPoolWithDrum('E200NT0000D4');
+        $this->tap('receiving', 'E200NT0000D4');
+
+        $r = $this->choice()->asWetOutput($this->company->id, 'E200NT0000D4', $this->admin->id);
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame('tag_recycled', $r['code']);
+        $this->assertFalse(RfidTagEvent::where('uid', 'E200NT0000D4')->where('event', 'cleared')->exists());
+    }
+
+    #[Test]
+    public function reuse_recycled_tag_as_wet_output_creates_container(): void
+    {
+        $this->wetPoolWithDrum('E200NT0000D5');
+        $this->tap('receiving', 'E200NT0000D5');
+
+        $r = $this->choice()->asWetOutput($this->company->id, 'E200NT0000D5', $this->admin->id, reuse: true);
+
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $c = Batch::where('rfid_tag', 'E200NT0000D5')->firstOrFail();
+        $this->assertSame(['wet_process', 'awaiting_weight', 'container'], [$c->process_stage, $c->status, $c->container_type]);
+        $this->assertTrue(RfidTagEvent::where('uid', 'E200NT0000D5')->where('event', 'cleared')->where('reason', 'reuse')->exists());
         $this->assertSame([], $this->queue()->list($this->company->id));
+    }
+
+    #[Test]
+    public function reuse_flag_that_fails_rolls_back_the_fresh_marker(): void
+    {
+        // Himpunan Wet kosong: container tidak bisa dibuat → tanda "bebas" tidak boleh tertinggal.
+        $d = $this->makeBatch('lab_kimia', 'in_transit', ['rfid_tag' => 'E200NT0000D6']);
+        $this->tap('receiving', 'E200NT0000D6');
+        app(IntakeService::class)->record($d->fresh(), 95, 60, $this->admin->id);
+        $pool = \App\Models\BatchPool::where('company_id', $this->company->id)->where('stage', 'wet_process')->firstOrFail();
+        \App\Models\BatchPoolInput::where('pool_id', $pool->id)->delete();
+        $this->tap('receiving', 'E200NT0000D6');
+
+        $r = $this->choice()->asWetOutput($this->company->id, 'E200NT0000D6', $this->admin->id, reuse: true);
+
+        $this->assertFalse($r['ok']);
+        $this->assertFalse(RfidTagEvent::where('uid', 'E200NT0000D6')->where('event', 'cleared')->exists());
     }
 
     #[Test]
@@ -166,6 +224,31 @@ class NewTagChoiceTest extends PoolTestCase
     }
 
     #[Test]
+    public function new_batch_accepts_recycled_tag_when_reuse_is_chosen(): void
+    {
+        $this->wetPoolWithDrum('E200NT0000D7');
+
+        $r = $this->choice()->asNewBatch($this->company->id, 'E200NT0000D7', $this->product('MIT')->id, 100, 60, $this->admin->id, reuse: true);
+
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertTrue(RfidTagEvent::where('uid', 'E200NT0000D7')->where('event', 'cleared')->exists());
+        $this->assertSame([], $this->queue()->list($this->company->id));
+    }
+
+    #[Test]
+    public function reuse_does_not_touch_a_tag_still_attached_to_a_live_batch(): void
+    {
+        $live = $this->makeBatch('lab_kimia', 'active', ['rfid_tag' => 'E200NT0000L1']);
+
+        $r = $this->choice()->asNewBatch($this->company->id, 'E200NT0000L1', $this->product('MIT')->id, 100, 60, $this->admin->id, reuse: true);
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame('tag_in_use', $r['code']);
+        $this->assertSame('E200NT0000L1', $live->fresh()->rfid_tag);
+        $this->assertFalse(RfidTagEvent::where('uid', 'E200NT0000L1')->where('event', 'cleared')->exists());
+    }
+
+    #[Test]
     public function dismiss_removes_queue_entry(): void
     {
         $this->tap('receiving', 'E200NT000004');
@@ -189,6 +272,19 @@ class NewTagChoiceTest extends PoolTestCase
         $this->tap('receiving', 'E200NT0000W2');
         $this->actingAs($this->admin)->delete('/company/process/receiving/new-tags/E200NT0000W2')->assertSessionHas('success');
         $this->assertSame([], $this->queue()->list($this->company->id));
+    }
+
+    #[Test]
+    public function web_endpoint_reuse_flag_makes_recycled_tag_usable(): void
+    {
+        $this->wetPoolWithDrum('E200NT0000W3');
+        $this->tap('receiving', 'E200NT0000W3');
+
+        $this->actingAs($this->admin)
+            ->post('/company/process/receiving/new-tags/E200NT0000W3/batch', [
+                'product_code_id' => $this->product('MIT')->id, 'weight' => 100, 'sn_grade_pct' => 60, 'reuse' => true,
+            ])->assertSessionHas('success');
+        $this->assertTrue(RfidTagEvent::where('uid', 'E200NT0000W3')->where('event', 'cleared')->exists());
     }
 
     #[Test]

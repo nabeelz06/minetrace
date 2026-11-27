@@ -303,10 +303,13 @@ class RfidRegistrationService
                     'weight_loss_pct'  => 0,
                     'has_discrepancy'  => false,
                     'is_verified'      => true,
-                    'notes'            => "RFID Tag terdaftar: UID {$uid} oleh {$session['initiated_by']}",
+                    // Catatan menyebut AREA (Receiving Area / Lab Kimia); nama operator ada di recorded_by & initiated_by.
+                    'notes'            => "RFID Tag terdaftar: UID {$uid} oleh " . \App\Support\ProcessFlow::areaLabel($batch->process_stage),
                     'checkpoint_data'  => [
                         'action'        => 'rfid_register',
                         'rfid_uid'      => $uid,
+                        'area'          => \App\Support\ProcessFlow::areaLabel($batch->process_stage),
+                        'area_stage'    => $batch->process_stage,
                         'initiated_by'  => $session['initiated_by'] ?? 'System',
                         'timestamp_wib' => $tz,
                         // Posisi batch saat tag dipasang — baseline bagi reset uji (RfidTagService::resetPlan).

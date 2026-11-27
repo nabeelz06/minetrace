@@ -11,14 +11,28 @@ use Illuminate\Support\Facades\DB;
 /**
  * BatchCodeService — generator kode batch yang atomic dan race-condition-safe.
  *
- * Formula: [ENT].[LOK]-[PROC].[PROD]-[YYMMDD]-[SEQ]
- * Contoh: TMH.SGT-LK.MIK-260504-001
+ * Formula: [ENT].[LOK]-[PROC].[PROD]-[DDMMYY]-[SEQ]   (tanggal, bulan, tahun, lalu nomor urut harian)
+ * Contoh: TMH.SGT-LK.MIK-040526-001   (4 Mei 2026, batch ke-1 hari itu)
+ *
+ * Kode lama berformat [YYMMDD] (mis. 260504) TIDAK diubah; hanya kode baru yang memakai urutan tanggal-bulan-tahun.
+ * Tanggal memakai zona WIB agar sama dengan kalender operator di lapangan (bukan UTC). Urutan tahun 4 digit bisa
+ * dipilih lewat config('batch.code_date_format') = 'dmY'.
  *
  * Menggunakan PostgreSQL native sequence per-tanggal untuk
  * memastikan tidak ada duplicate bahkan saat concurrent requests.
  */
 class BatchCodeService
 {
+    private const TZ = 'Asia/Jakarta';
+
+    /** Format tanggal pada kode: 'dmy' (DDMMYY, bawaan) atau 'dmY' (DDMMYYYY). Nilai lain jatuh ke bawaan. */
+    public static function dateFormat(): string
+    {
+        $f = (string) config('batch.code_date_format', 'dmy');
+
+        return in_array($f, ['dmy', 'dmY'], true) ? $f : 'dmy';
+    }
+
     /**
      * Kode perusahaan (3 huruf).
      */
@@ -61,11 +75,13 @@ class BatchCodeService
         $lokCode  = strtoupper($location->code);
         $procCode = self::STAGE_CODES[$stage] ?? strtoupper(substr($stage, 0, 2));
         $prodCode = strtoupper($product->code);
-        $date     = now()->format('ymd');
+        $now      = now(self::TZ);
+        $date     = $now->format(self::dateFormat());
 
         // ─── Atomic sequence menggunakan PostgreSQL SEQUENCE ───────────────
-        // Setiap kombinasi company+date punya sequence sendiri
-        $seqName = "batch_seq_{$company->id}_{$date}";
+        // Setiap kombinasi company+hari punya sequence sendiri. Nama sequence tetap berbasis Ymd (bukan format
+        // tampilan) agar tidak bergantung pada pilihan urutan tanggal pada kode.
+        $seqName = "batch_seq_{$company->id}_" . $now->format('ymd');
 
         // Buat sequence jika belum ada (idempotent & atomic)
         DB::statement("CREATE SEQUENCE IF NOT EXISTS {$seqName} START 1");

@@ -265,10 +265,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('batches/{batch}/tag-history',  [RfidTagController::class, 'history'])->name('batches.tag-history');
         Route::get('batch-search', [RfidTagController::class, 'search'])->name('batches.search');
 
-        // Kelola Tag (berbasis UID): status tag, tag terbaru, lepas tag, reset uji
+        // Kelola Tag (berbasis UID): status tag, tag terbaru, lepas tag, bebaskan tag (pakai ulang), reset uji
         Route::get('tags/lookup',  [RfidTagController::class, 'lookup'])->name('tags.lookup');
         Route::get('tags/recent',  [RfidTagController::class, 'recent'])->name('tags.recent');
         Route::post('tags/release', [RfidTagController::class, 'releaseByUid'])->middleware('throttle:rfid-ui')->name('tags.release');
+        Route::post('tags/reuse',   [RfidTagController::class, 'reuse'])->middleware('throttle:rfid-ui')->name('tags.reuse');
         Route::post('tags/reset',   [RfidTagController::class, 'reset'])->middleware('throttle:rfid-ui')->name('tags.reset');
 
     });
