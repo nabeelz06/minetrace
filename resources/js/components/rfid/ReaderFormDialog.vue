@@ -22,7 +22,7 @@ const { t, loc } = useI18n()
 const apiText = useApiText()
 const TYPES = ['uhf_chainway_ur4', 'uhf_desktop_r2000', 'esp32_rc522', 'uhf_epc_gen2', 'keyboard_wedge', 'other']
 const ANTENNAS = [1, 2, 3, 4]
-const blankConn = () => ({ host: '', port: 8888, min_rssi: '', presence_seconds: '', antennas: { 1: '', 2: '', 3: '', 4: '' } })
+const blankConn = () => ({ host: '', port: 8888, mode: 'tcp_server', udp_port: '', min_rssi: '', presence_seconds: '', antennas: { 1: '', 2: '', 3: '', 4: '' } })
 const blank = () => ({ code: '', name: '', stage: '', direction: 'in', device_type: 'uhf_chainway_ur4', camera_url: '', conn: blankConn() })
 const form = ref(blank())
 const isUr4 = computed(() => form.value.device_type === 'uhf_chainway_ur4')
@@ -30,7 +30,7 @@ const isUr4 = computed(() => form.value.device_type === 'uhf_chainway_ur4')
 function toConn(c) {
     const base = blankConn()
     if (!c) return base
-    return { ...base, ...c, min_rssi: c.min_rssi ?? '', presence_seconds: c.presence_seconds ?? '', antennas: { ...base.antennas, ...(c.antennas ?? {}) } }
+    return { ...base, ...c, mode: c.mode ?? 'tcp_server', udp_port: c.udp_port ?? '', min_rssi: c.min_rssi ?? '', presence_seconds: c.presence_seconds ?? '', antennas: { ...base.antennas, ...(c.antennas ?? {}) } }
 }
 
 /** connection untuk API: hanya reader UR4; field kosong dibuang. */
@@ -41,6 +41,7 @@ function connectionBody() {
     return {
         host: String(c.host).trim(),
         port: Number(c.port) || 8888,
+        ...(c.mode === 'udp_push' ? { mode: 'udp_push', udp_port: Number(c.udp_port) || null } : {}),
         ...(c.min_rssi !== '' && c.min_rssi !== null ? { min_rssi: Number(c.min_rssi) } : {}),
         ...(c.presence_seconds !== '' && c.presence_seconds !== null ? { presence_seconds: Number(c.presence_seconds) } : {}),
         ...(Object.keys(antennas).length ? { antennas } : {}),
@@ -122,6 +123,17 @@ async function submit() {
                         </FormField>
                         <FormField :label="t('rfid.dev.conn_port')" :error="errors['connection.port']" v-slot="{ id, describedby, invalid }">
                             <FormInput :id="id" v-model="form.conn.port" type="number" :invalid="invalid" :describedby="describedby" />
+                        </FormField>
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-3">
+                        <FormField class="sm:col-span-2" :label="t('rfid.dev.conn_mode')" :hint="t('rfid.dev.conn_mode_hint')" :error="errors['connection.mode']" v-slot="{ id }">
+                            <select :id="id" v-model="form.conn.mode" class="min-h-[44px] w-full rounded-lg border border-input bg-background px-3">
+                                <option value="tcp_server">{{ t('rfid.dev.conn_mode_server') }}</option>
+                                <option value="udp_push">{{ t('rfid.dev.conn_mode_udp') }}</option>
+                            </select>
+                        </FormField>
+                        <FormField v-if="form.conn.mode === 'udp_push'" :label="t('rfid.dev.conn_udp_port')" :hint="t('rfid.dev.conn_udp_port_hint')" :error="errors['connection.udp_port']" required v-slot="{ id, describedby, invalid }">
+                            <FormInput :id="id" v-model="form.conn.udp_port" type="number" :invalid="invalid" :describedby="describedby" placeholder="9101" />
                         </FormField>
                     </div>
                     <div class="space-y-2">

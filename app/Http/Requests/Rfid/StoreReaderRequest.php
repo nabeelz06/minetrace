@@ -46,6 +46,8 @@ class StoreReaderRequest extends FormRequest
             'connection.host' => ['nullable', 'required_if:device_type,uhf_chainway_ur4', 'string', 'max:255',
                 'regex:/^[A-Za-z0-9.:_-]+$/'],
             'connection.port' => ['nullable', 'integer', 'between:1,65535'],
+            'connection.mode' => ['nullable', Rule::in(['tcp_server', 'udp_push'])],
+            'connection.udp_port' => ['nullable', 'required_if:connection.mode,udp_push', 'integer', 'between:1024,65535'],
             'connection.antennas' => ['nullable', 'array'],
             'connection.antennas.*' => [Rule::in(['in', 'out'])],
             'connection.min_rssi' => ['nullable', 'integer', 'between:-120,0'],
@@ -91,6 +93,22 @@ class StoreReaderRequest extends FormRequest
         }
 
         $conn = array_merge($existing?->connectionConfig() ?? [], is_array($data['connection'] ?? null) ? $data['connection'] : []);
+        $active = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : ($existing?->is_active ?? true);
+
+        // Push UDP: reader dibedakan dari port tujuan, jadi satu udp_port hanya untuk satu reader aktif.
+        if (($conn['mode'] ?? null) === 'udp_push' && (int) ($conn['udp_port'] ?? 0) > 0) {
+            $udpPort = (int) $conn['udp_port'];
+            $taken = $active && RfidReader::whereIn('device_type', RfidReader::NETWORK_TYPES)
+                ->where('is_active', true)
+                ->when($existing?->id, fn ($q, $id) => $q->whereKeyNot($id))
+                ->get()
+                ->contains(fn (RfidReader $r) => ($r->connectionConfig()['mode'] ?? null) === 'udp_push'
+                    && (int) ($r->connectionConfig()['udp_port'] ?? 0) === $udpPort);
+            if ($taken) {
+                $validator->errors()->add('connection.udp_port', 'Port UDP ini sudah dipakai reader aktif lain.');
+            }
+        }
+
         $host = trim((string) ($conn['host'] ?? ''));
         if ($host === '') {
             return;   // required_if sudah menandai bila wajib
@@ -103,7 +121,6 @@ class StoreReaderRequest extends FormRequest
             return;
         }
 
-        $active = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : ($existing?->is_active ?? true);
         if ($active && self::endpointTaken($host, $port, $existing?->id)) {
             $validator->errors()->add('connection.host', EndpointGuard::message('duplicate'));
         }

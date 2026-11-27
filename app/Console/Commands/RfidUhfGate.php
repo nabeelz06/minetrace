@@ -34,7 +34,7 @@ class RfidUhfGate extends Command
         {--reader=* : kode reader (default: semua reader uhf_chainway_ur4 aktif)}
         {--max-runtime=0 : berhenti setelah N detik (0 = tanpa batas; untuk supervisor/uji)}';
 
-    protected $description = 'Daemon gate UHF Chainway UR4: baca tag via TCP lalu catat scan + log + capture CCTV';
+    protected $description = 'Daemon gate UHF Chainway UR4: baca tag via TCP atau push UDP lalu catat scan + log + capture CCTV';
 
     private bool $running = true;
 

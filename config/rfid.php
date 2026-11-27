@@ -72,6 +72,12 @@ return [
      */
     'uhf' => [
         'ur4_port' => (int) env('RFID_UR4_PORT', 8888),
+        // Mode push UDP (connection.mode = udp_push): reader mengirim tag ke server di connection.udp_port.
+        'udp_bind' => (string) env('RFID_UHF_UDP_BIND', '0.0.0.0'),
+        // Sumber datagram yang diterima, dipisah koma, mis. IP publik site "140.213.69.213/32" (kosong = semua sumber).
+        'udp_allowed_cidrs' => array_values(array_filter(array_map('trim', explode(',', (string) env('RFID_UHF_UDP_ALLOWED_CIDRS', ''))))),
+        // Reader dianggap online bila ada datagram dalam N detik terakhir (mode auto hanya mengirim saat ada tag).
+        'udp_fresh_seconds' => (int) env('RFID_UHF_UDP_FRESH_SECONDS', 120),
         'presence_seconds' => (int) env('RFID_UHF_PRESENCE_SECONDS', 10),
         'min_rssi' => is_numeric(env('RFID_UHF_MIN_RSSI')) ? (int) env('RFID_UHF_MIN_RSSI') : null,
         'reconnect_max' => (int) env('RFID_UHF_RECONNECT_MAX', 30),

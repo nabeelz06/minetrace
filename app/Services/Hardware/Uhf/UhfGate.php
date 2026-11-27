@@ -44,7 +44,10 @@ final class UhfGate
 
     public const LOCK_REFRESH_EVERY = 10.0;
 
-    /** @var array<int,array{reader:RfidReader,link:Ur4Link,sig:string,host:string,port:int,presence:PresenceFilter,presence_sec:float,arbiter:?TagArbiter,reads:int,events:int,rejected:array<string,int>}> */
+    /** Penanda host untuk reader mode push UDP (kunci eksklusif dan klaim memakai udp:<port>). */
+    public const UDP_HOST = 'udp';
+
+    /** @var array<int,array{reader:RfidReader,link:Ur4Link|Ur4UdpLink,sig:string,host:string,port:int,presence:PresenceFilter,presence_sec:float,arbiter:?TagArbiter,reads:int,events:int,rejected:array<string,int>}> */
     private array $gates = [];
 
     /** @var array<int,string> alasan reader dilewati (agar log tidak berulang) */
@@ -82,6 +85,8 @@ final class UhfGate
         private readonly ?Closure $connectCheck = null,
         private readonly ?RfidRegistrationService $registrations = null,
         private readonly ?RfidReadLogService $readLogs = null,
+        /** pembuat soket UDP untuk reader mode push UDP (bawaan Ur4UdpLink::udpBinder) */
+        private readonly ?Closure $udpBinder = null,
     ) {
         $this->owner = $owner ?? ('gate:'.(gethostname() ?: 'host').':'.getmypid());
     }
@@ -115,7 +120,7 @@ final class UhfGate
             ->when($this->codes, fn ($q) => $q->whereIn('code', array_map('strtoupper', $this->codes)))
             ->orderBy('id')
             ->get()
-            ->filter(fn (RfidReader $r) => trim((string) ($r->connectionConfig()['host'] ?? '')) !== '')
+            ->filter(fn (RfidReader $r) => self::isUdp($r) || trim((string) ($r->connectionConfig()['host'] ?? '')) !== '')
             ->keyBy('id');
 
         // Reader dihapus/dinonaktifkan atau koneksinya berubah: tutup. Perubahan stage/arah tidak butuh sambung ulang.
@@ -150,7 +155,13 @@ final class UhfGate
             }
             [$host, $port] = $this->endpointOf($reader);
 
-            if ($code = EndpointGuard::validate($host, $port)) {
+            if (self::isUdp($reader)) {
+                if ($port < 1024 || $port > 65535) {
+                    $this->skip($reader, 'config_mismatch', 'udp_port', "udp_port {$port} di luar 1024-65535");
+
+                    continue;
+                }
+            } elseif ($code = EndpointGuard::validate($host, $port)) {
                 $this->skip($reader, 'config_mismatch', "endpoint_{$code}", "alamat {$host}:{$port} ditolak ({$code}): ".EndpointGuard::message($code));
 
                 continue;
@@ -274,7 +285,7 @@ final class UhfGate
         return array_keys($this->gates);
     }
 
-    public function link(int $readerId): ?Ur4Link
+    public function link(int $readerId): Ur4Link|Ur4UdpLink|null
     {
         return $this->gates[$readerId]['link'] ?? null;
     }
@@ -292,19 +303,32 @@ final class UhfGate
         $map = $this->antennaMap($reader);
         $presenceSec = $this->presenceSeconds($reader);
 
-        $link = new Ur4Link(
-            $host,
-            $port,
-            Ur4LinkConfig::fromConfig($map),
-            $this->connector,
-            $this->now,
-            fn (array $tag) => $this->onTag($id, $tag),
-            connectCheck: $this->connectCheck,
-            log: function (string $level, string $message) use ($reader) {
-                ($this->out)($level === 'warning' ? 'warning' : 'info', "Reader {$reader->code}: {$message}");
-                Log::log($level === 'warning' ? 'warning' : 'info', "rfid:uhf-gate {$reader->code} {$message}");
-            },
-        );
+        $log = function (string $level, string $message) use ($reader) {
+            ($this->out)($level === 'warning' ? 'warning' : 'info', "Reader {$reader->code}: {$message}");
+            Log::log($level === 'warning' ? 'warning' : 'info', "rfid:uhf-gate {$reader->code} {$message}");
+        };
+        $udp = $host === self::UDP_HOST;
+        $link = $udp
+            ? new Ur4UdpLink(
+                $port,
+                (string) config('rfid.uhf.udp_bind', '0.0.0.0'),
+                (array) config('rfid.uhf.udp_allowed_cidrs', []),
+                (float) config('rfid.uhf.udp_fresh_seconds', 120),
+                $this->now,
+                fn (array $tag) => $this->onTag($id, $tag),
+                binder: $this->udpBinder,
+                log: $log,
+            )
+            : new Ur4Link(
+                $host,
+                $port,
+                Ur4LinkConfig::fromConfig($map),
+                $this->connector,
+                $this->now,
+                fn (array $tag) => $this->onTag($id, $tag),
+                connectCheck: $this->connectCheck,
+                log: $log,
+            );
 
         $this->gates[$id] = [
             'reader' => $reader,
@@ -323,7 +347,8 @@ final class UhfGate
             'rejected' => [],
         ];
 
-        ($this->out)('line', "Reader {$reader->code} ({$host}:{$port}) tahap ".($reader->stage ?? '-').', arah '.$reader->direction);
+        $where = $udp ? "push UDP, port {$port}" : "{$host}:{$port}";
+        ($this->out)('line', "Reader {$reader->code} ({$where}) tahap ".($reader->stage ?? '-').', arah '.$reader->direction);
     }
 
     private function closeGate(int $id, string $why): void
@@ -417,7 +442,7 @@ final class UhfGate
                 [
                     'origin' => 'real_uhf',
                     'event_id' => 'ur4-'.$reader->id.'-'.Str::ulid(),
-                    'ip' => $gate['host'],
+                    'ip' => $this->addressOf($gate),
                     'antenna' => $antenna,
                     'rssi' => $rssi,
                     'tid' => $tid,
@@ -523,7 +548,7 @@ final class UhfGate
             'antenna' => $info['antenna'],
             'rssi' => $info['rssi'],
             'tid' => $info['tid'],
-            'meta' => ['ip' => $gate['host']],
+            'meta' => ['ip' => $this->addressOf($gate)],
         ]);
 
         ($this->out)('line', sprintf(
@@ -598,7 +623,7 @@ final class UhfGate
 
             // "Online" hanya bila tautan SEHAT (inventory berjalan); selain itu last_seen_at dibiarkan menua.
             if ($healthy) {
-                $attrs += ['last_seen_at' => now(), 'last_ip' => $gate['host']];
+                $attrs += ['last_seen_at' => now(), 'last_ip' => $this->addressOf($gate)];
                 if (! empty($s['device']['firmware'])) {
                     $attrs['firmware_version'] = 'UR4 '.$s['device']['firmware'];
                 }
@@ -611,10 +636,31 @@ final class UhfGate
 
     // ─── Util ─────────────────────────────────────────────────────────────
 
+    /** Reader mode push UDP: reader mengirim tag ke server di connection.udp_port (tanpa koneksi keluar). */
+    public static function isUdp(RfidReader $reader): bool
+    {
+        $c = $reader->connectionConfig();
+
+        return ($c['mode'] ?? null) === 'udp_push' && (int) ($c['udp_port'] ?? 0) > 0;
+    }
+
+    /** Alamat untuk log/meta: IP sumber datagram (push UDP) atau host reader. */
+    private function addressOf(array $gate): string
+    {
+        if ($gate['host'] === self::UDP_HOST) {
+            return $gate['link']->peer() ?? 'udp:'.$gate['port'];
+        }
+
+        return $gate['host'];
+    }
+
     /** @return array{0:string,1:int} */
     private function endpointOf(RfidReader $reader): array
     {
         $c = $reader->connectionConfig();
+        if (self::isUdp($reader)) {
+            return [self::UDP_HOST, (int) $c['udp_port']];
+        }
 
         return [trim((string) ($c['host'] ?? '')), (int) ($c['port'] ?? config('rfid.uhf.ur4_port', 8888))];
     }

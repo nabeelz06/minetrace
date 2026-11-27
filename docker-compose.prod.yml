@@ -134,6 +134,10 @@ services:
     env_file: .env.production
     command: php artisan rfid:uhf-gate
     profiles: ["rfid-gate"]
+    # Reader UR4 mode push UDP (connection.mode = udp_push) mengirim tag ke port ini (connection.udp_port).
+    # Docker melewati ufw: batasi sumber dengan RFID_UHF_UDP_ALLOWED_CIDRS (IP publik site).
+    ports:
+      - "9101-9104:9101-9104/udp"
     volumes:
       - ./storage:/var/www/html/storage
     depends_on:
