@@ -41,7 +41,7 @@ export function laneStatus(readersHere, mode, direction) {
     const moves = modeMoves(mode, direction)
     const status = !readers.length ? (moves ? 'none' : 'unused')
         : !moves ? 'audit'
-        : readers.some(r => r.state === 'online') ? 'ready'
+        : readers.some(r => ['online', 'standby'].includes(r.state)) ? 'ready'
         : 'offline'
 
     return { direction, readers, status }

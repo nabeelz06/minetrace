@@ -129,6 +129,33 @@ class UhfGateUdpTest extends TestCase
     }
 
     #[Test]
+    public function reader_udp_menganggur_tampil_standby_bukan_offline(): void
+    {
+        $reader = $this->udpReader('UR4-2', 9102);
+        $this->assertSame('never', $reader->connectionState(), 'belum ada heartbeat gate');
+
+        $gate = $this->gate();
+        $this->step($gate);
+        $gate->heartbeatIfDue();
+
+        $fresh = $reader->fresh();
+        $this->assertSame('listening', $fresh->last_status['link_state']);
+        $this->assertNull($fresh->last_seen_at, 'tanpa datagram, last_seen_at tidak diisi');
+        $this->assertSame('standby', $fresh->connectionState());
+
+        // Gate mati: heartbeat menua, reader tidak lagi standby.
+        $this->travel((int) config('rfid.offline_after_seconds') + 5)->seconds();
+        $this->assertSame('never', $fresh->fresh()->connectionState());
+
+        // Reader TCP tidak pernah standby.
+        $tcp = $this->udpReader('UR4-9', 9109);
+        $tcp->forceFill(['connection' => ['host' => '192.168.0.39', 'port' => 8888], 'last_status' => $fresh->last_status])->save();
+        $this->travelBack();
+        $this->assertSame('never', $tcp->fresh()->connectionState());
+        $gate->shutdown();
+    }
+
+    #[Test]
     public function datagram_dari_sumber_asing_tidak_menjadi_scan(): void
     {
         $reader = $this->udpReader('WET-GATE-01', 9101);

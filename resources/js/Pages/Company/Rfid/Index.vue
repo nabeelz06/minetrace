@@ -104,7 +104,7 @@ onMounted(() => poll.start())
 const stats = computed(() => overview.value ?? {
     scans_today: 0, scans_today_sim: 0,
     readers_total: readers.value.length,
-    readers_online: readers.value.filter(r => r.state === 'online').length,
+    readers_online: readers.value.filter(r => ['online', 'standby'].includes(r.state)).length,
     batches_untagged: 0,
 })
 const can = computed(() => props.rfid.can)

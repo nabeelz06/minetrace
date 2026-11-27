@@ -73,7 +73,7 @@ const weighBatch = computed(() => batch.value ? {
 // Reader terpilih (atau semua reader aktif bila "mana pun") tidak online → tap tidak akan terbaca: beri tahu sebelum menunggu.
 const readerWarning = computed(() => {
     const list = readerId.value ? activeReaders.value.filter(r => String(r.id) === String(readerId.value)) : activeReaders.value
-    if (!list.length || list.some(r => r.state === 'online')) return null
+    if (!list.length || list.some(r => ['online', 'standby'].includes(r.state))) return null
     return list.every(r => r.state === 'never') ? 'never' : 'offline'
 })
 

@@ -98,7 +98,7 @@ class RfidScanController extends Controller
             'batches_untagged' => Batch::where('company_id', $companyId)->whereNull('rfid_tag')
                 ->whereNotIn('status', ['exported', 'terminated'])->count(),
             'readers_total'    => $readers->count(),
-            'readers_online'   => $readers->filter(fn ($r) => $r->connectionState() === 'online')->count(),
+            'readers_online'   => $readers->filter(fn ($r) => in_array($r->connectionState(), ['online', 'standby'], true))->count(),
             'readers_offline'  => $readers->filter(fn ($r) => $r->connectionState() === 'offline')->count(),
             'simulation_enabled' => (bool) config('rfid.simulation_enabled'),
         ]);

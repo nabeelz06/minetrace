@@ -138,12 +138,36 @@ class RfidReader extends Model
         if (! $this->is_active) {
             return 'disabled';
         }
+        $window = now()->subSeconds(config('rfid.offline_after_seconds'));
+        if ($this->last_seen_at && $this->last_seen_at->gt($window)) {
+            return 'online';
+        }
+        // Push UDP: reader hanya mengirim saat ada tag. Bila gate sehat mendengar port-nya (heartbeat baru),
+        // reader yang menganggur bukan "offline" melainkan "standby" (siap, belum ada tag baru).
+        if ($this->isUdpStandby($window)) {
+            return 'standby';
+        }
         if (! $this->last_seen_at) {
             return 'never';
         }
 
-        return $this->last_seen_at->gt(now()->subSeconds(config('rfid.offline_after_seconds')))
-            ? 'online'
-            : 'offline';
+        return 'offline';
+    }
+
+    private function isUdpStandby(\Carbon\CarbonInterface $window): bool
+    {
+        if (($this->connectionConfig()['mode'] ?? null) !== 'udp_push') {
+            return false;
+        }
+        $s = is_array($this->last_status) ? $this->last_status : [];
+        if (! in_array($s['link_state'] ?? null, ['listening', 'streaming'], true) || empty($s['updated_at'])) {
+            return false;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($s['updated_at'])->gt($window);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

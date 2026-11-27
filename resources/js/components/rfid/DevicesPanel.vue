@@ -42,6 +42,7 @@ const rotateOpen = ref(false)
 
 const STATE = {
     online:   { tone: 'bg-success-soft text-success', icon: 'wifi' },
+    standby:  { tone: 'bg-success-soft text-success', icon: 'wifi' },
     offline:  { tone: 'bg-danger-soft text-danger',   icon: 'wifi-off' },
     never:    { tone: 'bg-warning-soft text-warning', icon: 'circle-dashed' },
     disabled: { tone: 'bg-neutral-soft text-neutral', icon: 'ban' },
@@ -130,8 +131,8 @@ async function rotate() {
 
                     <p v-if="r.last_seen_at" class="text-sm text-muted-foreground">{{ t('rfid.dev.last_seen', { time: formatRelative(r.last_seen_at, lang) }) }}</p>
                     <p v-for="w in (r.last_status?.warnings ?? [])" :key="w" class="text-sm text-warning">{{ w }}</p>
-                    <p v-if="r.state !== 'online'" class="text-sm font-medium" :class="r.state === 'offline' ? 'text-danger' : 'text-warning'">{{ t(hintKey(r)) }}</p>
-                    <p v-if="r.state !== 'online' && r.last_status?.detail" class="break-words font-mono text-xs text-muted-foreground">{{ t('rfid.dev.detail_label') }}: {{ r.last_status.detail }}</p>
+                    <p v-if="r.state !== 'online'" class="text-sm font-medium" :class="r.state === 'offline' ? 'text-danger' : r.state === 'standby' ? 'text-muted-foreground' : 'text-warning'">{{ t(hintKey(r)) }}</p>
+                    <p v-if="!['online', 'standby'].includes(r.state) && r.last_status?.detail" class="break-words font-mono text-xs text-muted-foreground">{{ t('rfid.dev.detail_label') }}: {{ r.last_status.detail }}</p>
 
                     <div v-if="canManage" class="flex flex-wrap gap-2 border-t border-border pt-3">
                         <button type="button" class="min-h-[44px] rounded-lg border border-input px-3 text-sm font-medium hover:bg-accent" @click="openEdit(r)">{{ t('rfid.dev.edit') }}</button>
