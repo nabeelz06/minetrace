@@ -129,6 +129,14 @@ final class ProcessFlow
         return self::STAGES[$stage]['roles'] ?? ['company_admin'];
     }
 
+    /** Nama area untuk catatan audit: label area RFID bila ada ("Receiving Area"), jika tidak label tahap ("Lab Kimia"). */
+    public static function areaLabel(?string $stage): string
+    {
+        $def = self::STAGES[$stage ?? ''] ?? null;
+
+        return $def ? ($def['rfid']['label'] ?? $def['label']) : ucwords(str_replace('_', ' ', (string) $stage));
+    }
+
     /** Tahap yang memiliki scan RFID, dalam bentuk lama RfidService::STAGE_FLOW (label LCD tidak berubah). */
     public static function rfidFlow(): array
     {

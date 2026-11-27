@@ -161,6 +161,12 @@ Route::middleware(['auth', "role:{$allCompanyRoles}"])
         Route::get('batches/{batch}',    [BatchController::class, 'show'])->name('batches.show');
         Route::get('batches/{batch}/qr', [BatchController::class, 'generateQR'])->name('batches.qr');
 
+        // Verifikasi berat (popup timbang ulang) & data mitra — peran dicek di controller (WeightVerificationService::ROLES)
+        Route::middleware('role:company_admin|operator_lab_station|operator_wet')->group(function () {
+            Route::post('batches/{batch}/verify-weight', [BatchController::class, 'verifyWeight'])->name('batches.verify-weight');
+            Route::patch('batches/{batch}/partner',      [BatchController::class, 'updatePartner'])->name('batches.partner');
+        });
+
         // ─────────────────────────────────────────────────────────────────────
         // LAB ANALYSIS (operator_lab_ltj = Analisis LTJ)
         // ─────────────────────────────────────────────────────────────────────

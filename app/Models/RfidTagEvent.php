@@ -19,11 +19,18 @@ class RfidTagEvent extends Model
     /** Alasan sistem: tag drum output dilepas karena drum dibatalkan. */
     public const REASON_DRUM_CANCELLED = 'drum_cancelled';
 
-    /** Jenis peristiwa: registered (terpasang) | released (dilepas) | reset (reset uji, tag tetap terpasang). */
-    public const EVENTS = ['registered', 'released', 'reset'];
+    /** Alasan sistem: operator membebaskan tag agar fisik yang sama dipakai ulang (lihat RfidTagService::freeForReuse). */
+    public const REASON_REUSE = 'reuse';
+
+    /** Peristiwa 'cleared': UID kembali dianggap BARU (riwayat lama tidak dihapus, hanya diberi batas). */
+    public const EVENT_CLEARED = 'cleared';
+
+    /** Jenis peristiwa: registered (terpasang) | released (dilepas) | reset (reset uji, tag tetap terpasang) | cleared (dibebaskan). */
+    public const EVENTS = ['registered', 'released', 'reset', 'cleared'];
 
     protected $fillable = [
         'company_id', 'batch_id', 'uid', 'event', 'reason', 'note', 'reader_id', 'performed_by',
+        'barrier_checkpoint_id', 'barrier_pool_input_id',
     ];
 
     public function batch(): BelongsTo

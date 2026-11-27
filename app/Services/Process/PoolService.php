@@ -116,11 +116,20 @@ class PoolService
         $drumIds = fn ($q) => $q->select('batch_id')->from('rfid_tag_events')->where('company_id', $companyId)
             ->where('uid', $uid)->where('reason', RfidTagEvent::REASON_DRUM_CANCELLED)->whereNotNull('batch_id');
 
-        return BatchPoolInput::where('released_rfid_tag', $uid)
+        // "Bebaskan tag" (RfidTagService::freeForReuse): jejak yang lebih lama dari peristiwa 'cleared' terakhir
+        // tidak dihitung. Batas berupa id (monoton) per tabel; tanpa peristiwa itu semua batas 0 = perilaku lama.
+        $barrier = RfidTagEvent::where('company_id', $companyId)->where('uid', $uid)
+            ->where('event', RfidTagEvent::EVENT_CLEARED)->orderByDesc('id')
+            ->first(['id', 'barrier_checkpoint_id', 'barrier_pool_input_id']);
+        $eventFloor = (int) ($barrier?->id ?? 0);
+        $cpFloor    = (int) ($barrier?->barrier_checkpoint_id ?? 0);
+        $inputFloor = (int) ($barrier?->barrier_pool_input_id ?? 0);
+
+        return BatchPoolInput::where('released_rfid_tag', $uid)->where('id', '>', $inputFloor)
                 ->whereHas('pool', fn ($q) => $q->where('company_id', $companyId))->exists()
-            || RfidTagEvent::where('company_id', $companyId)->where('uid', $uid)
+            || RfidTagEvent::where('company_id', $companyId)->where('uid', $uid)->where('id', '>', $eventFloor)
                 ->where(fn ($q) => $q->whereNull('batch_id')->orWhereNotIn('batch_id', $drumIds))->exists()
-            || Checkpoint::where('company_id', $companyId)->where('rfid_scan_code', $uid)
+            || Checkpoint::where('company_id', $companyId)->where('rfid_scan_code', $uid)->where('id', '>', $cpFloor)
                 ->where(fn ($q) => $q->whereNull('batch_id')->orWhereNotIn('batch_id', $drumIds))->exists();
     }
 

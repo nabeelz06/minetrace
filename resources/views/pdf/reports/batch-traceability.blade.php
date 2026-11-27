@@ -149,7 +149,7 @@
           @if($children->isNotEmpty()) &rarr; {{ $children->implode(', ') }} @endif
           @if($parents->isEmpty() && $children->isEmpty()) &mdash; @endif
         </td>
-        <td class="muted">{{ $batch->created_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') }}</td>
+        <td class="muted">{{ $batch->created_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i:s') }}</td>
       </tr>
       @endforeach
     </tbody>

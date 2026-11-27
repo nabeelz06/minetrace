@@ -35,7 +35,7 @@ class PoolController extends Controller
         $fmt = fn (?BatchPool $p) => $p ? [
             'id'           => $p->id,
             'status'       => $p->status,
-            'opened_at'    => $p->opened_at?->timezone($tz)->format('d/m/Y H:i') . ' WIB',
+            'opened_at'    => $p->opened_at?->timezone($tz)->format('d/m/Y H:i:s') . ' WIB',
             'total_weight' => round((float) $p->inputs->sum('weight_at_join'), 2),
             'inputs'       => $p->inputs->sortBy('joined_at')->values()->map(fn ($i) => [
                 'batch_id'   => $i->batch_id,
@@ -43,7 +43,7 @@ class PoolController extends Controller
                 'product'    => $i->batch?->productCode?->code,
                 'weight'     => $i->weight_at_join,
                 'old_tag'    => $i->released_rfid_tag,
-                'joined_at'  => $i->joined_at?->timezone($tz)->format('d/m H:i'),
+                'joined_at'  => $i->joined_at?->timezone($tz)->format('d/m H:i:s'),
             ])->all(),
         ] : null;
 
@@ -57,7 +57,7 @@ class PoolController extends Controller
                 // Dry: produk sudah ditetapkan saat drum dibuat (slot MON/ZIR/ILM). Wet: hanya setelah ditimbang.
                 'product'    => ($stage === 'dry_process' || $d->initial_weight > 0) ? $d->productCode?->code : null,
                 'weight'     => $d->initial_weight > 0 ? $d->initial_weight : null,
-                'created_at' => Carbon::parse($d->created_at)->timezone($tz)->format('d/m H:i'),
+                'created_at' => Carbon::parse($d->created_at)->timezone($tz)->format('d/m H:i:s'),
             ])->all();
 
         return [
@@ -86,12 +86,17 @@ class PoolController extends Controller
         $data = $request->validate([
             'weight'       => 'required|numeric|min:0.001|max:9999999',
             'sn_grade_pct' => 'required|numeric|min:0|max:100',
+            'note'              => 'nullable|string|max:500',
+            'partner_signatory' => 'nullable|string|max:120',
         ], [
             'sn_grade_pct.required' => 'Kadar Sn wajib diisi.',
         ]);
 
         try {
-            $b = app(\App\Services\Process\IntakeService::class)->record($batch, (float) $data['weight'], (float) $data['sn_grade_pct'], Auth::id());
+            $b = app(\App\Services\Process\IntakeService::class)->record(
+                $batch, (float) $data['weight'], (float) $data['sn_grade_pct'], Auth::id(), 'web',
+                ['note' => $data['note'] ?? null, 'partner_signatory' => $data['partner_signatory'] ?? null],
+            );
         } catch (\DomainException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -109,22 +114,25 @@ class PoolController extends Controller
             'product_code_id' => 'required|integer',
             'weight'          => 'required|numeric|min:0.001|max:9999999',
             'sn_grade_pct'    => 'nullable|numeric|min:0|max:100',
+            'reuse'           => 'nullable|boolean',   // true = tag bekas dipakai ulang
         ]);
 
         $r = app(\App\Services\Process\NewTagChoiceService::class)->asNewBatch(
             Auth::user()->company_id, $uid, (int) $data['product_code_id'], (float) $data['weight'],
-            isset($data['sn_grade_pct']) ? (float) $data['sn_grade_pct'] : null, Auth::id()
+            isset($data['sn_grade_pct']) ? (float) $data['sn_grade_pct'] : null, Auth::id(),
+            (bool) ($data['reuse'] ?? false),
         );
 
         return back()->with($r['ok'] ? 'success' : 'error', $r['message']);
     }
 
     /** Tag baru di reader Receiving & Wet → container hasil proses Wet. */
-    public function newTagWet(string $uid): RedirectResponse
+    public function newTagWet(Request $request, string $uid): RedirectResponse
     {
         abort_unless(Auth::user()->hasAnyRole(ProcessFlow::roles('wet_process')), 403);
+        $reuse = $request->boolean('reuse');
 
-        $r = app(\App\Services\Process\NewTagChoiceService::class)->asWetOutput(Auth::user()->company_id, $uid, Auth::id());
+        $r = app(\App\Services\Process\NewTagChoiceService::class)->asWetOutput(Auth::user()->company_id, $uid, Auth::id(), $reuse);
 
         return back()->with($r['ok'] ? 'success' : 'error', $r['message']);
     }

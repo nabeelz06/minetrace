@@ -10,11 +10,13 @@ use App\Models\ProductCode;
 use App\Repositories\CctvSnapshotRepository;
 use App\Services\Batch\BatchService;
 use App\Services\Batch\QrCodeService;
+use App\Services\Process\WeightVerificationService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -88,7 +90,11 @@ class BatchController extends Controller
 
         // ─── Filter dari request ───────────────────────────────────────────
         if ($request->filled('search')) {
-            $query->where('batch_code', 'ILIKE', "%{$request->search}%");
+            // Cari kode batch, no. partai/kode mitra, atau nama mitra.
+            $term = '%' . addcslashes((string) $request->search, '%_\\') . '%';
+            $query->where(fn ($q) => $q->where('batch_code', 'ILIKE', $term)
+                ->orWhere('lot_number', 'ILIKE', $term)
+                ->orWhereRaw("(metadata::jsonb ->> 'partner_name') ILIKE ?", [$term]));
         }
         if ($request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
@@ -142,6 +148,8 @@ class BatchController extends Controller
             'id'              => $b->id,
             'batch_code'      => $b->batch_code,
             'lot_number'      => $b->lot_number,
+            'partner_name'    => $b->metadata['partner_name'] ?? null,
+            'origin_location' => $b->metadata['origin_location'] ?? null,
             'product'         => $b->productCode ? [
                 'id'                => $b->productCode->id,
                 'code'              => $b->productCode->code,
@@ -243,6 +251,7 @@ class BatchController extends Controller
                 ->where('location_type', 'lab_kimia')
                 ->get(['id', 'code', 'name', 'full_name', 'city']),
 
+            'origin_locations' => config('batch.origin_locations', []),   // saran lokasi asal kiriman mitra
             'user_name'    => Auth::user()->name,
             'user_role'    => Auth::user()->getRoleNames()->first(),
             'timestamp_now'=> Carbon::now('Asia/Jakarta')->format('d/m/Y H:i:s') . ' WIB',
@@ -273,6 +282,12 @@ class BatchController extends Controller
             'status'          => 'active',
             'notes'           => $request->notes,
             'created_by'      => Auth::id(),
+            // Data mitra: no. partai → kolom lot_number; sisanya di metadata (tampil di detail batch & Excel).
+            'lot_number'      => $request->input('lot_number'),
+            'metadata'        => $this->partnerMetadata($request->only(['partner_name', 'origin_location', 'partner_signatory'])),
+            'checkpoint_data' => array_filter([
+                'lot_number' => $request->input('lot_number'),
+            ] + $this->partnerMetadata($request->only(['partner_name', 'origin_location', 'partner_signatory']))),
         ]);
 
         $this->qrCodeService->generateForBatch($batch);
@@ -318,6 +333,9 @@ class BatchController extends Controller
                 'id'              => $batch->id,
                 'batch_code'      => $batch->batch_code,
                 'lot_number'      => $batch->lot_number,
+                'partner_name'      => $batch->metadata['partner_name'] ?? null,
+                'origin_location'   => $batch->metadata['origin_location'] ?? null,
+                'partner_signatory' => $batch->metadata['partner_signatory'] ?? null,
                 'process_stage'   => $batch->process_stage,
                 'status'          => $batch->status,
                 'initial_weight'  => $batch->initial_weight,
@@ -451,8 +469,103 @@ class BatchController extends Controller
                 'input_lab'       => in_array($userRole, ['company_admin', 'operator_lab_ltj']),
                 'manage_warehouse'=> in_array($userRole, ['company_admin', 'operator_warehouse']),
                 'create_export'   => in_array($userRole, ['company_admin', 'operator_warehouse']),
+                // Popup "Verifikasi berat": hanya batch Lab Kimia / Receiving yang belum dihimpun.
+                'verify_weight'   => in_array($userRole, WeightVerificationService::ROLES, true) && WeightVerificationService::canVerify($batch),
+                'edit_partner'    => in_array($userRole, WeightVerificationService::ROLES, true),
             ],
+            'origin_locations' => config('batch.origin_locations', []),
         ]);
+    }
+
+    /**
+     * POST company/batches/{batch}/verify-weight — popup "Verifikasi berat".
+     * Menyamakan berat di sistem dengan berat timbangan nyata (checkpoint receiving_verify + alert bila selisih besar).
+     */
+    public function verifyWeight(Request $request, Batch $batch, WeightVerificationService $verifier): RedirectResponse
+    {
+        abort_unless($batch->company_id === Auth::user()->company_id, 403, 'Akses ditolak.');
+        abort_unless(Auth::user()->hasAnyRole(WeightVerificationService::ROLES), 403, 'Peran Anda tidak boleh memverifikasi berat.');
+
+        $data = $request->validate([
+            'weight'            => ['required', 'numeric', 'gt:0', 'max:999999.99'],
+            'note'              => ['nullable', 'string', 'max:500'],
+            'partner_signatory' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        try {
+            $r = $verifier->verify($batch, (float) $data['weight'], Auth::id(), [
+                'note'              => $data['note'] ?? null,
+                'partner_signatory' => $data['partner_signatory'] ?? null,
+            ]);
+        } catch (\DomainException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $fmt = fn (float $n) => rtrim(rtrim(number_format($n, 3, ',', '.'), '0'), ',');
+        $msg = $r['changed']
+            ? "Berat {$batch->batch_code} diperbarui: {$fmt($r['previous'])} → {$fmt($r['weight'])} kg (selisih " . ($r['diff'] > 0 ? '+' : '') . "{$fmt($r['diff'])} kg)."
+            : "Berat {$batch->batch_code} dikonfirmasi sesuai: {$fmt($r['weight'])} kg.";
+
+        return back()->with($r['alert'] ? 'warning' : 'success', $r['alert'] ? "⚠ {$msg} Selisih melewati ambang — ditandai untuk ditinjau." : $msg);
+    }
+
+    /**
+     * PATCH company/batches/{batch}/partner — lengkapi/koreksi data mitra (no. partai, nama mitra, lokasi asal, penanda tangan).
+     * Perubahan tercatat di activity log (siapa, nilai lama → baru).
+     */
+    public function updatePartner(Request $request, Batch $batch): RedirectResponse
+    {
+        abort_unless($batch->company_id === Auth::user()->company_id, 403, 'Akses ditolak.');
+        abort_unless(Auth::user()->hasAnyRole(WeightVerificationService::ROLES), 403, 'Peran Anda tidak boleh mengubah data mitra.');
+
+        foreach (['lot_number', 'partner_name', 'origin_location', 'partner_signatory'] as $k) {
+            if ($request->has($k)) {
+                $v = trim((string) $request->input($k));
+                $request->merge([$k => $v === '' ? null : $v]);
+            }
+        }
+        $data = $request->validate([
+            'lot_number'        => ['nullable', 'string', 'max:80', Rule::unique('batches', 'lot_number')->ignore($batch->id)],
+            'partner_name'      => ['nullable', 'string', 'max:120'],
+            'origin_location'   => ['nullable', 'string', 'max:120'],
+            'partner_signatory' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $before = [
+            'lot_number' => $batch->lot_number,
+            'partner_name' => $batch->metadata['partner_name'] ?? null,
+            'origin_location' => $batch->metadata['origin_location'] ?? null,
+            'partner_signatory' => $batch->metadata['partner_signatory'] ?? null,
+        ];
+
+        $meta = $batch->metadata ?? [];
+        foreach (['partner_name', 'origin_location', 'partner_signatory'] as $k) {
+            if (! array_key_exists($k, $data)) {
+                continue;
+            }
+            if ($data[$k] === null) {
+                unset($meta[$k]);
+            } else {
+                $meta[$k] = $data[$k];
+            }
+        }
+
+        $batch->update([
+            'lot_number' => array_key_exists('lot_number', $data) ? $data['lot_number'] : $batch->lot_number,
+            'metadata'   => $meta,
+            'updated_by' => Auth::id(),
+        ]);
+
+        activity()->causedBy(Auth::user())->performedOn($batch)
+            ->withProperties(['before' => $before, 'after' => $data])->log('partner_info_updated');
+
+        return back()->with('success', 'Data mitra batch ' . $batch->batch_code . ' disimpan.');
+    }
+
+    /** Hanya kunci data mitra yang terisi (kosong dibuang) → isi `metadata` batch. */
+    private function partnerMetadata(array $input): array
+    {
+        return array_filter(array_map(fn ($v) => is_string($v) && trim($v) !== '' ? trim($v) : null, $input));
     }
 
     /**

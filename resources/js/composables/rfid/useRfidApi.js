@@ -27,6 +27,8 @@ export const rfidApi = {
     tagsRecent:        (limit, o)  => http.get(`${BASE}/tags/recent`, { params: { limit }, ...o }),
     releaseTagByUid:   body        => http.post(`${BASE}/tags/release`, body),
     resetTag:          body        => http.post(`${BASE}/tags/reset`, body),
+    // "Bebaskan tag": lepas dari batch lama (bila terpasang) + tandai baru lagi agar tag fisik yang sama dipakai ulang.
+    reuseTag:          body        => http.post(`${BASE}/tags/reuse`, body),
     authModes:         ()          => http.get(`${BASE}/authorization-modes`),
     setAuthMode:       body        => http.post(`${BASE}/authorization-modes`, body),
     saveDeviceIp:      ip          => http.post(`${BASE}/device`, { esp32_ip: ip }),

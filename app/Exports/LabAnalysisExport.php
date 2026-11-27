@@ -48,7 +48,7 @@ class LabAnalysisExport implements FromCollection, WithHeadings, WithTitle, With
             'Metode'           => $a->lab_method ?? '—',
             'Tervalidasi'      => $a->is_validated ? 'Ya' : 'Tidak',
             'Dianalisis Oleh'  => $a->analyzedByUser?->name ?? '—',
-            'Tanggal Analisis' => $a->analyzed_at?->format('d/m/Y H:i'),
+            'Tanggal Analisis (WIB)' => \App\Support\CheckpointPresenter::time($a->analyzed_at),
             'Catatan'          => $a->notes ?? '—',
         ]);
     }
@@ -61,7 +61,7 @@ class LabAnalysisExport implements FromCollection, WithHeadings, WithTitle, With
             'Pr (%)', 'Pr (kg)', 'Nd (%)', 'Nd (kg)',
             'Y (%)', 'Y (kg)', 'Total REO (%)',
             'ThO2 (%)', 'U3O8 (%)', 'Metode',
-            'Tervalidasi', 'Dianalisis Oleh', 'Tanggal Analisis', 'Catatan',
+            'Tervalidasi', 'Dianalisis Oleh', 'Tanggal Analisis (WIB)', 'Catatan',
         ];
     }
 

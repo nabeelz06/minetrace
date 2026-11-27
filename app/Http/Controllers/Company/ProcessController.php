@@ -375,6 +375,7 @@ class ProcessController extends Controller
             'uid'       => $t['uid'],
             'reads'     => $t['reads'],
             'rssi'      => $t['rssi'],
+            'recycled'  => (bool) ($t['recycled'] ?? false),   // tag bekas: tombol "Pakai ulang"
             'last_seen' => Carbon::parse($t['last_seen'])->timezone($tz)->format('H:i:s'),
             'expires_in_min' => max(0, \App\Services\Hardware\NewTagQueue::TTL_MINUTES
                 - (int) Carbon::parse($t['last_seen'])->diffInMinutes(now())),
@@ -918,6 +919,8 @@ class ProcessController extends Controller
             'id'              => $b->id,
             'batch_code'      => $b->batch_code,
             'lot_number'      => $b->lot_number,
+            'partner_name'    => $b->metadata['partner_name'] ?? null,
+            'origin_location' => $b->metadata['origin_location'] ?? null,
             'product'         => $b->productCode ? [
                 'id'                => $b->productCode->id,
                 'code'              => $b->productCode->code,
@@ -962,7 +965,8 @@ class ProcessController extends Controller
     private function generateUniqueBatchCode(string $productCode, string $tz): string
     {
         $date   = Carbon::now($tz);
-        $prefix = 'B-' . $date->format('Ymd') . '-' . strtoupper($productCode) . '-';
+        // Urutan tanggal-bulan-tahun (sama dengan BatchCodeService); kode lama B-YYYYMMDD-… tidak diubah.
+        $prefix = 'B-' . $date->format(\App\Services\Batch\BatchCodeService::dateFormat()) . '-' . strtoupper($productCode) . '-';
         $last   = Batch::where('batch_code', 'LIKE', $prefix . '%')
             ->orderBy('batch_code', 'desc')->first();
         $seq    = $last ? (intval(substr($last->batch_code, -3)) + 1) : 1;

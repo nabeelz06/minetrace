@@ -7,7 +7,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Permintaan "Kelola Tag" berbasis UID: cek status (query), lepas tag (alasan baku + catatan), reset uji (catatan).
+ * Permintaan "Kelola Tag" berbasis UID: cek status (query), lepas tag (alasan baku + catatan), bebaskan tag/pakai ulang dan reset uji (catatan).
  * Otorisasi per aksi dilakukan di controller lewat Gate (rfid.view / rfid.operate / rfid.manage).
  */
 class TagUidRequest extends FormRequest
@@ -29,7 +29,7 @@ class TagUidRequest extends FormRequest
             ];
         }
 
-        if ($this->routeIs('*.tags.reset')) {
+        if ($this->routeIs('*.tags.reuse') || $this->routeIs('*.tags.reset')) {
             return ['uid' => $uid, 'note' => ['nullable', 'string', 'max:255']];
         }
 

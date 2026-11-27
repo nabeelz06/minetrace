@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Support\CheckpointPresenter;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
@@ -51,7 +52,10 @@ class BatchSummarySheet implements FromCollection, WithHeadings, WithTitle, With
     {
         return $this->batches->map(fn($b) => [
             'Kode Batch'     => $b->batch_code,
-            'Lot Number'     => $b->lot_number ?? '—',
+            'No. Partai / Lot' => $b->lot_number ?? '—',
+            'Nama Mitra'     => $b->metadata['partner_name'] ?? '—',
+            'Lokasi Asal'    => $b->metadata['origin_location'] ?? '—',
+            'Penanda Tangan Mitra' => $b->metadata['partner_signatory'] ?? '—',
             'Produk'         => $b->productCode?->code ?? '—',
             'Nama Produk'    => $b->productCode?->name ?? '—',
             'Stage Saat Ini' => str_replace('_', ' ', ucfirst($b->process_stage)),
@@ -61,17 +65,19 @@ class BatchSummarySheet implements FromCollection, WithHeadings, WithTitle, With
             'Susut (%)'      => $b->mass_loss_pct ?? 0,
             'Ada Discrepancy'=> $b->has_discrepancy ? 'Ya' : 'Tidak',
             'Lokasi'         => $b->currentLocation?->name ?? '—',
-            'Dibuat'         => $b->created_at?->format('d/m/Y H:i'),
-            'Terakhir Update'=> $b->updated_at?->format('d/m/Y H:i'),
+            // Waktu WIB sampai detik (penelusuran kronologis).
+            'Dibuat (WIB)'   => CheckpointPresenter::time($b->created_at),
+            'Terakhir Update (WIB)' => CheckpointPresenter::time($b->updated_at),
         ]);
     }
 
     public function headings(): array
     {
         return [
-            'Kode Batch', 'Lot Number', 'Produk', 'Nama Produk',
+            'Kode Batch', 'No. Partai / Lot', 'Nama Mitra', 'Lokasi Asal', 'Penanda Tangan Mitra',
+            'Produk', 'Nama Produk',
             'Stage Saat Ini', 'Status', 'Berat Awal (kg)', 'Berat Saat Ini (kg)',
-            'Susut (%)', 'Ada Discrepancy', 'Lokasi', 'Dibuat', 'Terakhir Update',
+            'Susut (%)', 'Ada Discrepancy', 'Lokasi', 'Dibuat (WIB)', 'Terakhir Update (WIB)',
         ];
     }
 
@@ -100,15 +106,19 @@ class BatchDetailSheet implements FromCollection, WithHeadings, WithTitle, Shoul
             foreach ($batch->checkpoints as $cp) {
                 $rows->push([
                     'Kode Batch'        => $batch->batch_code,
-                    'Stage Checkpoint'  => str_replace('_', ' ', $cp->checkpoint_stage),
+                    'No. Partai / Lot'  => $batch->lot_number ?? '—',
+                    'Nama Mitra'        => $batch->metadata['partner_name'] ?? '—',
+                    // "Stage Point": nama tahap checkpoint apa adanya, mis. "Receiving Verify" untuk penerimaan di Receiving & Wet.
+                    'Stage Point'       => CheckpointPresenter::stagePoint($cp->checkpoint_stage),
                     'Berat Dicatat (kg)'=> $cp->weight_recorded ?? '—',
+                    'Berat Sebelumnya (kg)' => $cp->weight_previous ?? '—',
                     'Susut (%)'         => $cp->weight_loss_pct ?? '—',
                     'Discrepancy'       => $cp->has_discrepancy ? 'Ya' : 'Tidak',
                     'Terverifikasi'     => $cp->is_verified ? 'Ya' : 'Tidak',
                     'Lokasi'            => $cp->location?->name ?? '—',
                     'Dicatat Oleh'      => $cp->recordedByUser?->name ?? '—',
-                    'Waktu'             => $cp->recorded_at?->format('d/m/Y H:i'),
-                    'Catatan'           => $cp->notes ?? '—',
+                    'Waktu (WIB)'       => CheckpointPresenter::time($cp->recorded_at),
+                    'Catatan'           => CheckpointPresenter::note($cp),
                 ]);
             }
         }
@@ -118,9 +128,9 @@ class BatchDetailSheet implements FromCollection, WithHeadings, WithTitle, Shoul
     public function headings(): array
     {
         return [
-            'Kode Batch', 'Stage Checkpoint', 'Berat Dicatat (kg)',
+            'Kode Batch', 'No. Partai / Lot', 'Nama Mitra', 'Stage Point', 'Berat Dicatat (kg)', 'Berat Sebelumnya (kg)',
             'Susut (%)', 'Discrepancy', 'Terverifikasi', 'Lokasi',
-            'Dicatat Oleh', 'Waktu', 'Catatan',
+            'Dicatat Oleh', 'Waktu (WIB)', 'Catatan',
         ];
     }
 }

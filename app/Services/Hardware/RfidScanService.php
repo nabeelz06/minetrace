@@ -242,22 +242,30 @@ class RfidScanService
         return $result;
     }
 
-    /** UID baru di reader Receiving & Wet: tag bekas ditolak; UID yang belum pernah dipakai masuk antrean pilihan operator. */
+    /**
+     * UID baru di reader Receiving & Wet: masuk antrean pilihan operator. Tag BEKAS tidak diproses otomatis (stiker lama
+     * di karung tidak boleh membuat batch/drum sendiri), tetapi tetap diantrekan dengan penanda `recycled` agar operator
+     * dapat memakainya ulang dengan satu klik — jumlah tag terbatas dan memang dipakai berulang.
+     */
     private function queueNewTag(DeviceContext $ctx, string $uid, array $opts): array
     {
         if ($ctx->reader) {
             $this->devices->touch($ctx->reader, $opts['ip'] ?? null);
         }
 
+        $rssi = isset($opts['rssi']) ? (int) $opts['rssi'] : null;
+
         if (app(PoolService::class)->uidHasHistory($ctx->companyId, $uid)) {
+            app(NewTagQueue::class)->add($ctx->companyId, $uid, $ctx->reader?->id, $rssi, recycled: true);
+
             return [
                 'status' => 'failed', '_code' => 'tag_recycled', 'name' => 'Tag Bekas',
-                'message' => 'Tag bekas - ganti tag',
-                'detail' => "UID {$uid} sudah pernah dipakai. Gunakan tag baru.",
+                'message' => 'Tag bekas - pilih di PC',
+                'detail' => "UID {$uid} pernah dipakai. Di PC operator pilih \"Pakai ulang\" bila tag ini memang dipasang ke wadah baru.",
             ];
         }
 
-        app(NewTagQueue::class)->add($ctx->companyId, $uid, $ctx->reader?->id, isset($opts['rssi']) ? (int) $opts['rssi'] : null);
+        app(NewTagQueue::class)->add($ctx->companyId, $uid, $ctx->reader?->id, $rssi);
 
         return [
             'status' => 'failed', '_code' => 'tag_pending_choice', 'name' => 'Tag Baru',

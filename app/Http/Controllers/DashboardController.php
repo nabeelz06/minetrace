@@ -88,7 +88,7 @@ class DashboardController extends Controller
                 'primary_color' => $company->primary_color,
             ],
             'current_time'  => $now->translatedFormat('l, d F Y — H:i:s'),
-            'timestamp_wib' => $now->format('d/m/Y H:i') . ' WIB',
+            'timestamp_wib' => $now->format('d/m/Y H:i:s') . ' WIB',
         ]));
     }
 
@@ -318,7 +318,7 @@ class DashboardController extends Controller
                 'ce_pct'        => $la->ce_pct,
                 'nd_pct'        => $la->nd_pct,
                 'is_validated'  => $la->is_validated,
-                'analyzed_at'   => $la->analyzed_at?->format('d/m/Y H:i') . ' WIB',
+                'analyzed_at'   => $la->analyzed_at?->format('d/m/Y H:i:s') . ' WIB',
                 'analyzed_at_diff' => $la->analyzed_at?->diffForHumans(),
             ]);
 
@@ -405,7 +405,7 @@ class DashboardController extends Controller
                 'destination' => $e->destination_company,
                 'weight_kg'   => $e->total_weight_kg,
                 'status'      => $e->status,
-                'exported_at' => $e->exported_at?->format('d/m/Y H:i') . ' WIB',
+                'exported_at' => $e->exported_at?->format('d/m/Y H:i:s') . ' WIB',
             ]);
 
         // Warehouse locations

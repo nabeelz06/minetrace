@@ -22,8 +22,12 @@ class IntakeService
 
     public function __construct(private readonly StageTransitionService $transitions) {}
 
-    /** @throws \DomainException */
-    public function record(Batch $batch, float $weight, float $snPct, ?int $userId, string $source = 'web'): Batch
+    /**
+     * @param  array{note?:?string, partner_signatory?:?string}  $extra  catatan operator + penanda tangan mitra (validator), opsional
+     *
+     * @throws \DomainException
+     */
+    public function record(Batch $batch, float $weight, float $snPct, ?int $userId, string $source = 'web', array $extra = []): Batch
     {
         if ($weight <= 0) {
             throw new \DomainException('Berat drum harus lebih dari 0.');
@@ -32,7 +36,10 @@ class IntakeService
             throw new \DomainException('Kadar Sn harus di antara 0 dan 100%.');
         }
 
-        return DB::transaction(function () use ($batch, $weight, $snPct, $userId, $source) {
+        $note      = trim((string) ($extra['note'] ?? ''));
+        $signatory = trim((string) ($extra['partner_signatory'] ?? ''));
+
+        return DB::transaction(function () use ($batch, $weight, $snPct, $userId, $source, $note, $signatory) {
             $fresh = Batch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
 
             $allowed = [ProcessFlow::STATUS_AWAITING_INTAKE, ProcessFlow::STATUS_AFTER_RECEIVE];
@@ -58,8 +65,13 @@ class IntakeService
                 'weight_loss_pct'  => $lossPct,
                 'has_discrepancy'  => $alert,
                 'is_verified'      => true,
-                'notes'            => "Drum besi ditimbang {$weight} kg, kadar Sn {$snPct}% — {$ts}",
-                'checkpoint_data'  => ['action' => 'intake', 'sn_grade_pct' => $snPct, 'source' => $source, 'timestamp' => $ts],
+                'notes'            => "Drum besi ditimbang {$weight} kg, kadar Sn {$snPct}%" . ($note !== '' ? " — {$note}" : '') . " — {$ts}",
+                'checkpoint_data'  => array_filter([
+                    'action' => 'intake', 'sn_grade_pct' => $snPct, 'source' => $source, 'timestamp' => $ts,
+                    'declared_weight' => (float) $fresh->initial_weight, 'previous_weight' => $previous,
+                    'user_note' => $note !== '' ? $note : null,
+                    'partner_signatory' => $signatory !== '' ? $signatory : null,
+                ], fn ($v) => $v !== null),
                 'recorded_by'      => $userId,
                 'recorded_at'      => now(),
             ]);
@@ -71,6 +83,8 @@ class IntakeService
                 'mass_loss_pct'   => $fresh->initial_weight > 0 ? round(($fresh->initial_weight - $weight) / $fresh->initial_weight * 100, 2) : 0,
                 'has_discrepancy' => $alert || $fresh->has_discrepancy,
                 'status'          => ProcessFlow::STATUS_AFTER_RECEIVE,
+                // Validator mitra yang menandatangani saat penerimaan (bukti ada di dokumen fisik).
+                'metadata'        => $signatory !== '' ? array_merge($fresh->metadata ?? [], ['partner_signatory' => $signatory]) : null,
                 'updated_by'      => $userId,
             ], fn ($v) => $v !== null));
 
